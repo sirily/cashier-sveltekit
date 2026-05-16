@@ -30,6 +30,10 @@
 		return syncAccounts || syncAaValues || syncPayees;
 	}
 
+	function recomputeSyncAll() {
+		syncAll = syncAccounts && syncAaValues && syncPayees;
+	}
+
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
 		const trimmedUrl = rawUrl.trim();
 
@@ -97,6 +101,7 @@
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
+		recomputeSyncAll();
 		await settings.set(SettingKeys.syncAssetAllocation, false);
 	}
 
@@ -187,6 +192,7 @@
 	}
 
 	async function saveSettings() {
+		recomputeSyncAll();
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
@@ -226,6 +232,10 @@
 		syncPayees = checked;
 
 		await saveSettings();
+	}
+
+	function onToggleAllChange(event: Event) {
+		toggleAllCheckboxes((event.currentTarget as HTMLInputElement).checked);
 	}
 </script>
 
@@ -281,7 +291,7 @@
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncAll}
-						onchange={(e) => toggleAllCheckboxes(e.target?.checked)}
+						onchange={onToggleAllChange}
 					/>
 				</th>
 				<th>Data type</th>
@@ -315,7 +325,7 @@
 				<td onclick={() => toggleSetting('syncAaValues')} class="cursor-pointer">
 					Account current values (for asset allocation)
 				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 3)?.status)}</td>{/if}
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
@@ -329,7 +339,7 @@
 				<td onclick={() => toggleSetting('syncPayees')} class="cursor-pointer">
 					Payees
 				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 5)?.status)}</td>{/if}
 			</tr>
 		</tbody>
 	</table>
