@@ -60,6 +60,29 @@
 		}
 	}
 
+	async function getStoredValidatedSyncServerUrl() {
+		const storedUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
+
+		if (!storedUrl.trim()) {
+			Notifier.error('Cashier Server URL is required for the Beancount data source.');
+			return null;
+		}
+
+		try {
+			const url = new URL(storedUrl.trim());
+
+			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+				return null;
+			}
+
+			return url.toString();
+		} catch {
+			Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+			return null;
+		}
+	}
+
 	onMount(async () => {
 		await loadSettings();
 	});
@@ -73,15 +96,9 @@
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
+		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
 		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
-
-		const storedSyncAssetAllocation =
-			(await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
-		syncAssetAllocation = false;
-		if (storedSyncAssetAllocation) {
-			await settings.set(SettingKeys.syncAssetAllocation, false);
-		}
 	}
 
 	async function onOpfsClick() {
@@ -90,11 +107,8 @@
 	}
 
 	async function onShutdownClick() {
-		const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
-		if (!activeUrl) {
-			Notifier.error('No active server URL found. Please configure the server URL first.');
-			return;
-		}
+		const activeUrl = await getStoredValidatedSyncServerUrl();
+		if (!activeUrl) return;
 
 		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
 		try {
@@ -132,7 +146,7 @@
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncAaValues,
-				// Keep the hidden asset-allocation sync step disabled until this page exposes it again.
+				// This page intentionally excludes the dormant hidden step from sync execution.
 				syncAssetAllocation: false,
 				syncPayees,
 				syncOpeningBalances
@@ -178,7 +192,7 @@
 	}
 
 	async function reloadData() {
-		const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
+		const activeUrl = await getStoredValidatedSyncServerUrl();
 		if (!activeUrl) return;
 
 		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
@@ -189,7 +203,7 @@
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
-		await settings.set(SettingKeys.syncAssetAllocation, false);
+		await settings.set(SettingKeys.syncAssetAllocation, syncAssetAllocation);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
 	}
 
@@ -199,6 +213,12 @@
 
 	async function saveSyncServerUrl() {
 		syncServerUrl = syncServerUrl.trim();
+		if (syncServerUrl) {
+			const validatedUrl = getValidatedSyncServerUrl();
+			if (!validatedUrl) return;
+			syncServerUrl = validatedUrl;
+		}
+
 		// This page persists the single active sync URL used by the current sync flow.
 		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
 	}
