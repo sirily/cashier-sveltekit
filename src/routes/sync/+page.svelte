@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { BoxIcon, PowerIcon, RefreshCcw } from '@lucide/svelte';
+	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { SettingKeys, settings } from '$lib/settings';
 	import Notifier from '$lib/utils/notifier';
@@ -17,7 +17,6 @@
 	let syncAll = $state(false);
 	let syncAccounts = $state(false);
 	let syncAaValues = $state(false);
-	let syncAssetAllocation = $state(false);
 	let syncPayees = $state(false);
 	let syncOpeningBalances = $state(false);
 
@@ -37,34 +36,13 @@
 		);
 	}
 
-	function getValidatedSyncServerUrl() {
-		const trimmedUrl = syncServerUrl.trim();
-
-		if (!trimmedUrl) {
-			Notifier.error('Cashier Server URL is required for the Beancount data source.');
-			return null;
-		}
-
-		try {
-			const url = new URL(trimmedUrl);
-
-			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
-				return null;
-			}
-
-			return url.toString();
-		} catch {
-			Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
-			return null;
-		}
-	}
-
-	function getValidatedSyncServerUrlValue(rawUrl: string) {
+	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
 		const trimmedUrl = rawUrl.trim();
 
 		if (!trimmedUrl) {
-			Notifier.error('Cashier Server URL is required for the Beancount data source.');
+			if (notifyOnError) {
+				Notifier.error('Cashier Server URL is required for the Beancount data source.');
+			}
 			return null;
 		}
 
@@ -72,29 +50,35 @@
 			const url = new URL(trimmedUrl);
 
 			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+				if (notifyOnError) {
+					Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+				}
 				return null;
 			}
 
 			return url.toString();
 		} catch {
-			Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+			if (notifyOnError) {
+				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+			}
 			return null;
 		}
 	}
 
-	async function persistValidatedSyncServerUrl() {
-		syncServerUrl = syncServerUrl.trim();
-		if (!syncServerUrl) {
-			await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
+	async function persistSyncServerUrl(notifyOnError = false) {
+		const trimmedUrl = syncServerUrl.trim();
+		syncServerUrl = trimmedUrl;
+
+		if (!trimmedUrl) {
+			await settings.set(SettingKeys.syncServerUrl, trimmedUrl);
 			return null;
 		}
 
-		const validatedUrl = getValidatedSyncServerUrlValue(syncServerUrl);
-		if (!validatedUrl) return null;
+		const validatedUrl = validateSyncServerUrl(trimmedUrl, notifyOnError);
+		if (validatedUrl) {
+			syncServerUrl = validatedUrl;
+		}
 
-		syncServerUrl = validatedUrl;
-		// This page persists the single active sync URL used by the current sync flow.
 		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
 
 		return validatedUrl;
@@ -117,29 +101,14 @@
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
-		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
 		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
+		await settings.set(SettingKeys.syncAssetAllocation, false);
 	}
 
 	async function onOpfsClick() {
 		// navigate to OPFS page
 		await goto('/opfs');
-	}
-
-	async function onShutdownClick() {
-		const activeUrl = await persistValidatedSyncServerUrl();
-		if (!activeUrl) return;
-
-		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
-		try {
-			await sync.shutdown();
-		} catch (error: any) {
-			console.error(error);
-			Notifier.error(error.message);
-		}
-
-		Notifier.info('The server shutdown request sent.');
 	}
 
 	async function onSyncClicked() {
@@ -149,12 +118,9 @@
 		}
 
 		if (configSource === LedgerDataSource.beancount) {
-			const validatedUrl = getValidatedSyncServerUrlValue(syncServerUrl);
+			const validatedUrl = await persistSyncServerUrl(true);
 
 			if (!validatedUrl) return;
-
-			syncServerUrl = validatedUrl;
-			await settings.set(SettingKeys.syncServerUrl, validatedUrl);
 		}
 
 		Notifier.info('Synchronization starting...');
@@ -167,7 +133,6 @@
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncAaValues,
-				// This page intentionally excludes the dormant hidden step from sync execution.
 				syncAssetAllocation: false,
 				syncPayees,
 				syncOpeningBalances
@@ -213,7 +178,9 @@
 	}
 
 	async function reloadData() {
-		const activeUrl = await persistValidatedSyncServerUrl();
+		if (configSource !== LedgerDataSource.beancount) return;
+
+		const activeUrl = await persistSyncServerUrl(true);
 		if (!activeUrl) return;
 
 		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
@@ -224,8 +191,8 @@
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
-		await settings.set(SettingKeys.syncAssetAllocation, syncAssetAllocation);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
+		await settings.set(SettingKeys.syncAssetAllocation, false);
 	}
 
 	async function saveDataSource() {
@@ -233,19 +200,18 @@
 	}
 
 	async function saveSyncServerUrl() {
-		await persistValidatedSyncServerUrl();
+		await persistSyncServerUrl();
 	}
 
-	async function toggleSetting(key: keyof SyncBeancount.SyncSteps) {
+	type VisibleSyncSetting = 'syncAccounts' | 'syncAaValues' | 'syncPayees' | 'syncOpeningBalances';
+
+	async function toggleSetting(key: VisibleSyncSetting) {
 		switch (key) {
 			case 'syncAccounts':
 				syncAccounts = !syncAccounts;
 				break;
 			case 'syncAaValues':
 				syncAaValues = !syncAaValues;
-				break;
-			case 'syncAssetAllocation':
-				syncAssetAllocation = !syncAssetAllocation;
 				break;
 			case 'syncPayees':
 				syncPayees = !syncPayees;
@@ -271,7 +237,6 @@
 
 <Toolbar title="Synchronization">
 	{#snippet menuItems()}
-		<ToolbarMenuItem text="Shut down server" Icon={PowerIcon} onclick={onShutdownClick} />
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
 	{/snippet}
 </Toolbar>
@@ -400,15 +365,10 @@
 		</button>
 	</center>
 
-	{#if configSource !== LedgerDataSource.filesystem}
+	{#if configSource === LedgerDataSource.beancount}
 		<hr class="my-10" />
 
 		<center>
-			<button class="btn text-accent bg-secondary mr-5 rounded uppercase" onclick={onShutdownClick}>
-				<span><PowerIcon /></span>
-				<span>Server Shutdown</span>
-			</button>
-
 			<button class="btn bg-primary text-accent rounded uppercase" onclick={reloadData}>
 				<span><RefreshCcw class={rotationClass} style="animation-direction: reverse;" /></span>
 				<span>Reload Data</span>
