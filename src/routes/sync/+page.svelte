@@ -23,6 +23,7 @@
 	let rotationClass = $state('');
 	let syncStarted = $state(false);
 	let syncing = $state(false);
+	let reloading = $state(false);
 
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
 
@@ -30,8 +31,12 @@
 		return syncAccounts || syncAaValues || syncPayees;
 	}
 
+	function areAllVisibleSyncStepsSelected(visibleSteps: boolean[]) {
+		return visibleSteps.length > 0 && visibleSteps.every(Boolean);
+	}
+
 	function recomputeSyncAll() {
-		syncAll = syncAccounts && syncAaValues && syncPayees;
+		syncAll = areAllVisibleSyncStepsSelected([syncAccounts, syncAaValues, syncPayees]);
 	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
@@ -176,10 +181,12 @@
 	}
 
 	async function reloadData() {
-		if (configSource !== LedgerDataSource.beancount) return;
+		if (configSource !== LedgerDataSource.beancount || reloading) return;
 
 		const activeUrl = await persistSyncServerUrl(true);
 		if (!activeUrl) return;
+
+		reloading = true;
 
 		try {
 			const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
@@ -188,6 +195,8 @@
 		} catch (error: any) {
 			console.error(error);
 			Notifier.error(error.message || 'Failed to reload data.');
+		} finally {
+			reloading = false;
 		}
 	}
 
@@ -205,24 +214,6 @@
 
 	async function saveSyncServerUrl() {
 		await persistSyncServerUrl();
-	}
-
-	type VisibleSyncSetting = 'syncAccounts' | 'syncAaValues' | 'syncPayees';
-
-	async function toggleSetting(key: VisibleSyncSetting) {
-		switch (key) {
-			case 'syncAccounts':
-				syncAccounts = !syncAccounts;
-				break;
-			case 'syncAaValues':
-				syncAaValues = !syncAaValues;
-				break;
-			case 'syncPayees':
-				syncPayees = !syncPayees;
-				break;
-		}
-
-		await saveSettings();
 	}
 
 	async function toggleAllCheckboxes(checked: boolean) {
@@ -302,42 +293,47 @@
 			<tr>
 				<td>
 					<input
+						id="sync-accounts"
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncAccounts}
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => toggleSetting('syncAccounts')} class="cursor-pointer">
-					Accounts
+				<td>
+					<label for="sync-accounts" class="block cursor-pointer py-3">Accounts</label>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
 					<input
+						id="sync-aa-values"
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncAaValues}
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => toggleSetting('syncAaValues')} class="cursor-pointer">
-					Account current values (for asset allocation)
+				<td>
+					<label for="sync-aa-values" class="block cursor-pointer py-3"
+						>Account current values (for asset allocation)</label
+					>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
 					<input
+						id="sync-payees"
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncPayees}
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => toggleSetting('syncPayees')} class="cursor-pointer">
-					Payees
+				<td>
+					<label for="sync-payees" class="block cursor-pointer py-3">Payees</label>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 5)?.status)}</td>{/if}
 			</tr>
@@ -359,8 +355,17 @@
 		<hr class="my-10" />
 
 		<center>
-			<button class="btn bg-primary text-accent rounded uppercase" onclick={reloadData}>
-				<span><RefreshCcw class={rotationClass} style="animation-direction: reverse;" /></span>
+			<button
+				class="btn bg-primary text-accent rounded uppercase"
+				onclick={reloadData}
+				disabled={reloading}
+			>
+				<span
+					><RefreshCcw
+						class={reloading ? 'animate-[spin_2s_linear_infinite]' : ''}
+						style="animation-direction: reverse;"
+					/></span
+				>
 				<span>Reload Data</span>
 			</button>
 		</center>
