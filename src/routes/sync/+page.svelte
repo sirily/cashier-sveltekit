@@ -75,11 +75,12 @@
 		}
 
 		const validatedUrl = validateSyncServerUrl(trimmedUrl, notifyOnError);
-		if (validatedUrl) {
-			syncServerUrl = validatedUrl;
+		if (!validatedUrl) {
+			return null;
 		}
 
-		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
+		syncServerUrl = validatedUrl;
+		await settings.set(SettingKeys.syncServerUrl, validatedUrl);
 
 		return validatedUrl;
 	}
@@ -183,8 +184,14 @@
 		const activeUrl = await persistSyncServerUrl(true);
 		if (!activeUrl) return;
 
-		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
-		await sync.reloadData();
+		try {
+			const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
+			await sync.reloadData();
+			Notifier.success('Data reloaded successfully!');
+		} catch (error: any) {
+			console.error(error);
+			Notifier.error(error.message || 'Failed to reload data.');
+		}
 	}
 
 	async function saveSettings() {
@@ -224,14 +231,14 @@
 		await saveSettings();
 	}
 
-	function toggleAllCheckboxes(checked: boolean) {
+	async function toggleAllCheckboxes(checked: boolean) {
 		syncAll = checked;
 		syncAccounts = checked;
 		syncAaValues = checked;
 		syncPayees = checked;
 		syncOpeningBalances = checked;
 
-		saveSettings();
+		await saveSettings();
 	}
 </script>
 
