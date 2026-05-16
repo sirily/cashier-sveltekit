@@ -17,14 +17,49 @@
 	let syncAll = $state(false);
 	let syncAccounts = $state(false);
 	let syncAaValues = $state(false);
+	let syncAssetAllocation = $state(false);
 	let syncPayees = $state(false);
 	let syncOpeningBalances = $state(false);
 
+	let syncServerUrl = $state('');
 	let rotationClass = $state('');
 	let syncStarted = $state(false);
 	let syncing = $state(false);
 
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
+
+	function hasSelectedSyncStep() {
+		return (
+			syncAccounts ||
+			syncAaValues ||
+			syncAssetAllocation ||
+			syncPayees ||
+			syncOpeningBalances
+		);
+	}
+
+	function getValidatedSyncServerUrl() {
+		const trimmedUrl = syncServerUrl.trim();
+
+		if (!trimmedUrl) {
+			Notifier.error('Cashier Server URL is required for the Beancount data source.');
+			return null;
+		}
+
+		try {
+			const url = new URL(trimmedUrl);
+
+			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+				return null;
+			}
+
+			return url.toString();
+		} catch {
+			Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+			return null;
+		}
+	}
 
 	onMount(async () => {
 		await loadSettings();
@@ -33,9 +68,11 @@
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
 		if (dataSource) configSource = dataSource as LedgerDataSource;
+		syncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
+		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
 		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
 	}
@@ -64,6 +101,20 @@
 	}
 
 	async function onSyncClicked() {
+		if (!hasSelectedSyncStep()) {
+			Notifier.error('Select at least one synchronization step before starting sync.');
+			return;
+		}
+
+		if (configSource === LedgerDataSource.beancount) {
+			const validatedUrl = getValidatedSyncServerUrl();
+
+			if (!validatedUrl) return;
+
+			syncServerUrl = validatedUrl;
+			await settings.set(SettingKeys.syncServerUrl, validatedUrl);
+		}
+
 		Notifier.info('Synchronization starting...');
 
 		syncing = true;
@@ -71,7 +122,7 @@
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
 
 		try {
-			let syncOptions: SyncBeancount.SyncSteps = {
+			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncAaValues,
 				syncAssetAllocation,
@@ -110,7 +161,6 @@
 			Notifier.success('Synchronization completed successfully!');
 			rotationClass = '';
 			syncing = false;
-
 		} catch (error: any) {
 			rotationClass = '';
 			syncing = false;
@@ -135,6 +185,37 @@
 		await settings.set(SettingKeys.syncPayees, syncPayees);
 	}
 
+	async function saveDataSource() {
+		await settings.set(SettingKeys.ledgerDataSource, configSource);
+	}
+
+	async function saveSyncServerUrl() {
+		syncServerUrl = syncServerUrl.trim();
+		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
+	}
+
+	async function toggleSetting(key: keyof SyncBeancount.SyncSteps) {
+		switch (key) {
+			case 'syncAccounts':
+				syncAccounts = !syncAccounts;
+				break;
+			case 'syncAaValues':
+				syncAaValues = !syncAaValues;
+				break;
+			case 'syncAssetAllocation':
+				syncAssetAllocation = !syncAssetAllocation;
+				break;
+			case 'syncPayees':
+				syncPayees = !syncPayees;
+				break;
+			case 'syncOpeningBalances':
+				syncOpeningBalances = !syncOpeningBalances;
+				break;
+		}
+
+		await saveSettings();
+	}
+
 	function toggleAllCheckboxes(checked: boolean) {
 		syncAll = checked;
 		syncAccounts = checked;
@@ -155,6 +236,31 @@
 </Toolbar>
 
 <main class="container mx-auto max-w-6xl space-y-4 p-1 lg:p-10">
+	<div class="card bg-base-100 border border-base-300 shadow-sm">
+		<div class="card-body gap-3 p-4">
+			<label class="form-control w-full">
+				<div class="label"><span class="label-text">Data source</span></div>
+				<select bind:value={configSource} onchange={saveDataSource} class="select select-bordered w-full">
+					<option value={LedgerDataSource.filesystem}>Filesystem</option>
+					<option value={LedgerDataSource.beancount}>Beancount</option>
+				</select>
+			</label>
+			{#if configSource === LedgerDataSource.beancount}
+				<label class="form-control w-full">
+					<div class="label"><span class="label-text">Cashier Server URL</span></div>
+					<input
+						type="url"
+						bind:value={syncServerUrl}
+						onchange={saveSyncServerUrl}
+						onblur={saveSyncServerUrl}
+						class="input input-bordered w-full"
+						placeholder="https://cashier.example.com/api"
+					/>
+				</label>
+			{/if}
+		</div>
+	</div>
+
 	{#snippet statusIcon(status: string | undefined)}
 		{#if status === 'in-progress'}
 			<span class="loading loading-spinner loading-sm"></span>
@@ -192,7 +298,7 @@
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncAccounts = !syncAccounts} class="cursor-pointer">
+				<td onclick={() => toggleSetting('syncAccounts')} class="cursor-pointer">
 					Accounts
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td>{/if}
@@ -206,7 +312,7 @@
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncOpeningBalances = !syncOpeningBalances} class="cursor-pointer">
+				<td onclick={() => toggleSetting('syncOpeningBalances')} class="cursor-pointer">
 					Opening balances
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
@@ -220,7 +326,7 @@
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncAaValues = !syncAaValues} class="cursor-pointer">
+				<td onclick={() => toggleSetting('syncAaValues')} class="cursor-pointer">
 					Account current values (for asset allocation)
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 3)?.status)}</td>{/if}
@@ -234,7 +340,7 @@
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncPayees = !syncPayees} class="cursor-pointer">
+				<td onclick={() => toggleSetting('syncPayees')} class="cursor-pointer">
 					Payees
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
