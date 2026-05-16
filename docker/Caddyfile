@@ -1,0 +1,25 @@
+:8080 {
+	root * /srv
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=()"
+	}
+
+	@immutable path /_app/immutable/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	@revalidate path /service-worker.js /sw.js /workbox-*.js /manifest.webmanifest /_app/version.json *.html
+	header @revalidate Cache-Control "no-cache"
+
+	@spa {
+		not file
+		header Accept *text/html*
+	}
+	rewrite @spa /index.html
+
+	file_server
+}

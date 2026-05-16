@@ -25,6 +25,7 @@ test-results
 
 # Assistants
 vite.config.*.timestamp-*
+.codex
 .claude/settings.local.json
 .claude/worktrees/
 
