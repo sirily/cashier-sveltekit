@@ -18,7 +18,6 @@
 	let syncAccounts = $state(false);
 	let syncAaValues = $state(false);
 	let syncPayees = $state(false);
-	let syncOpeningBalances = $state(false);
 
 	let syncServerUrl = $state('');
 	let rotationClass = $state('');
@@ -28,12 +27,7 @@
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
 
 	function hasSelectedSyncStep() {
-		return (
-			syncAccounts ||
-			syncAaValues ||
-			syncPayees ||
-			syncOpeningBalances
-		);
+		return syncAccounts || syncAaValues || syncPayees;
 	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
@@ -103,7 +97,6 @@
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
-		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
 		await settings.set(SettingKeys.syncAssetAllocation, false);
 	}
 
@@ -135,8 +128,7 @@
 				syncAccounts,
 				syncAaValues,
 				syncAssetAllocation: false,
-				syncPayees,
-				syncOpeningBalances
+				syncPayees
 			};
 
 			let syncResult = false;
@@ -196,7 +188,6 @@
 
 	async function saveSettings() {
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
-		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
 		await settings.set(SettingKeys.syncAssetAllocation, false);
@@ -210,7 +201,7 @@
 		await persistSyncServerUrl();
 	}
 
-	type VisibleSyncSetting = 'syncAccounts' | 'syncAaValues' | 'syncPayees' | 'syncOpeningBalances';
+	type VisibleSyncSetting = 'syncAccounts' | 'syncAaValues' | 'syncPayees';
 
 	async function toggleSetting(key: VisibleSyncSetting) {
 		switch (key) {
@@ -223,9 +214,6 @@
 			case 'syncPayees':
 				syncPayees = !syncPayees;
 				break;
-			case 'syncOpeningBalances':
-				syncOpeningBalances = !syncOpeningBalances;
-				break;
 		}
 
 		await saveSettings();
@@ -236,7 +224,6 @@
 		syncAccounts = checked;
 		syncAaValues = checked;
 		syncPayees = checked;
-		syncOpeningBalances = checked;
 
 		await saveSettings();
 	}
@@ -315,20 +302,6 @@
 					Accounts
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td>{/if}
-			</tr>
-			<tr>
-				<td>
-					<input
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncOpeningBalances}
-						onchange={saveSettings}
-					/>
-				</td>
-				<td onclick={() => toggleSetting('syncOpeningBalances')} class="cursor-pointer">
-					Opening balances
-				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
