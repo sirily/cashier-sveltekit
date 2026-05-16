@@ -32,7 +32,6 @@
 		return (
 			syncAccounts ||
 			syncAaValues ||
-			syncAssetAllocation ||
 			syncPayees ||
 			syncOpeningBalances
 		);
@@ -68,13 +67,21 @@
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
 		if (dataSource) configSource = dataSource as LedgerDataSource;
+		// `/sync` is the active server configuration UI, so it reads and writes the
+		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
 		syncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
-		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
 		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
+
+		const storedSyncAssetAllocation =
+			(await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
+		syncAssetAllocation = false;
+		if (storedSyncAssetAllocation) {
+			await settings.set(SettingKeys.syncAssetAllocation, false);
+		}
 	}
 
 	async function onOpfsClick() {
@@ -125,7 +132,8 @@
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncAaValues,
-				syncAssetAllocation,
+				// Keep the hidden asset-allocation sync step disabled until this page exposes it again.
+				syncAssetAllocation: false,
 				syncPayees,
 				syncOpeningBalances
 			};
@@ -181,7 +189,7 @@
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
-		await settings.set(SettingKeys.syncAssetAllocation, syncAssetAllocation);
+		await settings.set(SettingKeys.syncAssetAllocation, false);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
 	}
 
@@ -191,6 +199,7 @@
 
 	async function saveSyncServerUrl() {
 		syncServerUrl = syncServerUrl.trim();
+		// This page persists the single active sync URL used by the current sync flow.
 		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
 	}
 
@@ -220,7 +229,6 @@
 		syncAll = checked;
 		syncAccounts = checked;
 		syncAaValues = checked;
-		syncAssetAllocation = checked;
 		syncPayees = checked;
 		syncOpeningBalances = checked;
 
