@@ -60,16 +60,16 @@
 		}
 	}
 
-	async function getStoredValidatedSyncServerUrl() {
-		const storedUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
+	function getValidatedSyncServerUrlValue(rawUrl: string) {
+		const trimmedUrl = rawUrl.trim();
 
-		if (!storedUrl.trim()) {
+		if (!trimmedUrl) {
 			Notifier.error('Cashier Server URL is required for the Beancount data source.');
 			return null;
 		}
 
 		try {
-			const url = new URL(storedUrl.trim());
+			const url = new URL(trimmedUrl);
 
 			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
 				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
@@ -83,13 +83,34 @@
 		}
 	}
 
+	async function persistValidatedSyncServerUrl() {
+		syncServerUrl = syncServerUrl.trim();
+		if (!syncServerUrl) {
+			await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
+			return null;
+		}
+
+		const validatedUrl = getValidatedSyncServerUrlValue(syncServerUrl);
+		if (!validatedUrl) return null;
+
+		syncServerUrl = validatedUrl;
+		// This page persists the single active sync URL used by the current sync flow.
+		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
+
+		return validatedUrl;
+	}
+
 	onMount(async () => {
 		await loadSettings();
 	});
 
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
-		if (dataSource) configSource = dataSource as LedgerDataSource;
+		if (dataSource) {
+			configSource = dataSource as LedgerDataSource;
+		} else {
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
+		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
 		syncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
@@ -107,7 +128,7 @@
 	}
 
 	async function onShutdownClick() {
-		const activeUrl = await getStoredValidatedSyncServerUrl();
+		const activeUrl = await persistValidatedSyncServerUrl();
 		if (!activeUrl) return;
 
 		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
@@ -128,7 +149,7 @@
 		}
 
 		if (configSource === LedgerDataSource.beancount) {
-			const validatedUrl = getValidatedSyncServerUrl();
+			const validatedUrl = getValidatedSyncServerUrlValue(syncServerUrl);
 
 			if (!validatedUrl) return;
 
@@ -192,7 +213,7 @@
 	}
 
 	async function reloadData() {
-		const activeUrl = await getStoredValidatedSyncServerUrl();
+		const activeUrl = await persistValidatedSyncServerUrl();
 		if (!activeUrl) return;
 
 		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
@@ -212,15 +233,7 @@
 	}
 
 	async function saveSyncServerUrl() {
-		syncServerUrl = syncServerUrl.trim();
-		if (syncServerUrl) {
-			const validatedUrl = getValidatedSyncServerUrl();
-			if (!validatedUrl) return;
-			syncServerUrl = validatedUrl;
-		}
-
-		// This page persists the single active sync URL used by the current sync flow.
-		await settings.set(SettingKeys.syncServerUrl, syncServerUrl);
+		await persistValidatedSyncServerUrl();
 	}
 
 	async function toggleSetting(key: keyof SyncBeancount.SyncSteps) {
