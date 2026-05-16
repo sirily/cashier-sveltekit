@@ -1,5 +1,6 @@
 .git
 .github
+.npmrc
 node_modules
 .svelte-kit
 build
@@ -8,6 +9,7 @@ playwright-report
 test-results
 .env
 .env.*
+!/.env.sample
 .DS_Store
 .cache
 .vite
