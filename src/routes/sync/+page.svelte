@@ -91,18 +91,37 @@
 		url: string;
 	};
 
-	async function syncActiveStoredServerUrl(url: string) {
+	function safeServerId() {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID();
+		}
+
+		return `sync-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+	}
+
+	async function syncStoredServerSelection(url: string) {
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
-		if (!activeSyncServerId) return;
-
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
-		const hasMatchingServer = syncServers.some((entry) => entry.id === activeSyncServerId);
-		if (!hasMatchingServer) return;
+		if (activeSyncServerId) {
+			const hasMatchingServer = syncServers.some((entry) => entry.id === activeSyncServerId);
+			if (hasMatchingServer) {
+				const updatedServers = syncServers.map((entry) =>
+					entry.id === activeSyncServerId ? { ...entry, url } : entry
+				);
+				await settings.set(SettingKeys.syncServers, updatedServers);
+				return;
+			}
+		}
 
-		const updatedServers = syncServers.map((entry) =>
-			entry.id === activeSyncServerId ? { ...entry, url } : entry
-		);
-		await settings.set(SettingKeys.syncServers, updatedServers);
+		const existingServer = syncServers.find((entry) => entry.url === url);
+		if (existingServer) {
+			await settings.set(SettingKeys.syncActiveServerId, existingServer.id);
+			return;
+		}
+
+		const newEntry = { id: safeServerId(), name: 'Default', url };
+		await settings.set(SettingKeys.syncServers, [...syncServers, newEntry]);
+		await settings.set(SettingKeys.syncActiveServerId, newEntry.id);
 	}
 
 	async function persistSyncServerUrl(notifyOnError = false) {
@@ -122,7 +141,7 @@
 
 		syncServerUrl = validatedUrl;
 		await settings.set(SettingKeys.syncServerUrl, validatedUrl);
-		await syncActiveStoredServerUrl(validatedUrl);
+		await syncStoredServerSelection(validatedUrl);
 		if (configSource === LedgerDataSource.beancount) {
 			await settings.set(SettingKeys.ledgerDataSource, LedgerDataSource.beancount);
 		}
@@ -264,15 +283,16 @@
 
 	async function saveDataSource() {
 		if (configSource === LedgerDataSource.beancount) {
-			const validatedUrl = await persistSyncServerUrl(true);
-			if (!validatedUrl) {
-				const storedDataSource = await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource);
-				configSource = storedDataSource ?? LedgerDataSource.filesystem;
-				recomputeSyncAll();
-				return;
+			const hasUrl = !!syncServerUrl.trim();
+			if (hasUrl) {
+				const validatedUrl = await persistSyncServerUrl(true);
+				if (!validatedUrl) {
+					const storedDataSource = await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource);
+					configSource = storedDataSource ?? LedgerDataSource.filesystem;
+					recomputeSyncAll();
+					return;
+				}
 			}
-
-			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		} else {
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
