@@ -39,7 +39,7 @@
 		const hasStoredSelection =
 			!!storedActiveSyncServerId && syncServers.some((entry) => entry.id === storedActiveSyncServerId);
 
-		if (!legacySyncUrl && !hasStoredSelection) {
+		if (!legacySyncUrl && !hasStoredSelection && syncServers.length === 0) {
 			activeSyncServerId = '';
 			return;
 		}
