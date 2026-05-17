@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
+	import { BoxIcon, PowerIcon, RefreshCcw } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { SettingKeys, settings } from '$lib/settings';
 	import Notifier from '$lib/utils/notifier';
@@ -102,20 +102,20 @@
 	async function syncStoredServerSelection(url: string) {
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
-		if (activeSyncServerId) {
-			const hasMatchingServer = syncServers.some((entry) => entry.id === activeSyncServerId);
-			if (hasMatchingServer) {
-				const updatedServers = syncServers.map((entry) =>
-					entry.id === activeSyncServerId ? { ...entry, url } : entry
-				);
-				await settings.set(SettingKeys.syncServers, updatedServers);
-				return;
-			}
-		}
-
 		const existingServer = syncServers.find((entry) => entry.url === url);
 		if (existingServer) {
 			await settings.set(SettingKeys.syncActiveServerId, existingServer.id);
+			return;
+		}
+
+		const activeServer = activeSyncServerId
+			? syncServers.find((entry) => entry.id === activeSyncServerId) ?? null
+			: null;
+		if (activeServer?.name === 'Default') {
+			const updatedServers = syncServers.map((entry) =>
+				entry.id === activeSyncServerId ? { ...entry, url } : entry
+			);
+			await settings.set(SettingKeys.syncServers, updatedServers);
 			return;
 		}
 
@@ -184,6 +184,22 @@
 	async function onOpfsClick() {
 		// navigate to OPFS page
 		await goto('/opfs');
+	}
+
+	async function onShutdownClick() {
+		if (configSource !== LedgerDataSource.beancount) return;
+
+		const activeUrl = await persistSyncServerUrl(true);
+		if (!activeUrl) return;
+
+		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
+		try {
+			await sync.shutdown();
+			Notifier.info('The server shutdown request sent.');
+		} catch (error: any) {
+			console.error(error);
+			Notifier.error(error.message || 'Failed to shut down server.');
+		}
 	}
 
 	async function onSyncClicked() {
@@ -283,12 +299,15 @@
 
 	async function saveDataSource() {
 		if (configSource === LedgerDataSource.beancount) {
+			const previousDataSource =
+				(await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource)) ?? LedgerDataSource.filesystem;
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
 			const hasUrl = !!syncServerUrl.trim();
 			if (hasUrl) {
 				const validatedUrl = await persistSyncServerUrl(true);
 				if (!validatedUrl) {
-					const storedDataSource = await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource);
-					configSource = storedDataSource ?? LedgerDataSource.filesystem;
+					configSource = previousDataSource;
+					await settings.set(SettingKeys.ledgerDataSource, configSource);
 					recomputeSyncAll();
 					return;
 				}
@@ -324,6 +343,9 @@
 
 <Toolbar title="Synchronization">
 	{#snippet menuItems()}
+		{#if configSource === LedgerDataSource.beancount}
+			<ToolbarMenuItem text="Shut down server" Icon={PowerIcon} onclick={onShutdownClick} />
+		{/if}
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
 	{/snippet}
 </Toolbar>
@@ -483,6 +505,11 @@
 		<hr class="my-10" />
 
 		<center>
+			<button class="btn text-accent bg-secondary mr-5 rounded uppercase" onclick={onShutdownClick}>
+				<span><PowerIcon /></span>
+				<span>Server Shutdown</span>
+			</button>
+
 			<button
 				class="btn bg-primary text-accent rounded uppercase"
 				onclick={reloadData}
