@@ -261,6 +261,7 @@ class LedgerService {
 	 * the list and supply the span needed for editing.
 	 */
 	async getXactsWithSpans(): Promise<Array<{ xact: Xact; span: DirectiveSpan }>> {
+		await ensureInitialized();
 		const source = (await opfslib.readFile(CASHIER_XACT_FILE)) ?? '';
 		if (!source.trim()) return [];
 
@@ -269,19 +270,51 @@ class LedgerService {
 
 		try {
 			const directives: any[] = tempLedger.getDirectives();
-			const spans = mapDirectiveSpans(source, tempLedger);
+			let spans = mapDirectiveSpans(source, tempLedger);
 
-			// cashier.bean contains only transaction directives, so directives and spans
-			// are aligned 1:1 by index.
-			return directives
-				.filter((d) => d.type === 'transaction')
-				.map((directive, i) => ({
-					xact: this.directiveToXact(directive),
-					span: spans[i]
-				}));
+			// Local cashier.bean files often contain transaction-only fragments with no
+			// open directives. Those parse into transaction directives, but the document
+			// symbol API may return no spans; the Journal still needs source spans for
+			// display/edit/delete.
+			if (spans.length === 0 && directives.some((d) => d.type === 'transaction')) {
+				spans = this.fallbackTransactionSpans(source);
+			}
+
+			const transactionDirectives = directives.filter((d) => d.type === 'transaction');
+			const transactionSpans = spans.filter((span) =>
+				/^\d{4}-\d{2}-\d{2}\s+[*!]/.test(span.sourceText.trimStart())
+			);
+
+			return transactionDirectives.map((directive, i) => ({
+				xact: this.directiveToXact(directive),
+				span: transactionSpans[i] ?? spans[i] ?? this.fallbackTransactionSpans(source)[i]
+			}));
 		} finally {
 			tempLedger.free();
 		}
+	}
+
+	private fallbackTransactionSpans(source: string): DirectiveSpan[] {
+		const lines = source.split('\n');
+		const starts: number[] = [];
+		for (let i = 0; i < lines.length; i++) {
+			if (/^\d{4}-\d{2}-\d{2}\s+[*!]/.test(lines[i].trimStart())) {
+				starts.push(i);
+			}
+		}
+
+		return starts.map((startLine, index) => {
+			let endLine = (starts[index + 1] ?? lines.length) - 1;
+			while (endLine > startLine && lines[endLine].trim() === '') {
+				endLine--;
+			}
+			return {
+				symbolIndex: index,
+				startLine,
+				endLine,
+				sourceText: lines.slice(startLine, endLine + 1).join('\n')
+			};
+		});
 	}
 
 	/** Convert a WASM TransactionDirective to an Xact view model. */

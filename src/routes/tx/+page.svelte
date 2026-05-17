@@ -165,7 +165,7 @@
 	<Toolbar title="Journal Entry">
 		{#snippet menuItems()}
 			<ToolbarMenuItem text="Validate" Icon={ShieldCheck} onclick={validateXact} />
-			<ToolbarMenuItem text="Save" />
+			<ToolbarMenuItem text="Save" onclick={onFab} />
 			<ToolbarMenuItem text="Reset" />
 		{/snippet}
 	</Toolbar>
