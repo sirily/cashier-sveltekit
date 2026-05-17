@@ -285,10 +285,11 @@ class LedgerService {
 				/^\d{4}-\d{2}-\d{2}\s+[*!]/.test(span.sourceText.trimStart())
 			);
 
-			return transactionDirectives.map((directive, i) => ({
-				xact: this.directiveToXact(directive),
-				span: transactionSpans[i] ?? spans[i] ?? this.fallbackTransactionSpans(source)[i]
-			}));
+			const fallbackSpans = this.fallbackTransactionSpans(source);
+			return transactionDirectives.flatMap((directive, i) => {
+				const span = transactionSpans[i] ?? spans[i] ?? fallbackSpans[i];
+				return span ? [{ xact: this.directiveToXact(directive), span }] : [];
+			});
 		} finally {
 			tempLedger.free();
 		}

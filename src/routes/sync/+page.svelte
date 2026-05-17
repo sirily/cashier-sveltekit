@@ -260,11 +260,12 @@
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
 
 		try {
+			clearUnsupportedSyncSteps();
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncOpeningBalances: supportsOpeningBalancesSync() ? syncOpeningBalances : false,
-				syncAaValues,
-				syncAssetAllocation,
+				syncAaValues: supportsCurrentValuesSync() ? syncAaValues : false,
+				syncAssetAllocation: supportsAssetAllocationSync() ? syncAssetAllocation : false,
 				syncPayees
 			};
 

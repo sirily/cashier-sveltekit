@@ -23,12 +23,14 @@
 		document.body.style.cursor = 'wait';
 
 		await fullLedgerService.ensureLoaded();
-		let accounts = (await fullLedgerService.getAllAccounts()) as Account[];
-		if (accounts.length === 0) {
-			const dal = await CashierDAL.create();
-			accounts = await dal.loadAccounts();
+		const ledgerAccounts = (await fullLedgerService.getAllAccounts()) as Account[];
+		const dal = await CashierDAL.create();
+		const syncedAccounts = await dal.loadAccounts();
+		const accountByName = new Map<string, Account>();
+		for (const account of [...ledgerAccounts, ...syncedAccounts]) {
+			if (account.name) accountByName.set(account.name, account);
 		}
-		allAccounts = accounts;
+		allAccounts = Array.from(accountByName.values()).sort((a, b) => a.name.localeCompare(b.name));
 
 		dataLoaded = true;
 		document.body.style.cursor = 'default';
