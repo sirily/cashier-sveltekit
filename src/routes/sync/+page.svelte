@@ -74,12 +74,33 @@
 		}
 	}
 
+	type SyncServerEntry = {
+		id: string;
+		name: string;
+		url: string;
+	};
+
+	async function syncActiveStoredServerUrl(url: string) {
+		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
+		if (!activeSyncServerId) return;
+
+		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
+		const hasMatchingServer = syncServers.some((entry) => entry.id === activeSyncServerId);
+		if (!hasMatchingServer) return;
+
+		const updatedServers = syncServers.map((entry) =>
+			entry.id === activeSyncServerId ? { ...entry, url } : entry
+		);
+		await settings.set(SettingKeys.syncServers, updatedServers);
+	}
+
 	async function persistSyncServerUrl(notifyOnError = false) {
 		const trimmedUrl = syncServerUrl.trim();
 		syncServerUrl = trimmedUrl;
 
 		if (!trimmedUrl) {
 			await settings.set(SettingKeys.syncServerUrl, trimmedUrl);
+			await syncActiveStoredServerUrl(trimmedUrl);
 			return null;
 		}
 
@@ -90,6 +111,7 @@
 
 		syncServerUrl = validatedUrl;
 		await settings.set(SettingKeys.syncServerUrl, validatedUrl);
+		await syncActiveStoredServerUrl(validatedUrl);
 
 		return validatedUrl;
 	}
