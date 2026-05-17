@@ -18,6 +18,7 @@
 	let syncAccounts = $state(false);
 	let syncAaValues = $state(false);
 	let syncAssetAllocation = $state(false);
+	let syncOpeningBalances = $state(false);
 	let syncPayees = $state(false);
 
 	let syncServerUrl = $state('');
@@ -29,7 +30,7 @@
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
 
 	function hasSelectedSyncStep() {
-		return syncAccounts || syncAaValues || syncAssetAllocation || syncPayees;
+		return syncAccounts || syncOpeningBalances || syncAaValues || syncAssetAllocation || syncPayees;
 	}
 
 	function areAllVisibleSyncStepsSelected(visibleSteps: boolean[]) {
@@ -39,6 +40,7 @@
 	function recomputeSyncAll() {
 		syncAll = areAllVisibleSyncStepsSelected([
 			syncAccounts,
+			syncOpeningBalances,
 			syncAaValues,
 			syncAssetAllocation,
 			syncPayees
@@ -128,13 +130,13 @@
 			configSource = storedSyncServerUrl.trim()
 				? LedgerDataSource.beancount
 				: LedgerDataSource.filesystem;
-			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
 		syncServerUrl = storedSyncServerUrl;
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
+		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
 		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
@@ -167,6 +169,7 @@
 		try {
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
+				syncOpeningBalances,
 				syncAaValues,
 				syncAssetAllocation,
 				syncPayees
@@ -234,6 +237,7 @@
 	async function saveSettings() {
 		recomputeSyncAll();
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
+		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
 		await settings.set(SettingKeys.syncAssetAllocation, syncAssetAllocation);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
@@ -250,6 +254,7 @@
 	async function toggleAllCheckboxes(checked: boolean) {
 		syncAll = checked;
 		syncAccounts = checked;
+		syncOpeningBalances = checked;
 		syncAaValues = checked;
 		syncAssetAllocation = checked;
 		syncPayees = checked;
@@ -336,6 +341,23 @@
 					<label for="sync-accounts" class="block cursor-pointer py-3">Accounts</label>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td>{/if}
+			</tr>
+			<tr>
+				<td>
+					<input
+						id="sync-opening-balances"
+						class="checkbox checkbox-primary rounded"
+						type="checkbox"
+						bind:checked={syncOpeningBalances}
+						onchange={saveSettings}
+					/>
+				</td>
+				<td>
+					<label for="sync-opening-balances" class="block cursor-pointer py-3"
+						>Opening balances</label
+					>
+				</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
