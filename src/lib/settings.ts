@@ -61,11 +61,11 @@ export const SettingKeys = {
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
 	// External data source system
-	// ledgerDataSource: 'ledgerDataSource', // beancount, rledger, ledger, filesystem
+	ledgerDataSource: 'ledgerDataSource', // beancount, rledger, ledger, filesystem
 	// synchronization choices
 	syncAccounts: 'syncAccounts',
 	syncAaValues: 'syncAaValues',
-	// syncAssetAllocation: 'syncAssetAllocation',
+	syncAssetAllocation: 'syncAssetAllocation',
 	syncPayees: 'syncPayees',
 	syncOpeningBalances: 'syncOpeningBalances',
 	// Home cards
@@ -74,6 +74,7 @@ export const SettingKeys = {
 	peerId: 'peerId',
 	syncServers: 'syncServers',
 	syncActiveServerId: 'syncActiveServerId',
+	syncServerSelectionCleared: 'syncServerSelectionCleared',
 	// import book from filesystem via File System API
 	importBookDirectory: 'importBookDirectory',
 	importBookFileSpec: 'importBookFileSpec',
@@ -93,8 +94,8 @@ export const CardNames = {
 	FavouritesCard: 'FavouritesCard',
 	ForecastCard: 'ForecastCard',
 	JournalCard: 'JournalCard',
-	ScheduledXactCard: 'ScheduledXactCard'
-	// SyncCard: 'SyncCard'
+	ScheduledXactCard: 'ScheduledXactCard',
+	SyncCard: 'SyncCard'
 };
 
 class Settings {

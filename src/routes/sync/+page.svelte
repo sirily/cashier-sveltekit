@@ -13,18 +13,162 @@
 	import { syncProgress } from '$lib/stores/syncProgressStore';
 
 	Notifier.init();
+	const PENDING_SYNC_SOURCE_STORAGE_KEY = 'cashier.pendingSyncDataSource';
 
 	let syncAll = $state(false);
 	let syncAccounts = $state(false);
 	let syncAaValues = $state(false);
-	let syncPayees = $state(false);
+	let syncAssetAllocation = $state(false);
 	let syncOpeningBalances = $state(false);
+	let syncPayees = $state(false);
 
+	let syncServerUrl = $state('');
 	let rotationClass = $state('');
 	let syncStarted = $state(false);
 	let syncing = $state(false);
+	let reloading = $state(false);
 
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
+
+	function supportsOpeningBalancesSync() {
+		return configSource === LedgerDataSource.filesystem;
+	}
+
+	function hasSelectedSyncStep() {
+		return (
+			syncAccounts ||
+			(supportsOpeningBalancesSync() && syncOpeningBalances) ||
+			syncAaValues ||
+			syncAssetAllocation ||
+			syncPayees
+		);
+	}
+
+	function areAllVisibleSyncStepsSelected(visibleSteps: boolean[]) {
+		return visibleSteps.length > 0 && visibleSteps.every(Boolean);
+	}
+
+	function recomputeSyncAll() {
+		const visibleSteps = [syncAccounts, syncAaValues, syncAssetAllocation, syncPayees];
+		if (supportsOpeningBalancesSync()) {
+			visibleSteps.splice(1, 0, syncOpeningBalances);
+		}
+
+		syncAll = areAllVisibleSyncStepsSelected(visibleSteps);
+	}
+
+	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
+		const trimmedUrl = rawUrl.trim();
+
+		if (!trimmedUrl) {
+			if (notifyOnError) {
+				Notifier.error('Cashier Server URL is required for the Beancount data source.');
+			}
+			return null;
+		}
+
+		try {
+			const url = new URL(trimmedUrl);
+
+			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+				if (notifyOnError) {
+					Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+				}
+				return null;
+			}
+
+			return url.toString();
+		} catch {
+			if (notifyOnError) {
+				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+			}
+			return null;
+		}
+	}
+
+	type SyncServerEntry = {
+		id: string;
+		name: string;
+		url: string;
+	};
+
+	function safeServerId() {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID();
+		}
+
+		return `sync-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+	}
+
+	function getPendingSyncSource() {
+		if (typeof localStorage === 'undefined') return null;
+
+		const source = localStorage.getItem(PENDING_SYNC_SOURCE_STORAGE_KEY);
+		return source === LedgerDataSource.beancount ? LedgerDataSource.beancount : null;
+	}
+
+	function setPendingSyncSource(source: LedgerDataSource | null) {
+		if (typeof localStorage === 'undefined') return;
+
+		if (source) {
+			localStorage.setItem(PENDING_SYNC_SOURCE_STORAGE_KEY, source);
+		} else {
+			localStorage.removeItem(PENDING_SYNC_SOURCE_STORAGE_KEY);
+		}
+	}
+
+	async function syncStoredServerSelection(url: string) {
+		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
+		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
+		if (activeSyncServerId) {
+			const hasMatchingServer = syncServers.some((entry) => entry.id === activeSyncServerId);
+			if (hasMatchingServer) {
+				const updatedServers = syncServers.map((entry) =>
+					entry.id === activeSyncServerId ? { ...entry, url } : entry
+				);
+				await settings.set(SettingKeys.syncServers, updatedServers);
+				return;
+			}
+		}
+
+		const existingServer = syncServers.find((entry) => entry.url === url);
+		if (existingServer) {
+			await settings.set(SettingKeys.syncActiveServerId, existingServer.id);
+			return;
+		}
+
+		const newEntry = { id: safeServerId(), name: 'Default', url };
+		await settings.set(SettingKeys.syncServers, [...syncServers, newEntry]);
+		await settings.set(SettingKeys.syncActiveServerId, newEntry.id);
+	}
+
+	async function persistSyncServerUrl(notifyOnError = false) {
+		const trimmedUrl = syncServerUrl.trim();
+		syncServerUrl = trimmedUrl;
+
+		if (!trimmedUrl) {
+			await settings.set(SettingKeys.syncServerUrl, trimmedUrl || null);
+			await settings.set(SettingKeys.syncActiveServerId, null);
+			await settings.set(SettingKeys.syncServerSelectionCleared, true);
+			return null;
+		}
+
+		const validatedUrl = validateSyncServerUrl(trimmedUrl, notifyOnError);
+		if (!validatedUrl) {
+			return null;
+		}
+
+		syncServerUrl = validatedUrl;
+		await settings.set(SettingKeys.syncServerUrl, validatedUrl);
+		await settings.set(SettingKeys.syncServerSelectionCleared, false);
+		await syncStoredServerSelection(validatedUrl);
+		if (configSource === LedgerDataSource.beancount) {
+			await settings.set(SettingKeys.ledgerDataSource, LedgerDataSource.beancount);
+			setPendingSyncSource(null);
+		}
+
+		return validatedUrl;
+	}
 
 	onMount(async () => {
 		await loadSettings();
@@ -32,12 +176,27 @@
 
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
-		if (dataSource) configSource = dataSource as LedgerDataSource;
+		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
+		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
+		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
+		const activeStoredServer = activeSyncServerId
+			? syncServers.find((entry) => entry.id === activeSyncServerId) ?? null
+			: null;
+		if (dataSource) {
+			configSource = dataSource as LedgerDataSource;
+		} else {
+			configSource = getPendingSyncSource() ?? LedgerDataSource.filesystem;
+		}
+		// `/sync` is the active server configuration UI, so it reads and writes the
+		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
+		syncServerUrl = storedSyncServerUrl || activeStoredServer?.url || '';
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
-		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
-		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
 		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
+		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
+		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
+		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
+		recomputeSyncAll();
 	}
 
 	async function onOpfsClick() {
@@ -46,24 +205,33 @@
 	}
 
 	async function onShutdownClick() {
-		const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
-		if (!activeUrl) {
-			Notifier.error('No active server URL found. Please configure the server URL first.');
-			return;
-		}
+		if (configSource !== LedgerDataSource.beancount) return;
+
+		const activeUrl = await persistSyncServerUrl(true);
+		if (!activeUrl) return;
 
 		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
 		try {
 			await sync.shutdown();
+			Notifier.info('The server shutdown request sent.');
 		} catch (error: any) {
 			console.error(error);
-			Notifier.error(error.message);
+			Notifier.error(error.message || 'Failed to shut down server.');
 		}
-
-		Notifier.info('The server shutdown request sent.');
 	}
 
 	async function onSyncClicked() {
+		if (!hasSelectedSyncStep()) {
+			Notifier.error('Select at least one synchronization step before starting sync.');
+			return;
+		}
+
+		if (configSource === LedgerDataSource.beancount) {
+			const validatedUrl = await persistSyncServerUrl(true);
+
+			if (!validatedUrl) return;
+		}
+
 		Notifier.info('Synchronization starting...');
 
 		syncing = true;
@@ -71,12 +239,12 @@
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
 
 		try {
-			let syncOptions: SyncBeancount.SyncSteps = {
+			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
+				syncOpeningBalances: supportsOpeningBalancesSync() ? syncOpeningBalances : false,
 				syncAaValues,
 				syncAssetAllocation,
-				syncPayees,
-				syncOpeningBalances
+				syncPayees
 			};
 
 			let syncResult = false;
@@ -110,7 +278,6 @@
 			Notifier.success('Synchronization completed successfully!');
 			rotationClass = '';
 			syncing = false;
-
 		} catch (error: any) {
 			rotationClass = '';
 			syncing = false;
@@ -120,14 +287,27 @@
 	}
 
 	async function reloadData() {
-		const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
+		if (configSource !== LedgerDataSource.beancount || reloading) return;
+
+		const activeUrl = await persistSyncServerUrl(true);
 		if (!activeUrl) return;
 
-		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
-		await sync.reloadData();
+		reloading = true;
+
+		try {
+			const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
+			await sync.reloadData();
+			Notifier.success('Data reloaded successfully!');
+		} catch (error: any) {
+			console.error(error);
+			Notifier.error(error.message || 'Failed to reload data.');
+		} finally {
+			reloading = false;
+		}
 	}
 
 	async function saveSettings() {
+		recomputeSyncAll();
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
@@ -135,26 +315,93 @@
 		await settings.set(SettingKeys.syncPayees, syncPayees);
 	}
 
-	function toggleAllCheckboxes(checked: boolean) {
+	async function saveDataSource() {
+		if (configSource === LedgerDataSource.beancount) {
+			const hasUrl = !!syncServerUrl.trim();
+			if (!hasUrl) {
+				setPendingSyncSource(LedgerDataSource.beancount);
+				recomputeSyncAll();
+				return;
+			}
+
+			const previousDataSource =
+				(await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource)) ?? LedgerDataSource.filesystem;
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
+			if (hasUrl) {
+				const validatedUrl = await persistSyncServerUrl(true);
+				if (!validatedUrl) {
+					configSource = previousDataSource;
+					await settings.set(SettingKeys.ledgerDataSource, configSource);
+					setPendingSyncSource(null);
+					recomputeSyncAll();
+					return;
+				}
+			}
+		} else {
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
+			setPendingSyncSource(null);
+		}
+
+		recomputeSyncAll();
+	}
+
+	async function saveSyncServerUrl() {
+		await persistSyncServerUrl();
+	}
+
+	async function toggleAllCheckboxes(checked: boolean) {
 		syncAll = checked;
 		syncAccounts = checked;
+		if (supportsOpeningBalancesSync()) {
+			syncOpeningBalances = checked;
+		}
 		syncAaValues = checked;
 		syncAssetAllocation = checked;
 		syncPayees = checked;
-		syncOpeningBalances = checked;
 
-		saveSettings();
+		await saveSettings();
+	}
+
+	function onToggleAllChange(event: Event) {
+		toggleAllCheckboxes((event.currentTarget as HTMLInputElement).checked);
 	}
 </script>
 
 <Toolbar title="Synchronization">
 	{#snippet menuItems()}
-		<ToolbarMenuItem text="Shut down server" Icon={PowerIcon} onclick={onShutdownClick} />
+		{#if configSource === LedgerDataSource.beancount}
+			<ToolbarMenuItem text="Shut down server" Icon={PowerIcon} onclick={onShutdownClick} />
+		{/if}
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
 	{/snippet}
 </Toolbar>
 
 <main class="container mx-auto max-w-6xl space-y-4 p-1 lg:p-10">
+	<div class="card bg-base-100 border border-base-300 shadow-sm">
+		<div class="card-body gap-3 p-4">
+			<label class="form-control w-full">
+				<div class="label"><span class="label-text">Data source</span></div>
+				<select bind:value={configSource} onchange={saveDataSource} class="select select-bordered w-full">
+					<option value={LedgerDataSource.filesystem}>Filesystem</option>
+					<option value={LedgerDataSource.beancount}>Beancount</option>
+				</select>
+			</label>
+			{#if configSource === LedgerDataSource.beancount}
+				<label class="form-control w-full">
+					<div class="label"><span class="label-text">Cashier Server URL</span></div>
+					<input
+						type="url"
+						bind:value={syncServerUrl}
+						onchange={saveSyncServerUrl}
+						onblur={saveSyncServerUrl}
+						class="input input-bordered w-full"
+						placeholder="https://cashier.example.com/api"
+					/>
+				</label>
+			{/if}
+		</div>
+	</div>
+
 	{#snippet statusIcon(status: string | undefined)}
 		{#if status === 'in-progress'}
 			<span class="loading loading-spinner loading-sm"></span>
@@ -175,7 +422,7 @@
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncAll}
-						onchange={(e) => toggleAllCheckboxes(e.target?.checked)}
+						onchange={onToggleAllChange}
 					/>
 				</th>
 				<th>Data type</th>
@@ -186,58 +433,85 @@
 			<tr>
 				<td>
 					<input
+						id="sync-accounts"
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncAccounts}
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncAccounts = !syncAccounts} class="cursor-pointer">
-					Accounts
+				<td>
+					<label for="sync-accounts" class="block cursor-pointer py-3">Accounts</label>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td>{/if}
 			</tr>
+			{#if supportsOpeningBalancesSync()}
+				<tr>
+					<td>
+						<input
+							id="sync-opening-balances"
+							class="checkbox checkbox-primary rounded"
+							type="checkbox"
+							bind:checked={syncOpeningBalances}
+							onchange={saveSettings}
+						/>
+					</td>
+					<td>
+						<label for="sync-opening-balances" class="block cursor-pointer py-3"
+							>Opening balances</label
+						>
+					</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
+				</tr>
+			{/if}
 			<tr>
 				<td>
 					<input
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncOpeningBalances}
-						onchange={saveSettings}
-					/>
-				</td>
-				<td onclick={() => syncOpeningBalances = !syncOpeningBalances} class="cursor-pointer">
-					Opening balances
-				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
-			</tr>
-			<tr>
-				<td>
-					<input
+						id="sync-aa-values"
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncAaValues}
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncAaValues = !syncAaValues} class="cursor-pointer">
-					Account current values (for asset allocation)
+				<td>
+					<label for="sync-aa-values" class="block cursor-pointer py-3"
+						>Account current values (for asset allocation)</label
+					>
+				</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
+			</tr>
+			<tr>
+				<td>
+					<input
+						id="sync-asset-allocation"
+						class="checkbox checkbox-primary rounded"
+						type="checkbox"
+						bind:checked={syncAssetAllocation}
+						onchange={saveSettings}
+					/>
+				</td>
+				<td>
+					<label for="sync-asset-allocation" class="block cursor-pointer py-3"
+						>Asset allocation definition</label
+					>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 3)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
 					<input
+						id="sync-payees"
 						class="checkbox checkbox-primary rounded"
 						type="checkbox"
 						bind:checked={syncPayees}
 						onchange={saveSettings}
 					/>
 				</td>
-				<td onclick={() => syncPayees = !syncPayees} class="cursor-pointer">
-					Payees
+				<td>
+					<label for="sync-payees" class="block cursor-pointer py-3">Payees</label>
 				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 5)?.status)}</td>{/if}
 			</tr>
 		</tbody>
 	</table>
@@ -253,7 +527,7 @@
 		</button>
 	</center>
 
-	{#if configSource !== LedgerDataSource.filesystem}
+	{#if configSource === LedgerDataSource.beancount}
 		<hr class="my-10" />
 
 		<center>
@@ -262,8 +536,17 @@
 				<span>Server Shutdown</span>
 			</button>
 
-			<button class="btn bg-primary text-accent rounded uppercase" onclick={reloadData}>
-				<span><RefreshCcw class={rotationClass} style="animation-direction: reverse;" /></span>
+			<button
+				class="btn bg-primary text-accent rounded uppercase"
+				onclick={reloadData}
+				disabled={reloading}
+			>
+				<span
+					><RefreshCcw
+						class={reloading ? 'animate-[spin_2s_linear_infinite]' : ''}
+						style="animation-direction: reverse;"
+					/></span
+				>
 				<span>Reload Data</span>
 			</button>
 		</center>

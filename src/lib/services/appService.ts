@@ -109,7 +109,6 @@ class AppService {
 				HomeCardNames.FAVOURITES,
 				HomeCardNames.JOURNAL,
 				HomeCardNames.SCHEDULED,
-				// HomeCardNames.SYNC,
 				HomeCardNames.FORECAST
 			];
 		}

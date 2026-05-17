@@ -7,8 +7,8 @@ export const HomeCardNames = {
 	FAVOURITES: 'FavouritesCard',
 	FORECAST: 'ForecastCard',
 	JOURNAL: 'JournalCard',
-	SCHEDULED: 'ScheduledXactCard'
-	// SYNC: 'SyncCard'
+	SCHEDULED: 'ScheduledXactCard',
+	SYNC: 'SyncCard'
 } as const;
 
 export enum LedgerDataSource {

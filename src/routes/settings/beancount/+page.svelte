@@ -33,6 +33,18 @@
 		syncServers = storedServers ?? [];
 
 		const legacySyncUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) as string | null;
+		const storedActiveSyncServerId = (await settings.get<string>(
+			SettingKeys.syncActiveServerId
+		)) as string | null;
+		const selectionCleared =
+			(await settings.get<boolean>(SettingKeys.syncServerSelectionCleared)) ?? false;
+		const hasStoredSelection =
+			!!storedActiveSyncServerId && syncServers.some((entry) => entry.id === storedActiveSyncServerId);
+
+		if (!legacySyncUrl && !hasStoredSelection && (selectionCleared || syncServers.length === 0)) {
+			activeSyncServerId = '';
+			return;
+		}
 
 		if (syncServers.length === 0 && legacySyncUrl) {
 			const migratedEntry = {
@@ -44,10 +56,6 @@
 			activeSyncServerId = migratedEntry.id;
 			await persistServers();
 		}
-
-		const storedActiveSyncServerId = (await settings.get<string>(
-			SettingKeys.syncActiveServerId
-		)) as string | null;
 
 		if (syncServers.length > 0) {
 			const hasStoredSelection =
@@ -87,6 +95,7 @@
 
 		await settings.set(SettingKeys.syncActiveServerId, activeSyncServerId || null);
 		await settings.set(SettingKeys.syncServerUrl, serverUrl || null);
+		await settings.set(SettingKeys.syncServerSelectionCleared, !activeSyncServerId);
 	}
 
 	async function onActiveServerChanged() {
