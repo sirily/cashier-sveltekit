@@ -25,7 +25,7 @@
 	let syncing = $state(false);
 	let reloading = $state(false);
 
-	let configSource = $state<LedgerDataSource>(LedgerDataSource.beancount);
+	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
 
 	function hasSelectedSyncStep() {
 		return syncAccounts || syncAaValues || syncPayees;
@@ -94,10 +94,9 @@
 
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
-		if (dataSource === LedgerDataSource.beancount) {
-			configSource = LedgerDataSource.beancount;
+		if (dataSource) {
+			configSource = dataSource as LedgerDataSource;
 		} else {
-			configSource = LedgerDataSource.beancount;
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
@@ -210,7 +209,6 @@
 	}
 
 	async function saveDataSource() {
-		configSource = LedgerDataSource.beancount;
 		await settings.set(SettingKeys.ledgerDataSource, configSource);
 	}
 
@@ -243,12 +241,8 @@
 		<div class="card-body gap-3 p-4">
 			<label class="form-control w-full">
 				<div class="label"><span class="label-text">Data source</span></div>
-				<select
-					bind:value={configSource}
-					onchange={saveDataSource}
-					class="select select-bordered w-full"
-					disabled
-				>
+				<select bind:value={configSource} onchange={saveDataSource} class="select select-bordered w-full">
+					<option value={LedgerDataSource.filesystem}>Filesystem</option>
 					<option value={LedgerDataSource.beancount}>Beancount</option>
 				</select>
 			</label>
