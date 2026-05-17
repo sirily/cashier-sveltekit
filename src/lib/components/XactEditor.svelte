@@ -164,7 +164,7 @@
 		if (!$xact.postings.every((posting) => posting.account === '')) return;
 
 		const lastTx = await appService.db.lastXact.get(payee);
-		if (!lastTx) return;
+		if (!lastTx?.transaction) return;
 
 		// use the current date
 		lastTx.transaction.date = $xact.date;

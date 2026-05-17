@@ -29,7 +29,6 @@ export async function collectFsFileHandles(
 	patterns: RegExp[],
 	out: Array<{ path: string; handle: FileSystemFileHandle }>
 ): Promise<void> {
-	// @ts-expect-error entries() is available in modern browsers
 	for await (const [name, handle] of dir.entries()) {
 		const path = prefix ? `${prefix}/${name}` : name;
 		if (handle.kind === 'file' && matchesAny(name, patterns)) {

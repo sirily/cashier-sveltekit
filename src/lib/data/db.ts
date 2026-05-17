@@ -3,10 +3,10 @@
 */
 import Dexie, { type Table } from 'dexie';
 import {
-	// Account,
+	Account,
 	LastXact,
 	// Xact,
-	// Payee,
+	Payee,
 	// Posting,
 	ScheduledTransaction,
 	Setting
@@ -15,11 +15,11 @@ import {
 // Define the schema
 
 interface CashierDatabase extends Dexie {
-	// accounts: Table;
-	lastXact: Table;
-	// payees: Table;
-	scheduled: Table;
-	settings: Table;
+	accounts: Table<Account, string>;
+	lastXact: Table<LastXact, string>;
+	payees: Table<Payee, string>;
+	scheduled: Table<ScheduledTransaction, number>;
+	settings: Table<Setting, string>;
 	// xacts: Table;
 }
 
@@ -28,9 +28,16 @@ const db = new Dexie('Cashier') as CashierDatabase;
 // Schema
 
 db.version(1).stores({
-	// accounts: 'name',
 	lastXact: 'payee',
-	// payees: 'name',
+	scheduled: '++id, nextDate',
+	settings: 'key'
+	// xacts: '++id, date'
+});
+
+db.version(2).stores({
+	accounts: 'name',
+	lastXact: 'payee',
+	payees: 'name',
 	scheduled: '++id, nextDate',
 	settings: 'key'
 	// xacts: '++id, date'
@@ -38,9 +45,9 @@ db.version(1).stores({
 
 // Mappings
 
-// db.accounts.mapToClass(Account);
+db.accounts.mapToClass(Account);
 db.lastXact.mapToClass(LastXact);
-// db.payees.mapToClass(Payee);
+db.payees.mapToClass(Payee);
 // db.xacts.mapToClass(Xact);
 db.settings.mapToClass(Setting);
 db.scheduled.mapToClass(ScheduledTransaction);

@@ -119,7 +119,7 @@
 				{#each xacts as xact, index (index)}
 					<div class="border-base-content/15 flex space-x-2 border-b">
 						<time class="opacity-60">
-							{getReadableDate(xact.date)}
+							{getReadableDate(xact.date ?? '')}
 						</time>
 						<div class="flex grow items-center gap-1">
 							{#if xact.flag === '!'}

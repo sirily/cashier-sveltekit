@@ -77,6 +77,8 @@ export const SettingKeys = {
 	// import book from filesystem via File System API
 	importBookDirectory: 'importBookDirectory',
 	importBookFileSpec: 'importBookFileSpec',
+	storageBackend: 'storageBackend',
+	bookFilename: 'userBookFilename',
 	// SHA-256 hash of source files at last serialization, stored alongside the OPFS binary cache
 	ledgerCacheHash: 'ledgerCacheHash',
 	// Whether to use the binary ledger cache on load (default: true)
@@ -103,7 +105,7 @@ class Settings {
 	 * @param {any} key
 	 * @returns Promise with the Setting object
 	 */
-	async get<T>(key: unknown): Promise<T | null> {
+	async get<T>(key: string): Promise<T | null> {
 		const setting = await db.settings.get(key);
 
 		if (!setting) return null;

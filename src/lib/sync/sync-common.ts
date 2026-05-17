@@ -4,12 +4,6 @@
  */
 import appService from '$lib/services/appService';
 import CashierDAL from '$lib/data/dbdal';
-import { AssetAllocationEngine } from '$lib/assetAllocation/AssetAllocation';
-import { settings, SettingKeys } from '$lib/settings';
-import * as LedgerParser from '$lib/utils/ledgerParser';
-import * as BeancountParser from '$lib/utils/beancountParser';
-import type { CurrentValuesDict } from '$lib/data/viewModels';
-import { PtaSystems } from '$lib/enums';
 
 export interface SyncSteps {
 	syncAccounts?: boolean;
@@ -35,27 +29,11 @@ export async function syncAccounts(
 }
 
 /**
- * Parse current values per PTA system and import into asset allocation.
+ * Stage 1 sync is read-only for accounts and payees.
+ * Current values are intentionally skipped until asset allocation sync is wired back in.
  */
-export async function syncCurrentValues(ptaSystem: string, result: any): Promise<void> {
-	const rootAccount = (await settings.get(SettingKeys.rootInvestmentAccount)) as string;
-	if (!rootAccount) {
-		throw new Error('No root investment account set!');
-	}
-
-	let currentValues: CurrentValuesDict;
-	if (ptaSystem === PtaSystems.beancount) {
-		currentValues = BeancountParser.parseCurrentValues(result, rootAccount);
-		// } else if (ptaSystem === PtaSystems.rledger) {
-		// 	currentValues = RledgerParser.parseCurrentValues(result, rootAccount);
-	} else if (ptaSystem === PtaSystems.ledger) {
-		currentValues = LedgerParser.parseCurrentValues(result, rootAccount);
-	} else {
-		throw new Error('Unknown PTA system: ' + ptaSystem);
-	}
-
-	const aa = new AssetAllocationEngine();
-	await aa.importCurrentValues(currentValues);
+export async function syncCurrentValues(_ptaSystem: string, _result: any): Promise<void> {
+	return;
 }
 
 /**

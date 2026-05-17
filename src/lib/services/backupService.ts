@@ -5,12 +5,12 @@
 
 import { ISODATEFORMAT, LONGTIMEFORMAT } from '$lib/constants';
 import db from '$lib/data/db';
-import type { ScheduledTransaction } from '$lib/data/model';
+import type { ScheduledTransaction, Setting } from '$lib/data/model';
 import { settings } from '$lib/settings';
 import moment from 'moment';
 
 interface Backup {
-	settings: Array<string>;
+	settings: Setting[];
 	scx: Array<ScheduledTransaction>;
 }
 

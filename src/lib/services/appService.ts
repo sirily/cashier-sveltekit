@@ -2,14 +2,14 @@
 	Provide service layer for the application.
 */
 import db from '$lib/data/db';
-import { LastXact, ScheduledTransaction, Xact } from '$lib/data/model';
+import { Account, LastXact, Money, Payee, ScheduledTransaction, Xact } from '$lib/data/model';
 import { settings, SettingKeys } from '$lib/settings';
-import { HomeCardNames } from '$lib/enums';
+import { HomeCardNames, PtaSystems } from '$lib/enums';
 import { DefaultCurrencyStore, ScheduledXact, xact } from '$lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
-// import * as LedgerParser from '$lib/utils/ledgerParser';
-// import * as BeancountParser from '$lib/utils/beancountParser';
+import * as LedgerParser from '$lib/utils/ledgerParser';
+import * as BeancountParser from '$lib/utils/beancountParser';
 import { formatAmount } from '$lib/utils/formatter';
 import { readFile, saveFile } from '$lib/utils/opfslib';
 import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '$lib/constants';
@@ -21,6 +21,48 @@ import { mapDirectiveSpans } from '$lib/rledger/sourceEditor';
 // }
 
 class AppService {
+	private mergeAccountBalance(accountBalances: Record<string, Account>, account: Account) {
+		const existingAccount = accountBalances[account.name];
+		if (!existingAccount) {
+			accountBalances[account.name] = account;
+			return;
+		}
+
+		existingAccount.balances ??= {};
+		for (const [currency, amount] of Object.entries(account.balances ?? {})) {
+			existingAccount.balances[currency] = amount;
+		}
+
+		if (account.balance) {
+			existingAccount.balance = account.balance;
+		}
+	}
+
+	private normalizeBalanceSheetItems(
+		ptaSystem: string,
+		response: unknown
+	): Array<string | string[]> {
+		if (ptaSystem === PtaSystems.beancount) {
+			if (Array.isArray(response)) {
+				return response as string[][];
+			}
+
+			if (
+				typeof response === 'object' &&
+				response !== null &&
+				'rows' in response &&
+				Array.isArray((response as { rows?: unknown }).rows)
+			) {
+				return (response as { rows: string[][] }).rows;
+			}
+		}
+
+		if (ptaSystem === PtaSystems.ledger && Array.isArray(response)) {
+			return response as string[];
+		}
+
+		throw new Error(`Unsupported balance sheet response for PTA system: ${ptaSystem}`);
+	}
 	/**
 	 * Clears Ids and reference Ids in Xact and Postings.
 	 * @param {Xact} tx
@@ -61,9 +103,9 @@ class AppService {
 	// 	return db.accounts.delete(name);
 	// }
 
-	// async deleteAccounts() {
-	// 	return db.accounts.clear();
-	// }
+	async deleteAccounts() {
+		return db.accounts.clear();
+	}
 
 	/**
 	 * Delete transaction and related postings.
@@ -294,73 +336,53 @@ class AppService {
 	 * @param lines Output of `ledger balance --flat`
 	 * @returns The promise resolving to the id of the last record updated (Dexie default)
 	 */
-	// async importBalanceSheet(ptaSystem: string, response: any): Promise<unknown> {
-	// 	if (!response) {
-	// 		// !response.length
-	// 		throw new Error('No balance records received for import!');
-	// 	}
+	async importBalanceSheet(ptaSystem: string, response: unknown): Promise<unknown> {
+		if (!response) {
+			throw new Error('No balance records received for import!');
+		}
 
-	// 	const mainCurrency = await this.getDefaultCurrency();
-	// 	if (!mainCurrency) {
-	// 		throw new Error('No default currency set!');
-	// 	}
+		const items = this.normalizeBalanceSheetItems(ptaSystem, response);
+		if (items.length === 0) {
+			throw new Error('No balance records received for import!');
+		}
 
-	// 	const accountBalances: AccountIndex = {};
-	// 	let account: Account | null = null;
+		const accountBalances: Record<string, Account> = {};
 
-	// 	let items;
-	// 	switch (ptaSystem) {
-	// 		// case PtaSystems.rledger:
-	// 		// 	items = response.rows;
-	// 		// 	break;
-	// 		case PtaSystems.beancount:
-	// 		case PtaSystems.ledger:
-	// 			items = response;
-	// 			break;
-	// 		default:
-	// 			throw new Error('Unknown PTA system: ' + ptaSystem);
-	// 	}
+		for (const item of items) {
+			if (item === '') continue;
 
-	// 	// read and parse the balance sheet entries
-	// 	for (let i = 0; i < items.length; i++) {
-	// 		const item = items[i];
-	// 		console.log('Balance sheet item:', item);
-	// 		if (item === '') continue;
+			let account: Account | null = null;
+			if (ptaSystem === PtaSystems.ledger) {
+				account = LedgerParser.parseBalanceSheetRow(item as string);
+			} else if (ptaSystem === PtaSystems.beancount) {
+				account = BeancountParser.parseBalanceSheetRow(item as string[]);
+			} else {
+				throw new Error('Unknown PTA system: ' + ptaSystem);
+			}
 
-	// 		// parse
-	// 		if (ptaSystem === PtaSystems.ledger) {
-	// 			account = LedgerParser.parseBalanceSheetRow(item);
-	// 		} else if (ptaSystem === PtaSystems.beancount) {
-	// 			account = BeancountParser.parseBalanceSheetRow(item);
-	// 			// } else if (ptaSystem === PtaSystems.rledger) {
-	// 			// 	account = RledgerParser.parseBalanceSheetRow(item);
-	// 			// 	console.log('Parsed account from rledger:', account);
-	// 		} else {
-	// 			throw new Error('Unknown PTA system: ' + ptaSystem);
-	// 		}
+			if (!account) {
+				continue;
+			}
 
-	// 		if (!account) {
-	// 			continue;
-	// 		} else {
-	// 			// see if we already have this account
-	// 			const existingAccount = accountBalances[account.name];
-	// 			if (existingAccount && existingAccount.balances && account.balances) {
-	// 				// add the new balance in another currency
-	// 				const currency = Object.keys(account.balances)[0];
-	// 				const amount = Object.values(account.balances)[0];
-	// 				existingAccount.balances[currency] = amount;
-	// 			} else {
-	// 				// insert account
-	// 				accountBalances[account.name] = account;
-	// 			}
-	// 		}
-	// 		// }
-	// 	}
+			const [currency, amount] = Object.entries(account.balances ?? {})[0] ?? [];
+			if (currency && amount != null) {
+				const balance = new Money();
+				balance.currency = currency;
+				balance.quantity = amount;
+				account.balance = balance;
+				account.currencies = Array.from(new Set([...(account.currencies ?? []), currency]));
+			}
 
-	// 	// the array of accounts to be updated.
-	// 	const accounts: Account[] = Object.values(accountBalances);
-	// 	return db.accounts.bulkPut(accounts);
-	// }
+			this.mergeAccountBalance(accountBalances, account);
+		}
+
+		const accounts = Object.values(accountBalances).map((account) => {
+			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
+			return account;
+		});
+
+		return db.accounts.bulkPut(accounts);
+	}
 
 	importCommodities(text: string) {
 		if (!text) {
@@ -386,10 +408,11 @@ class AppService {
 	 * Imports the payees into storage.
 	 * @param payees Array of payee names from Ledger.
 	 */
-	// async importPayees(payeeNames: string[]): Promise<void> {
-	// 	const payees = payeeNames.map((name) => new Payee(name));
-	// 	await db.payees.bulkAdd(payees);
-	// }
+	async importPayees(payeeNames: string[]): Promise<void> {
+		const uniquePayees = Array.from(new Set(payeeNames.map((name) => name.trim()).filter(Boolean))).sort();
+		const payees = uniquePayees.map((name) => new Payee(name));
+		await db.payees.bulkPut(payees);
+	}
 
 	/**
 	 * Imports Scheduled Transactions from a JSON String backup (from the export file).
@@ -470,6 +493,9 @@ class AppService {
 		const scx = await db.scheduled.get(id);
 		if (!scx) {
 			throw new Error('Scheduled transaction not found!');
+		}
+		if (!scx.transaction) {
+			throw new Error('Scheduled transaction is missing transaction data!');
 		}
 
 		ScheduledXact.set(scx);
