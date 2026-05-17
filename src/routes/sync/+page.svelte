@@ -123,6 +123,9 @@
 		syncServerUrl = validatedUrl;
 		await settings.set(SettingKeys.syncServerUrl, validatedUrl);
 		await syncActiveStoredServerUrl(validatedUrl);
+		if (configSource === LedgerDataSource.beancount) {
+			await settings.set(SettingKeys.ledgerDataSource, LedgerDataSource.beancount);
+		}
 
 		return validatedUrl;
 	}
@@ -146,7 +149,6 @@
 			configSource = hasActiveStoredServer || !!storedSyncServerUrl.trim()
 				? LedgerDataSource.beancount
 				: LedgerDataSource.filesystem;
-			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
@@ -261,7 +263,9 @@
 	}
 
 	async function saveDataSource() {
-		await settings.set(SettingKeys.ledgerDataSource, configSource);
+		if (configSource === LedgerDataSource.filesystem) {
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
+		}
 		recomputeSyncAll();
 	}
 
