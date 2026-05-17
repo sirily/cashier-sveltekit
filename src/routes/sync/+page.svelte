@@ -263,9 +263,20 @@
 	}
 
 	async function saveDataSource() {
-		if (configSource === LedgerDataSource.filesystem) {
+		if (configSource === LedgerDataSource.beancount) {
+			const validatedUrl = await persistSyncServerUrl(true);
+			if (!validatedUrl) {
+				const storedDataSource = await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource);
+				configSource = storedDataSource ?? LedgerDataSource.filesystem;
+				recomputeSyncAll();
+				return;
+			}
+
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
+		} else {
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
+
 		recomputeSyncAll();
 	}
 
