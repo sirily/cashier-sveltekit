@@ -36,10 +36,12 @@
 		const storedActiveSyncServerId = (await settings.get<string>(
 			SettingKeys.syncActiveServerId
 		)) as string | null;
+		const selectionCleared =
+			(await settings.get<boolean>(SettingKeys.syncServerSelectionCleared)) ?? false;
 		const hasStoredSelection =
 			!!storedActiveSyncServerId && syncServers.some((entry) => entry.id === storedActiveSyncServerId);
 
-		if (!legacySyncUrl && !hasStoredSelection && syncServers.length === 0) {
+		if (!legacySyncUrl && !hasStoredSelection && (selectionCleared || syncServers.length === 0)) {
 			activeSyncServerId = '';
 			return;
 		}
@@ -93,6 +95,7 @@
 
 		await settings.set(SettingKeys.syncActiveServerId, activeSyncServerId || null);
 		await settings.set(SettingKeys.syncServerUrl, serverUrl || null);
+		await settings.set(SettingKeys.syncServerSelectionCleared, !activeSyncServerId);
 	}
 
 	async function onActiveServerChanged() {

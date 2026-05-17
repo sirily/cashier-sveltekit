@@ -74,6 +74,7 @@ export const SettingKeys = {
 	peerId: 'peerId',
 	syncServers: 'syncServers',
 	syncActiveServerId: 'syncActiveServerId',
+	syncServerSelectionCleared: 'syncServerSelectionCleared',
 	// import book from filesystem via File System API
 	importBookDirectory: 'importBookDirectory',
 	importBookFileSpec: 'importBookFileSpec',

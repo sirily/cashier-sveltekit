@@ -13,6 +13,7 @@
 	import { syncProgress } from '$lib/stores/syncProgressStore';
 
 	Notifier.init();
+	const PENDING_SYNC_SOURCE_STORAGE_KEY = 'cashier.pendingSyncDataSource';
 
 	let syncAll = $state(false);
 	let syncAccounts = $state(false);
@@ -99,6 +100,23 @@
 		return `sync-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 	}
 
+	function getPendingSyncSource() {
+		if (typeof localStorage === 'undefined') return null;
+
+		const source = localStorage.getItem(PENDING_SYNC_SOURCE_STORAGE_KEY);
+		return source === LedgerDataSource.beancount ? LedgerDataSource.beancount : null;
+	}
+
+	function setPendingSyncSource(source: LedgerDataSource | null) {
+		if (typeof localStorage === 'undefined') return;
+
+		if (source) {
+			localStorage.setItem(PENDING_SYNC_SOURCE_STORAGE_KEY, source);
+		} else {
+			localStorage.removeItem(PENDING_SYNC_SOURCE_STORAGE_KEY);
+		}
+	}
+
 	async function syncStoredServerSelection(url: string) {
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
@@ -131,6 +149,7 @@
 		if (!trimmedUrl) {
 			await settings.set(SettingKeys.syncServerUrl, trimmedUrl || null);
 			await settings.set(SettingKeys.syncActiveServerId, null);
+			await settings.set(SettingKeys.syncServerSelectionCleared, true);
 			return null;
 		}
 
@@ -141,9 +160,11 @@
 
 		syncServerUrl = validatedUrl;
 		await settings.set(SettingKeys.syncServerUrl, validatedUrl);
+		await settings.set(SettingKeys.syncServerSelectionCleared, false);
 		await syncStoredServerSelection(validatedUrl);
 		if (configSource === LedgerDataSource.beancount) {
 			await settings.set(SettingKeys.ledgerDataSource, LedgerDataSource.beancount);
+			setPendingSyncSource(null);
 		}
 
 		return validatedUrl;
@@ -164,7 +185,7 @@
 		if (dataSource) {
 			configSource = dataSource as LedgerDataSource;
 		} else {
-			configSource = LedgerDataSource.filesystem;
+			configSource = getPendingSyncSource() ?? LedgerDataSource.filesystem;
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
@@ -296,21 +317,29 @@
 
 	async function saveDataSource() {
 		if (configSource === LedgerDataSource.beancount) {
+			const hasUrl = !!syncServerUrl.trim();
+			if (!hasUrl) {
+				setPendingSyncSource(LedgerDataSource.beancount);
+				recomputeSyncAll();
+				return;
+			}
+
 			const previousDataSource =
 				(await settings.get<LedgerDataSource>(SettingKeys.ledgerDataSource)) ?? LedgerDataSource.filesystem;
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
-			const hasUrl = !!syncServerUrl.trim();
 			if (hasUrl) {
 				const validatedUrl = await persistSyncServerUrl(true);
 				if (!validatedUrl) {
 					configSource = previousDataSource;
 					await settings.set(SettingKeys.ledgerDataSource, configSource);
+					setPendingSyncSource(null);
 					recomputeSyncAll();
 					return;
 				}
 			}
 		} else {
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
+			setPendingSyncSource(null);
 		}
 
 		recomputeSyncAll();
