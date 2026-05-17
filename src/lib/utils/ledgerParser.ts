@@ -33,7 +33,11 @@ function parseBalanceSheetRow(line: string): Account | null {
 
 	// If we do not have a name, it's an amount of a multicurrency account.
 	// Keep the balance until we get the line with the account name.
-	if (!namePart) return null;
+	// Return the partial account so the caller can merge continuation rows safely.
+	if (!namePart) {
+		account.balances = accountBalances;
+		return account;
+	}
 
 	// Once we have the name, assign the balances dictionary and keep for update.
 	account.balances = accountBalances;

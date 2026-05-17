@@ -36,6 +36,93 @@ class AppService {
 		if (account.balance) {
 			existingAccount.balance = account.balance;
 		}
+
+		existingAccount.currencies = Array.from(
+			new Set([...(existingAccount.currencies ?? []), ...(account.currencies ?? []), ...Object.keys(account.balances ?? {})])
+		).sort();
+	}
+
+	private parseBalanceSheetAccounts(ptaSystem: string, response: unknown): Account[] {
+		const items = this.normalizeBalanceSheetItems(ptaSystem, response);
+		if (items.length === 0) {
+			throw new Error('No balance records received for import!');
+		}
+
+		const accountBalances: Record<string, Account> = {};
+		let pendingBalances: Record<string, number> = {};
+
+		for (const item of items) {
+			if (item === '') continue;
+
+			let account: Account | null = null;
+			if (ptaSystem === PtaSystems.ledger) {
+				account = LedgerParser.parseBalanceSheetRow(item as string);
+			} else if (ptaSystem === PtaSystems.beancount) {
+				account = BeancountParser.parseBalanceSheetRow(item as string[]);
+			} else {
+				throw new Error('Unknown PTA system: ' + ptaSystem);
+			}
+
+			if (!account) {
+				continue;
+			}
+
+			const balances = account.balances ?? {};
+			if (!account.name) {
+				pendingBalances = { ...pendingBalances, ...balances };
+				continue;
+			}
+
+			account.balances = { ...pendingBalances, ...balances };
+			pendingBalances = {};
+
+			const [currency, amount] = Object.entries(account.balances ?? {})[0] ?? [];
+			if (currency && amount != null) {
+				const balance = new Money();
+				balance.currency = currency;
+				balance.quantity = amount;
+				account.balance = balance;
+			}
+
+			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
+			this.mergeAccountBalance(accountBalances, account);
+		}
+
+		if (Object.keys(pendingBalances).length > 0) {
+			throw new Error('Incomplete Ledger balance output: dangling multi-currency continuation row');
+		}
+
+		const accounts = Object.values(accountBalances).map((account) => {
+			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
+			return account;
+		});
+
+		if (accounts.length === 0) {
+			throw new Error('No balance records received for import!');
+		}
+
+		return accounts;
+	}
+
+	async replaceAccounts(ptaSystem: string, response: unknown): Promise<void> {
+		const accounts = this.parseBalanceSheetAccounts(ptaSystem, response);
+		await db.transaction('rw', db.accounts, async () => {
+			await db.accounts.clear();
+			await db.accounts.bulkPut(accounts);
+		});
+	}
+
+	async replacePayees(payeeNames: string[]): Promise<void> {
+		const uniquePayees = Array.from(new Set(payeeNames.map((name) => name.trim()).filter(Boolean))).sort();
+		if (uniquePayees.length === 0) {
+			throw new Error('No payees received');
+		}
+
+		const payees = uniquePayees.map((name) => new Payee(name));
+		await db.transaction('rw', db.payees, async () => {
+			await db.payees.clear();
+			await db.payees.bulkPut(payees);
+		});
 	}
 
 	private normalizeBalanceSheetItems(
@@ -340,46 +427,7 @@ class AppService {
 			throw new Error('No balance records received for import!');
 		}
 
-		const items = this.normalizeBalanceSheetItems(ptaSystem, response);
-		if (items.length === 0) {
-			throw new Error('No balance records received for import!');
-		}
-
-		const accountBalances: Record<string, Account> = {};
-
-		for (const item of items) {
-			if (item === '') continue;
-
-			let account: Account | null = null;
-			if (ptaSystem === PtaSystems.ledger) {
-				account = LedgerParser.parseBalanceSheetRow(item as string);
-			} else if (ptaSystem === PtaSystems.beancount) {
-				account = BeancountParser.parseBalanceSheetRow(item as string[]);
-			} else {
-				throw new Error('Unknown PTA system: ' + ptaSystem);
-			}
-
-			if (!account) {
-				continue;
-			}
-
-			const [currency, amount] = Object.entries(account.balances ?? {})[0] ?? [];
-			if (currency && amount != null) {
-				const balance = new Money();
-				balance.currency = currency;
-				balance.quantity = amount;
-				account.balance = balance;
-				account.currencies = Array.from(new Set([...(account.currencies ?? []), currency]));
-			}
-
-			this.mergeAccountBalance(accountBalances, account);
-		}
-
-		const accounts = Object.values(accountBalances).map((account) => {
-			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
-			return account;
-		});
-
+		const accounts = this.parseBalanceSheetAccounts(ptaSystem, response);
 		return db.accounts.bulkPut(accounts);
 	}
 

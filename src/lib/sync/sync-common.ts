@@ -3,7 +3,6 @@
  * Handles parsing, storage, and orchestration after raw data is fetched.
  */
 import appService from '$lib/services/appService';
-import CashierDAL from '$lib/data/dbdal';
 
 export interface SyncSteps {
 	syncAccounts?: boolean;
@@ -24,16 +23,14 @@ export async function syncAccounts(
 		throw new Error('No accounts received');
 	}
 
-	await appService.deleteAccounts();
-	await appService.importBalanceSheet(ptaSystem, response);
+	await appService.replaceAccounts(ptaSystem, response);
 }
 
 /**
- * Stage 1 sync is read-only for accounts and payees.
- * Current values are intentionally skipped until asset allocation sync is wired back in.
+ * Stage 1 sync does not support current values / asset allocation imports.
  */
 export async function syncCurrentValues(_ptaSystem: string, _result: any): Promise<void> {
-	return;
+	throw new Error('Stage 1 sync does not support current values or asset allocation import');
 }
 
 /**
@@ -44,7 +41,5 @@ export async function syncPayees(payeeNames: string[]): Promise<void> {
 		throw new Error('No payees received');
 	}
 
-	const dal = new CashierDAL();
-	await dal.deletePayees();
-	await appService.importPayees(payeeNames);
+	await appService.replacePayees(payeeNames);
 }

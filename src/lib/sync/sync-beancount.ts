@@ -243,25 +243,40 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 	try {
 		if (syncOptions.syncAccounts) {
 			updateSyncStep(1, 'in-progress');
-			await synchronizeAccounts(sync);
+			try {
+				await synchronizeAccounts(sync);
+			} catch (error) {
+				updateSyncStep(1, 'error');
+				throw error;
+			}
 			updateSyncStep(1, 'completed');
 		}
 
 		// Asset Allocation definition (.toml)
 		if (syncOptions.syncAssetAllocation) {
 			updateSyncStep(3, 'in-progress');
-			Notifier.info('Asset allocation sync is skipped in Stage 1');
-			updateSyncStep(3, 'completed');
+			updateSyncStep(3, 'error');
+			throw new Error('Stage 1 sync does not support asset allocation definition import');
 		}
 
 		if (syncOptions.syncAaValues) {
 			updateSyncStep(4, 'in-progress');
-			await synchronizeAaValues(sync);
+			try {
+				await synchronizeAaValues(sync);
+			} catch (error) {
+				updateSyncStep(4, 'error');
+				throw error;
+			}
 			updateSyncStep(4, 'completed');
 		}
 		if (syncOptions.syncPayees) {
 			updateSyncStep(5, 'in-progress');
-			await synchronizePayees(sync);
+			try {
+				await synchronizePayees(sync);
+			} catch (error) {
+				updateSyncStep(5, 'error');
+				throw error;
+			}
 			updateSyncStep(5, 'completed');
 		}
 	} catch (error: any) {
