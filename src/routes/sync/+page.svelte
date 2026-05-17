@@ -111,6 +111,7 @@
 
 		if (!trimmedUrl) {
 			await settings.set(SettingKeys.syncServerUrl, trimmedUrl || null);
+			await settings.set(SettingKeys.syncActiveServerId, null);
 			return null;
 		}
 
@@ -138,14 +139,11 @@
 		const activeStoredServer = activeSyncServerId
 			? syncServers.find((entry) => entry.id === activeSyncServerId) ?? null
 			: null;
-		const importBookDirectory = (await settings.get<string>(SettingKeys.importBookDirectory)) ?? '';
-		const importBookFileSpec = (await settings.get<string>(SettingKeys.importBookFileSpec)) ?? '';
 		const hasActiveStoredServer = !!activeStoredServer;
-		const hasFilesystemConfig = !!(importBookDirectory.trim() || importBookFileSpec.trim());
 		if (dataSource) {
 			configSource = dataSource as LedgerDataSource;
 		} else {
-			configSource = hasActiveStoredServer || (!!storedSyncServerUrl.trim() && !hasFilesystemConfig)
+			configSource = hasActiveStoredServer || !!storedSyncServerUrl.trim()
 				? LedgerDataSource.beancount
 				: LedgerDataSource.filesystem;
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
