@@ -134,10 +134,14 @@
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
 		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
+		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
+		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
+		const hasActiveStoredServer =
+			!!activeSyncServerId && syncServers.some((entry) => entry.id === activeSyncServerId);
 		if (dataSource) {
 			configSource = dataSource as LedgerDataSource;
 		} else {
-			configSource = storedSyncServerUrl.trim()
+			configSource = hasActiveStoredServer
 				? LedgerDataSource.beancount
 				: LedgerDataSource.filesystem;
 		}
@@ -255,6 +259,7 @@
 
 	async function saveDataSource() {
 		await settings.set(SettingKeys.ledgerDataSource, configSource);
+		recomputeSyncAll();
 	}
 
 	async function saveSyncServerUrl() {
