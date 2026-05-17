@@ -110,8 +110,7 @@
 		syncServerUrl = trimmedUrl;
 
 		if (!trimmedUrl) {
-			await settings.set(SettingKeys.syncServerUrl, trimmedUrl);
-			await syncActiveStoredServerUrl(trimmedUrl);
+			await settings.set(SettingKeys.syncServerUrl, trimmedUrl || null);
 			return null;
 		}
 
