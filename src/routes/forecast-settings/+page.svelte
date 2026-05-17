@@ -11,7 +11,7 @@
 	import { CheckIcon, TrashIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 
-	let days = $state(DEFAULT_FORECAST_DAYS);
+	let days = $state<number>(DEFAULT_FORECAST_DAYS);
 	let accountNames: string[] = $state([]);
 
 	onMount(async () => {
@@ -20,13 +20,11 @@
 	});
 
 	async function loadData() {
-		let accounts = await settings.get(SettingKeys.forecastAccounts);
-		if (!accounts) return;
-
+		const accounts = (await settings.get<string[]>(SettingKeys.forecastAccounts)) ?? [];
 		accountNames = accounts;
 
 		// days
-		days = await settings.get(SettingKeys.forecastDays);
+		days = (await settings.get<number>(SettingKeys.forecastDays)) ?? DEFAULT_FORECAST_DAYS;
 	}
 
 	async function handleAccountSelection() {

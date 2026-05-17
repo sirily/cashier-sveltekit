@@ -45,13 +45,9 @@ class CashierSyncBeancount {
 	}
 
 	createUrl(query: string): URL {
-		const path = this.createPath(query);
-		const url = new URL(`${this.serverUrl}${path}`);
+		const url = new URL(this.serverUrl);
+		url.searchParams.set('query', query);
 		return url;
-	}
-
-	createPath(query: string) {
-		return `?query=${query}`;
 	}
 
 	/**
@@ -226,8 +222,8 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 	if (!syncOptions) {
 		syncOptions = {
 			syncAccounts: true,
-			syncAaValues: true,
-			syncAssetAllocation: true,
+			syncAaValues: false,
+			syncAssetAllocation: false,
 			syncPayees: true
 		};
 	}
@@ -254,7 +250,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 		// Asset Allocation definition (.toml)
 		if (syncOptions.syncAssetAllocation) {
 			updateSyncStep(3, 'in-progress');
-			await syncAssetAllocation(sync);
+			Notifier.info('Asset allocation sync is skipped in Stage 1');
 			updateSyncStep(3, 'completed');
 		}
 
