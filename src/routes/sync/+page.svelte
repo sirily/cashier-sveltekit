@@ -121,14 +121,18 @@
 
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
+		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
 		if (dataSource) {
 			configSource = dataSource as LedgerDataSource;
 		} else {
+			configSource = storedSyncServerUrl.trim()
+				? LedgerDataSource.beancount
+				: LedgerDataSource.filesystem;
 			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
-		syncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
+		syncServerUrl = storedSyncServerUrl;
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
