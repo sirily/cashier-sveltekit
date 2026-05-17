@@ -136,14 +136,18 @@
 		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
+		const importBookDirectory = (await settings.get<string>(SettingKeys.importBookDirectory)) ?? '';
+		const importBookFileSpec = (await settings.get<string>(SettingKeys.importBookFileSpec)) ?? '';
 		const hasActiveStoredServer =
 			!!activeSyncServerId && syncServers.some((entry) => entry.id === activeSyncServerId);
+		const hasFilesystemConfig = !!(importBookDirectory.trim() || importBookFileSpec.trim());
 		if (dataSource) {
 			configSource = dataSource as LedgerDataSource;
 		} else {
-			configSource = hasActiveStoredServer
+			configSource = hasActiveStoredServer || (!!storedSyncServerUrl.trim() && !hasFilesystemConfig)
 				? LedgerDataSource.beancount
 				: LedgerDataSource.filesystem;
+			await settings.set(SettingKeys.ledgerDataSource, configSource);
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
