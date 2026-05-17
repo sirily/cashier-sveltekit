@@ -17,6 +17,7 @@
 	let syncAll = $state(false);
 	let syncAccounts = $state(false);
 	let syncAaValues = $state(false);
+	let syncAssetAllocation = $state(false);
 	let syncPayees = $state(false);
 
 	let syncServerUrl = $state('');
@@ -28,7 +29,7 @@
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
 
 	function hasSelectedSyncStep() {
-		return syncAccounts || syncAaValues || syncPayees;
+		return syncAccounts || syncAaValues || syncAssetAllocation || syncPayees;
 	}
 
 	function areAllVisibleSyncStepsSelected(visibleSteps: boolean[]) {
@@ -36,7 +37,12 @@
 	}
 
 	function recomputeSyncAll() {
-		syncAll = areAllVisibleSyncStepsSelected([syncAccounts, syncAaValues, syncPayees]);
+		syncAll = areAllVisibleSyncStepsSelected([
+			syncAccounts,
+			syncAaValues,
+			syncAssetAllocation,
+			syncPayees
+		]);
 	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
@@ -105,9 +111,9 @@
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
+		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
 		recomputeSyncAll();
-		await settings.set(SettingKeys.syncAssetAllocation, false);
 	}
 
 	async function onOpfsClick() {
@@ -137,7 +143,7 @@
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncAaValues,
-				syncAssetAllocation: false,
+				syncAssetAllocation,
 				syncPayees
 			};
 
@@ -204,8 +210,8 @@
 		recomputeSyncAll();
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
+		await settings.set(SettingKeys.syncAssetAllocation, syncAssetAllocation);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
-		await settings.set(SettingKeys.syncAssetAllocation, false);
 	}
 
 	async function saveDataSource() {
@@ -220,6 +226,7 @@
 		syncAll = checked;
 		syncAccounts = checked;
 		syncAaValues = checked;
+		syncAssetAllocation = checked;
 		syncPayees = checked;
 
 		await saveSettings();
@@ -321,6 +328,23 @@
 					>
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
+			</tr>
+			<tr>
+				<td>
+					<input
+						id="sync-asset-allocation"
+						class="checkbox checkbox-primary rounded"
+						type="checkbox"
+						bind:checked={syncAssetAllocation}
+						onchange={saveSettings}
+					/>
+				</td>
+				<td>
+					<label for="sync-asset-allocation" class="block cursor-pointer py-3"
+						>Asset allocation definition</label
+					>
+				</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 3)?.status)}</td>{/if}
 			</tr>
 			<tr>
 				<td>
