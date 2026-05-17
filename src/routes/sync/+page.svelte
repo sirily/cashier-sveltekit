@@ -161,13 +161,10 @@
 		const activeStoredServer = activeSyncServerId
 			? syncServers.find((entry) => entry.id === activeSyncServerId) ?? null
 			: null;
-		const hasActiveStoredServer = !!activeStoredServer;
 		if (dataSource) {
 			configSource = dataSource as LedgerDataSource;
 		} else {
-			configSource = hasActiveStoredServer || !!storedSyncServerUrl.trim()
-				? LedgerDataSource.beancount
-				: LedgerDataSource.filesystem;
+			configSource = LedgerDataSource.filesystem;
 		}
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
