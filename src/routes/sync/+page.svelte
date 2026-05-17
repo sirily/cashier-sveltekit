@@ -29,8 +29,18 @@
 
 	let configSource = $state<LedgerDataSource>(LedgerDataSource.filesystem);
 
+	function supportsOpeningBalancesSync() {
+		return configSource === LedgerDataSource.filesystem;
+	}
+
 	function hasSelectedSyncStep() {
-		return syncAccounts || syncOpeningBalances || syncAaValues || syncAssetAllocation || syncPayees;
+		return (
+			syncAccounts ||
+			(supportsOpeningBalancesSync() && syncOpeningBalances) ||
+			syncAaValues ||
+			syncAssetAllocation ||
+			syncPayees
+		);
 	}
 
 	function areAllVisibleSyncStepsSelected(visibleSteps: boolean[]) {
@@ -38,13 +48,12 @@
 	}
 
 	function recomputeSyncAll() {
-		syncAll = areAllVisibleSyncStepsSelected([
-			syncAccounts,
-			syncOpeningBalances,
-			syncAaValues,
-			syncAssetAllocation,
-			syncPayees
-		]);
+		const visibleSteps = [syncAccounts, syncAaValues, syncAssetAllocation, syncPayees];
+		if (supportsOpeningBalancesSync()) {
+			visibleSteps.splice(1, 0, syncOpeningBalances);
+		}
+
+		syncAll = areAllVisibleSyncStepsSelected(visibleSteps);
 	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
@@ -102,6 +111,7 @@
 
 		if (!trimmedUrl) {
 			await settings.set(SettingKeys.syncServerUrl, trimmedUrl);
+			await syncActiveStoredServerUrl(trimmedUrl);
 			return null;
 		}
 
@@ -169,7 +179,7 @@
 		try {
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
-				syncOpeningBalances,
+				syncOpeningBalances: supportsOpeningBalancesSync() ? syncOpeningBalances : false,
 				syncAaValues,
 				syncAssetAllocation,
 				syncPayees
@@ -254,7 +264,9 @@
 	async function toggleAllCheckboxes(checked: boolean) {
 		syncAll = checked;
 		syncAccounts = checked;
-		syncOpeningBalances = checked;
+		if (supportsOpeningBalancesSync()) {
+			syncOpeningBalances = checked;
+		}
 		syncAaValues = checked;
 		syncAssetAllocation = checked;
 		syncPayees = checked;
@@ -342,23 +354,25 @@
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td>{/if}
 			</tr>
-			<tr>
-				<td>
-					<input
-						id="sync-opening-balances"
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncOpeningBalances}
-						onchange={saveSettings}
-					/>
-				</td>
-				<td>
-					<label for="sync-opening-balances" class="block cursor-pointer py-3"
-						>Opening balances</label
-					>
-				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
-			</tr>
+			{#if supportsOpeningBalancesSync()}
+				<tr>
+					<td>
+						<input
+							id="sync-opening-balances"
+							class="checkbox checkbox-primary rounded"
+							type="checkbox"
+							bind:checked={syncOpeningBalances}
+							onchange={saveSettings}
+						/>
+					</td>
+					<td>
+						<label for="sync-opening-balances" class="block cursor-pointer py-3"
+							>Opening balances</label
+						>
+					</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
+				</tr>
+			{/if}
 			<tr>
 				<td>
 					<input
