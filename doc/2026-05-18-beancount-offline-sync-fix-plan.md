@@ -4,15 +4,14 @@ Status date: 2026-05-18.
 
 Branch: `merge-main-beancount-sync-recovery`.
 
-Reviewed commits through: `6abb848 fix: remove stale rledger routes`.
+Reviewed commits through: `6824f19 docs: clarify WebDAV token storage`.
 
 ## Verdict
 
 The Beancount offline sync implementation is functionally complete for the planned PWA-side scope.
 
-The remaining gaps are verification and hardening items, not core implementation blockers:
+The remaining gaps are hardening and follow-up verification items, not core implementation blockers:
 
-- Playwright `/sync` E2E coverage is still missing and was not run by explicit request.
 - Multi-currency UI audit is mostly complete, but chart/summary views still need a focused visual/data review.
 - Server-side `/infrastructure` path confinement must be enforced in `cashier-server-python`; the PWA client cannot be the security boundary.
 - WebDAV password/app-token storage remains an existing local-browser secret-storage risk outside this Beancount sync change.
@@ -56,7 +55,7 @@ Important invariants currently enforced:
 9. Beancount sync diagnostics summary: done.
 10. Account navigation fallback/discoverability: done.
 11. Multi-currency UI audit: partial, no known blocking regression found.
-12. Unit/E2E runner separation: done.
+12. Test runner separation: done.
 13. Beancount sync unit tests: done.
 14. Route inventory unit test: done.
 15. Stale user-facing rledger routes/tests/data-source branches: done for known product routes.
@@ -82,7 +81,6 @@ Results:
 - `npm run test:unit -- --run`: pass, 6 files, 23 tests.
 - `npm audit --omit=dev --audit-level=moderate`: pass, 0 production dependency vulnerabilities.
 - `npm run build`: pass.
-- `npm run test:e2e`: not run by explicit request.
 
 Notes:
 
@@ -101,7 +99,7 @@ Findings:
 3. The original `cashier.bean` overwrite risk is closed: downloaded infrastructure cannot map to `cashier.bean`.
 4. The original stale rledger product surface is closed for known UI/data-source routes.
 5. The route inventory test is useful but intentionally shallow; it catches literal visible routes, not every dynamic navigation or runtime-only link.
-6. Playwright `/sync` E2E coverage remains missing because E2E was explicitly skipped.
+6. No new blocking review findings were found in the refreshed branch.
 
 ## CSO Results
 
@@ -115,17 +113,14 @@ Findings:
 4. The PWA validates and normalizes infrastructure paths before OPFS writes, but the server must still enforce its own root jail / allowlist for `/infrastructure`.
 5. WebDAV credentials are stored in browser settings/IndexedDB. This is pre-existing, not introduced by Beancount sync, but it remains a security hardening item.
 6. The generated build still includes the RustLedger WASM asset because the active Beancount worker depends on it. This is expected.
+7. `6824f19` clarifies the WebDAV token-storage risk in documentation; no new secret material was introduced.
 
 ## Remaining Work
 
-1. Add Playwright `/sync` E2E coverage separately when allowed:
-   - successful Beancount offline ledger sync with mocked server responses
-   - metadata-only Beancount sync
-   - include-fetch failure showing a non-green result
-2. Finish focused multi-currency UI audit for chart and summary surfaces.
-3. Add or verify server-side `/infrastructure` path confinement in `cashier-server-python`.
-4. Decide whether WebDAV credential storage needs encryption, session-only storage, or clearer product warnings.
-5. Consider reducing the remaining Svelte warnings as a separate cleanup.
+1. Finish focused multi-currency UI audit for chart and summary surfaces.
+2. Add or verify server-side `/infrastructure` path confinement in `cashier-server-python`.
+3. Decide whether WebDAV credential storage needs encryption, session-only storage, or clearer product warnings.
+4. Consider reducing the remaining Svelte warnings as a separate cleanup.
 
 ## Acceptance Status
 
@@ -139,4 +134,4 @@ PWA-side implementation acceptance is met:
 - `/sync` status and diagnostics distinguish metadata, file download, selected book, and parse result
 - Stage 1 Beancount sync is read-only from the client
 
-Full project acceptance is not closed until the separately deferred Playwright `/sync` E2E tests are added/run and the server-side path confinement is verified.
+Full project acceptance is not closed until server-side path confinement is verified and the focused multi-currency UI audit is completed.
