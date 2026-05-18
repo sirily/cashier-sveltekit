@@ -24,7 +24,7 @@
 		const serverUrl = await settings.get<string>(SettingKeys.backupServerUrl);
 		if (!serverUrl) {
 			Notifier.info('Backup server URL not set.');
-			await goto('/cloud-backup-settings');
+			await goto('/settings/webdav-cfg');
 			return;
 		}
 
@@ -50,7 +50,7 @@
 	}
 
 	async function onRestoreClick() {
-		Notifier.info('Not implemented');
+		Notifier.info('Restore is not available yet. Configure WebDAV and use backup export only.');
 	}
 </script>
 
@@ -71,7 +71,7 @@
 			<button type="button" class="btn btn-primary" onclick={onBackupClick}>
 				Backup</button
 			>
-			<button type="button" class="btn btn-warning" onclick={onRestoreClick}>
+			<button type="button" class="btn btn-warning" onclick={onRestoreClick} disabled>
 				Restore</button
 			>
 		</div>

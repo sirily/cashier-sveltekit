@@ -108,8 +108,10 @@ function populateStocks(assetClass: AssetClass, investmentAccounts: Account[]): 
 			analysis: undefined
 		};
 
-		// find all accounts with this commodity
-		const stockAccounts = investmentAccounts.filter((acct) => acct.balance?.currency === childName);
+		// Match against the full balances map so multi-commodity accounts are retained.
+		const stockAccounts = investmentAccounts.filter((acct) =>
+			acct.balances ? childName in acct.balances : false
+		);
 		stock.accounts.push(...stockAccounts);
 
 		result.push(stock);

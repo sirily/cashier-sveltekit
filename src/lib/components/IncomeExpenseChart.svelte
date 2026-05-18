@@ -17,9 +17,10 @@
 		months: string[];
 		income: number[];
 		expenses: number[];
+		currency?: string;
 	}
 
-	let { months, income, expenses }: Props = $props();
+	let { months, income, expenses, currency = '' }: Props = $props();
 
 	Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -30,6 +31,7 @@
 		const plainMonths: string[] = $state.snapshot(months) as string[];
 		const plainIncome: number[] = $state.snapshot(income) as number[];
 		const plainExpenses: number[] = $state.snapshot(expenses) as number[];
+		const suffix = currency ? ` ${currency}` : '';
 
 		if (chart) {
 			chart.destroy();
@@ -69,7 +71,7 @@
 					legend: { display: true, position: 'top' },
 					tooltip: {
 						callbacks: {
-							label: (c) => ` ${c.dataset.label}: ${Number(c.raw).toFixed(2)}`
+							label: (c) => ` ${c.dataset.label}: ${Number(c.raw).toFixed(2)}${suffix}`
 						}
 					}
 				},

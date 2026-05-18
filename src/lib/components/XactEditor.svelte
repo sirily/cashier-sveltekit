@@ -179,8 +179,7 @@
 			return;
 		}
 
-		$xact.postings.push(new Posting());
-		$xact.postings = $xact.postings;
+		$xact.postings = [...$xact.postings, new Posting()];
 	}
 
 	const onAccountClicked = async (index: number) => {

@@ -118,12 +118,19 @@
 		}
 	}
 
+	function formatAccountBalances(balances: Record<string, number> | undefined): string {
+		if (!balances) return '';
+		return Object.entries(balances)
+			.map(([currency, amount]) => `${amount} ${currency}`)
+			.join(', ');
+	}
+
 	// --- Debug ---
 
 	async function runSymbolDebugQueries(symbol: string) {
 		const queryFn = data.wasmQuery as WasmQueryFn;
 		const currency = data.currency as string;
-		const queries = getQueries(PtaSystems.rledger);
+		const queries = getQueries(PtaSystems.beancount);
 		const yieldFrom = moment().subtract(1, 'year').format('YYYY-MM-DD');
 
 		symbolDebug[symbol] = {
@@ -261,8 +268,7 @@
 						{#each stock.accounts as account}
 							<div class="ms-3">
 								{account.name},
-								{account.balance?.quantity}
-								{account.balance?.currency},
+								{formatAccountBalances(account.balances) || 'No balances'},
 								{account.currentValue?.toFixed(2)}
 								{account.currentCurrency}
 							</div>

@@ -58,6 +58,8 @@
 	}
 
 	async function saveSettings() {
+		// TODO(webdav-removal): legacy personal-backup config. Do not build new flows
+		// around this stored password/app token; remove with the WebDAV UI.
 		await settings.set(SettingKeys.webdavSettings, { url, username, password });
 	}
 
@@ -153,13 +155,18 @@
 					<label class="label md:w-40 md:flex-shrink-0" for="dav-pass">
 						<span class="label-text">Password / App token</span>
 					</label>
-					<input
-						id="dav-pass"
-						type="password"
-						bind:value={password}
-						onchange={saveSettings}
-						class="input input-bordered md:flex-1"
-					/>
+					<div class="md:flex-1">
+						<input
+							id="dav-pass"
+							type="password"
+							bind:value={password}
+							onchange={saveSettings}
+							class="input input-bordered w-full"
+						/>
+						<p class="mt-1 text-xs opacity-70">
+							Stored locally in this browser's IndexedDB. Use a revocable app token instead of your account password.
+						</p>
+					</div>
 				</div>
 			</div>
 		</div>

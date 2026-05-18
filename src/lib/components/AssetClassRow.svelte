@@ -6,7 +6,8 @@
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
 	import AssetClassRow from './AssetClassRow.svelte';
 
-	export let assetClass: AssetClass;
+	// eslint-disable-next-line no-unassigned-vars
+export let assetClass: AssetClass;
 	export let children: AssetClass[] = [];
 	export let depth: number = 0;
 	export let collapsedState: Record<string, boolean> = {};

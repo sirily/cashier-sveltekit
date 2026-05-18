@@ -38,7 +38,11 @@ class AppService {
 		}
 
 		existingAccount.currencies = Array.from(
-			new Set([...(existingAccount.currencies ?? []), ...(account.currencies ?? []), ...Object.keys(account.balances ?? {})])
+			new Set([
+				...(existingAccount.currencies ?? []),
+				...(account.currencies ?? []),
+				...Object.keys(account.balances ?? {})
+			])
 		).sort();
 	}
 
@@ -113,7 +117,9 @@ class AppService {
 	}
 
 	async replacePayees(payeeNames: string[]): Promise<void> {
-		const uniquePayees = Array.from(new Set(payeeNames.map((name) => name.trim()).filter(Boolean))).sort();
+		const uniquePayees = Array.from(
+			new Set(payeeNames.map((name) => name.trim()).filter(Boolean))
+		).sort();
 		if (uniquePayees.length === 0) {
 			throw new Error('No payees received');
 		}
@@ -204,10 +210,6 @@ class AppService {
 		}
 
 		throw new Error('Delete transaction not implemented yet!');
-
-		// await this.db.xacts.delete(id);
-
-		console.log('Delete transaction completed.', id);
 	}
 
 	/**
@@ -457,7 +459,9 @@ class AppService {
 	 * @param payees Array of payee names from Ledger.
 	 */
 	async importPayees(payeeNames: string[]): Promise<void> {
-		const uniquePayees = Array.from(new Set(payeeNames.map((name) => name.trim()).filter(Boolean))).sort();
+		const uniquePayees = Array.from(
+			new Set(payeeNames.map((name) => name.trim()).filter(Boolean))
+		).sort();
 		const payees = uniquePayees.map((name) => new Payee(name));
 		await db.payees.bulkPut(payees);
 	}

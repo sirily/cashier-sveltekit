@@ -16,6 +16,7 @@
 	let chartLabels = $state<string[]>([]);
 	let chartValues = $state<number[]>([]);
 	let expenseTotal = $derived(chartValues.reduce((sum, v) => sum + v, 0));
+	let displayCurrency = $state('');
 	let currentPeriod = $state<Period | null>(null);
 
 	function handleBarClick(account: string) {
@@ -36,6 +37,7 @@
 
 		try {
 			const defaultCurrency = await settings.get<string>(SettingKeys.currency);
+			displayCurrency = defaultCurrency ?? '';
 			await fullLedgerService.ensureLoaded();
 
 			const bql = `SELECT account, NUMBER(CONVERT(units(position), "${defaultCurrency}")) AS number WHERE account ~ "^Expenses" AND date >= ${period.dateFrom} AND date <= ${period.dateTo}`;
@@ -130,7 +132,7 @@
 	{#if chartValues.length > 0}
 		<div class="flex justify-end px-4 py-2 border-t border-base-300 text-sm font-medium">
 			<span class="text-base-content/60 mr-2">Total:</span>
-			<span>{expenseTotal.toFixed(2)}</span>
+			<span>{expenseTotal.toFixed(2)}{displayCurrency ? ` ${displayCurrency}` : ''}</span>
 		</div>
 	{/if}
 </article>

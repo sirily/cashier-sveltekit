@@ -59,18 +59,13 @@ export class SecurityAnalyser {
 	private async getPtaSystem(): Promise<string> {
 		if (!this.ptaSystem) {
 			if (this.wasmQueryFn) {
-				this.ptaSystem = PtaSystems.rledger;
+				this.ptaSystem = PtaSystems.beancount;
 			} else {
-				// Map ledgerDataSource to PTA system for query selection
 				const dataSource = (await settings.get(SettingKeys.ledgerDataSource)) as string;
-				if (dataSource === LedgerDataSource.filesystem || dataSource === LedgerDataSource.rledger) {
-					this.ptaSystem = PtaSystems.rledger;
-				} else if (dataSource === LedgerDataSource.beancount) {
-					this.ptaSystem = PtaSystems.beancount;
-				} else if (dataSource === LedgerDataSource.ledger) {
+				if (dataSource === LedgerDataSource.ledger) {
 					this.ptaSystem = PtaSystems.ledger;
 				} else {
-					this.ptaSystem = PtaSystems.rledger;
+					this.ptaSystem = PtaSystems.beancount;
 				}
 			}
 		}
@@ -159,14 +154,14 @@ export class SecurityAnalyser {
 		let total;
 		if (ptaSystem == PtaSystems.ledger) {
 			total = LedgerParser.getNumberFromBalanceRow(report);
-		} else if (ptaSystem == PtaSystems.beancount || ptaSystem == PtaSystems.rledger) {
+		} else if (ptaSystem == PtaSystems.beancount) {
 			const line = report[0];
 			total = BeancountParser.getMoneyFromTupleString(line[0]).quantity;
 		} else {
 			throw new UserError(
 				`Unsupported accounting system: "${ptaSystem}"`,
 				'Please set a valid PTA system in settings (ledger or beancount)',
-				`Received: "${ptaSystem}". Supported systems are: ledger, beancount, rledger`
+				`Received: "${ptaSystem}". Supported systems are: ledger, beancount`
 			);
 		}
 
@@ -182,14 +177,14 @@ export class SecurityAnalyser {
 
 		if (ptaSystem == PtaSystems.ledger) {
 			return LedgerParser.getNumberFromBalanceRow(report);
-		} else if (ptaSystem == PtaSystems.beancount || ptaSystem == PtaSystems.rledger) {
+		} else if (ptaSystem == PtaSystems.beancount) {
 			const line = report[0];
 			return BeancountParser.getMoneyFromTupleString(line[0]).quantity;
 		} else {
 			throw new UserError(
 				`Unsupported accounting system: "${ptaSystem}"`,
 				'Please set a valid PTA system in settings (ledger or beancount)',
-				`Received: "${ptaSystem}". Supported systems are: ledger, beancount, rledger`
+				`Received: "${ptaSystem}". Supported systems are: ledger, beancount`
 			);
 		}
 	}

@@ -5,22 +5,11 @@
  */
 
 import { settings, SettingKeys } from '$lib/settings';
-import fullLedgerService from '$lib/services/ledgerWorkerClient';
-import { getQueries } from './sync-queries';
 // import moment from 'moment';
 // import { ISODATEFORMAT } from '$lib/constants';
-import { PtaSystems } from '$lib/enums';
 import * as syncCommon from '$lib/sync/sync-common';
-// import * as RledgerParser from '$lib/utils/rledgerParser';
-import { Account, Money } from '$lib/data/model';
 // import { OPFSBackend } from '$lib/storage';
-import type { CurrentValuesDict } from '$lib/data/viewModels';
-import { AssetAllocationEngine } from '$lib/assetAllocation/AssetAllocation';
-import {
-	syncProgress,
-	initializeSyncProgress,
-	updateSyncStep
-} from '$lib/stores/syncProgressStore';
+import { syncProgress } from '$lib/stores/syncProgressStore';
 // import type { AccountFileEntry } from '$lib/data/opfsTypes';
 
 // IndexedDB persistence for directory handle
@@ -190,7 +179,7 @@ export async function loadFileMap(): Promise<{
 // 	return { fileMap, mainFileName, dirHandle };
 // }
 
-async function synchronize(syncOptions: syncCommon.SyncSteps): Promise<boolean> {
+async function synchronize(_syncOptions: syncCommon.SyncSteps): Promise<boolean> {
 	try {
 		// Initialize sync progress
 		// initializeSyncProgress();
@@ -203,9 +192,6 @@ async function synchronize(syncOptions: syncCommon.SyncSteps): Promise<boolean> 
 		// 	console.log('Parse errors:', errors);
 		// 	throw new Error('Parsing errors occurred. See console for details.');
 		// }
-
-		// Run queries and store results via sync-common.
-		// const queries = getQueries(PtaSystems.rledger);
 
 		// Synchronization steps:
 
@@ -374,17 +360,5 @@ async function synchronize(syncOptions: syncCommon.SyncSteps): Promise<boolean> 
 // 	const aa = new AssetAllocationEngine();
 // 	await aa.importCurrentValues(currentValues);
 // }
-
-async function syncPayees(queries: ReturnType<typeof getQueries>) {
-	// const from = moment().subtract(20, 'years').format(ISODATEFORMAT);
-	const payeesQuery = queries.payees();
-
-	const payeesResult = await fullLedgerService.query(payeesQuery);
-
-	// Parse the result into a string[] of payee names, then store via common.
-	const payees = payeesResult.rows.map((row: any) => row);
-
-	await syncCommon.syncPayees(payees);
-}
 
 export { synchronize };

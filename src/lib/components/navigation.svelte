@@ -324,7 +324,7 @@
 			</li>
 			<!-- <li>
 				<a
-					href="/peer-sync"
+					href="/demo/peer-sync"
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/peer-sync'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"

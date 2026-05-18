@@ -7,9 +7,8 @@ import numeral from 'numeral';
 import toml from 'toml';
 import { getAccountBalance, loadInvestmentAccounts } from '$lib/services/accountsService';
 import Big from 'big.js';
-import { Account, Money } from '../data/model';
+import { Money } from '../data/model';
 import { NUMBER_FORMAT } from '../constants';
-import type { CurrentValuesDict } from '$lib/data/viewModels';
 import { UserError, ValidationError } from '$lib/utils/errors';
 import fullLedgerService from '$lib/services/ledgerWorkerClient';
 

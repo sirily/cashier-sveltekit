@@ -19,6 +19,12 @@
 	let maxBalance = $state(0);
 	let balancesLoaded = $state(false);
 
+	function getPrimaryQuantity(account: Account): number {
+		if (account.balance?.quantity != null) return account.balance.quantity;
+		const firstAmount = Object.values(account.balances ?? {})[0];
+		return typeof firstAmount === 'number' ? firstAmount : 0;
+	}
+
 	const lsVersion = fullLedgerService.version;
 	const isReloading = fullLedgerService.isReloading;
 
@@ -31,7 +37,7 @@
 	$effect(() => {
 		if (accounts.length > 0) {
 			const quantities = accounts
-				.map((a) => Math.abs(a.balance?.quantity as number))
+				.map((a) => Math.abs(getPrimaryQuantity(a)))
 				.filter((q) => !isNaN(q) && q > 0);
 			maxBalance = quantities.length > 0 ? Math.max(...quantities) : 0;
 		}

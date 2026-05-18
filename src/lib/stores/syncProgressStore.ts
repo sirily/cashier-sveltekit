@@ -20,7 +20,10 @@ export function initializeSyncProgress() {
 		{ id: 2, name: 'Sync opening balances', status: 'pending' },
 		{ id: 3, name: 'Sync asset allocation', status: 'pending' },
 		{ id: 4, name: 'Sync account balances', status: 'pending' },
-		{ id: 5, name: 'Sync payees', status: 'pending' }
+		{ id: 5, name: 'Sync payees', status: 'pending' },
+		{ id: 6, name: 'Download ledger files', status: 'pending' },
+		{ id: 7, name: 'Select root book', status: 'pending' },
+		{ id: 8, name: 'Parse full ledger', status: 'pending' }
 	]);
 }
 

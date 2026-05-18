@@ -15,7 +15,14 @@
 	const namespace = $derived(account.getParentName());
 	const leafName = $derived(account.getAccountName());
 	const isGrayed = $derived(account.exists === false);
-	const quantity = $derived(account.balance?.quantity as number);
+
+	function getPrimaryQuantity(account: Account): number {
+		if (account.balance?.quantity != null) return account.balance.quantity;
+		const firstAmount = Object.values(account.balances ?? {})[0];
+		return typeof firstAmount === 'number' ? firstAmount : 0;
+	}
+
+	const quantity = $derived(getPrimaryQuantity(account));
 
 	const rowStyle = $derived.by(() => {
 		if (!balancesLoaded) return '';

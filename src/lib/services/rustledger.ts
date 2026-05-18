@@ -1,6 +1,11 @@
 /**
- * RustLedger WASM Service
+ * RustLedger WASM Service (DEPRECATED)
  * Provides Beancount parsing functionality using @rustledger/wasm
+ *
+ * @deprecated This service is deprecated and should be removed.
+ * It is kept for backward compatibility but initialization is disabled
+ * to prevent WASM URL resolution errors in environments like Vitest.
+ * Use fullLedgerService or ledgerService instead.
  */
 
 import { Account } from '$lib/data/model';

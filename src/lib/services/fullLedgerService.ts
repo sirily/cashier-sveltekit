@@ -205,7 +205,6 @@ class FullLedgerService {
 	// 	if (!this.ledger) return [];
 
 	// 	// TODO: rewrite this to use a query and not parse directives directly.
-	// 	const queries = getQueries(PtaSystems.rledger);
 	// 	// const openAccountNames = this.ledger.query(queries.openAccounts())
 	// 	// 	.rows.map((r) => r[0] as string);
 	// 	const accounts = this.ledger.query(queries.accounts())

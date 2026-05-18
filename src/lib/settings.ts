@@ -60,13 +60,15 @@ export const SettingKeys = {
 	pCloudToken: 'pCloudToken',
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
+	syncBeancountRootFile: 'syncBeancountRootFile',
 	// External data source system
-	ledgerDataSource: 'ledgerDataSource', // beancount, rledger, ledger, filesystem
+	ledgerDataSource: 'ledgerDataSource', // beancount, ledger, filesystem
 	// synchronization choices
 	syncAccounts: 'syncAccounts',
 	syncAaValues: 'syncAaValues',
 	syncAssetAllocation: 'syncAssetAllocation',
 	syncPayees: 'syncPayees',
+	syncLedgerFiles: 'syncLedgerFiles',
 	syncOpeningBalances: 'syncOpeningBalances',
 	// Home cards
 	visibleCards: 'homeCardNames',
@@ -86,7 +88,8 @@ export const SettingKeys = {
 	ledgerCacheEnabled: 'ledgerCacheEnabled',
 	// Account groups for the groups page
 	accountGroups: 'accountGroups',
-	// WebDAV backup configuration
+	// TODO(webdav-removal): legacy personal-backup settings. This is not the target sync path.
+	// Remove with the WebDAV backup UI so password/app-token storage disappears completely.
 	webdavSettings: 'webdav-settings',
 	// Date display format (moment.js format string)
 	dateFormat: 'dateFormat'
