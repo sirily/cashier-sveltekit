@@ -276,33 +276,9 @@ class CashierSyncBeancount {
 
 		if (this.ptaSystem === PtaSystems.beancount) {
 			content = content.map((subArray) => subArray[0]);
-		} else if (this.ptaSystem === PtaSystems.rledger) {
-			// content = content.rows.map((item) => item.payee);
 		}
 
 		return content;
-	}
-
-	async search(searchParams: object) {
-		const url = new URL(`${this.serverUrl}/search`);
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(searchParams)
-		});
-		const result = await response.json();
-		return result;
-	}
-
-	async xact(parameters: object) {
-		const url = new URL(`${this.serverUrl}/xact`);
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(parameters)
-		});
-		const result = await response.text();
-		return result;
 	}
 
 	/**

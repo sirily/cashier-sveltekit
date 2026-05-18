@@ -10,9 +10,9 @@
 	const { classs = '', delay, ondragstart, setDragElement } = $props();
 
 	/** @type {HTMLDivElement} */
-	let container: HTMLDivElement;
+	let container: HTMLDivElement | undefined = $state();
 	/** @type {HTMLDivElement} */
-	let drag_view: HTMLDivElement;
+	let drag_view: HTMLDivElement | undefined = $state();
 	/** @type {ReturnType<typeof setTimeout> | 0} */
 	let timeout: ReturnType<typeof setTimeout> | 0;
 
@@ -39,6 +39,8 @@
 	 * @param {number} client_y
 	 */
 	const start_drag = (client_x: number, client_y: number) => {
+		if (!container || !drag_view) return;
+
 		const drag_element: HTMLDivElement =
 			/** @type {HTMLDivElement} */
 			((drag_view.children[0] || container).cloneNode(true) as HTMLDivElement); /**/

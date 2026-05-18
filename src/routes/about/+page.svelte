@@ -1,11 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import Toolbar from '$lib/components/Toolbar.svelte';
-	import rustledger from '$lib/services/rustledger';
 	import { useRegisterSW } from 'virtual:pwa-register/svelte';
 	import { RefreshCw } from '@lucide/svelte';
 
-	let wasmVersion = '';
 	let checking = false;
 	let updateChecked = false;
 	let registration: ServiceWorkerRegistration | undefined;
@@ -13,15 +10,6 @@
 	const { needRefresh, updateServiceWorker } = useRegisterSW({
 		onRegistered(r) {
 			registration = r;
-		}
-	});
-
-	onMount(async () => {
-		try {
-			await rustledger.ensureInitialized();
-			wasmVersion = rustledger.version();
-		} catch {
-			wasmVersion = 'unavailable';
 		}
 	});
 
@@ -78,9 +66,6 @@
 			Build: <code>{__BUILD_TIMESTAMP__}</code>
 		</p>
 		<p>
-			RustLedger WASM: <code>{wasmVersion || 'loading…'}</code>
-		</p>
-		<p>
 			<button class="link link-primary inline-flex items-center gap-1" onclick={checkForUpdates} disabled={checking}>
 				<RefreshCw size={14} class={checking ? 'animate-spin' : ''} />
 				{checking ? 'Checking…' : 'Check for updates'}
@@ -97,9 +82,6 @@
 		<h3 class="text-3xl font-semibold">Experiments</h3>
 
 		<ul>
-			<li>
-				<a class="link link-primary" href="/demo/rledger">RustLedger demo</a>
-			</li>
 			<li>
 				<a class="link link-primary" href="/ledger">Parsed Ledger</a>
 			</li>

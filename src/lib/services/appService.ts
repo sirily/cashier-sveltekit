@@ -210,10 +210,6 @@ class AppService {
 		}
 
 		throw new Error('Delete transaction not implemented yet!');
-
-		// await this.db.xacts.delete(id);
-
-		console.log('Delete transaction completed.', id);
 	}
 
 	/**

@@ -1,7 +1,7 @@
 /**
  * RustLedger WASM Service (DEPRECATED)
  * Provides Beancount parsing functionality using @rustledger/wasm
- * 
+ *
  * @deprecated This service is deprecated and should be removed.
  * It is kept for backward compatibility but initialization is disabled
  * to prevent WASM URL resolution errors in environments like Vitest.
@@ -30,7 +30,7 @@ async function initWasm(): Promise<void> {
 	if (initPromise) return initPromise;
 
 	console.warn('RustLedger WASM Service is deprecated and initialization is disabled.');
-	
+
 	/*
 	initPromise = (async () => {
 		try {
