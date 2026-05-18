@@ -7,6 +7,7 @@
 	import fullLedgerService from '$lib/services/ledgerWorkerClient';
 	import type { Account } from '$lib/data/model';
 	import { goto } from '$app/navigation';
+	import CashierDAL from '$lib/data/dbdal';
 
 	let searchTerm = $state('');
 	let isInSelectionMode = $derived($selectionMetadata !== undefined);
@@ -22,8 +23,14 @@
 		document.body.style.cursor = 'wait';
 
 		await fullLedgerService.ensureLoaded();
-		const accounts = await fullLedgerService.getAllAccounts();
-		allAccounts = accounts as Account[];
+		const ledgerAccounts = (await fullLedgerService.getAllAccounts()) as Account[];
+		const dal = await CashierDAL.create();
+		const syncedAccounts = await dal.loadAccounts();
+		const accountByName = new Map<string, Account>();
+		for (const account of [...ledgerAccounts, ...syncedAccounts]) {
+			if (account.name) accountByName.set(account.name, account);
+		}
+		allAccounts = Array.from(accountByName.values()).sort((a, b) => a.name.localeCompare(b.name));
 
 		dataLoaded = true;
 		document.body.style.cursor = 'default';

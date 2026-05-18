@@ -3,13 +3,6 @@
  * Handles parsing, storage, and orchestration after raw data is fetched.
  */
 import appService from '$lib/services/appService';
-import CashierDAL from '$lib/data/dbdal';
-import { AssetAllocationEngine } from '$lib/assetAllocation/AssetAllocation';
-import { settings, SettingKeys } from '$lib/settings';
-import * as LedgerParser from '$lib/utils/ledgerParser';
-import * as BeancountParser from '$lib/utils/beancountParser';
-import type { CurrentValuesDict } from '$lib/data/viewModels';
-import { PtaSystems } from '$lib/enums';
 
 export interface SyncSteps {
 	syncAccounts?: boolean;
@@ -30,32 +23,14 @@ export async function syncAccounts(
 		throw new Error('No accounts received');
 	}
 
-	await appService.deleteAccounts();
-	await appService.importBalanceSheet(ptaSystem, response);
+	await appService.replaceAccounts(ptaSystem, response);
 }
 
 /**
- * Parse current values per PTA system and import into asset allocation.
+ * Stage 1 sync does not support current values / asset allocation imports.
  */
-export async function syncCurrentValues(ptaSystem: string, result: any): Promise<void> {
-	const rootAccount = (await settings.get(SettingKeys.rootInvestmentAccount)) as string;
-	if (!rootAccount) {
-		throw new Error('No root investment account set!');
-	}
-
-	let currentValues: CurrentValuesDict;
-	if (ptaSystem === PtaSystems.beancount) {
-		currentValues = BeancountParser.parseCurrentValues(result, rootAccount);
-		// } else if (ptaSystem === PtaSystems.rledger) {
-		// 	currentValues = RledgerParser.parseCurrentValues(result, rootAccount);
-	} else if (ptaSystem === PtaSystems.ledger) {
-		currentValues = LedgerParser.parseCurrentValues(result, rootAccount);
-	} else {
-		throw new Error('Unknown PTA system: ' + ptaSystem);
-	}
-
-	const aa = new AssetAllocationEngine();
-	await aa.importCurrentValues(currentValues);
+export async function syncCurrentValues(_ptaSystem: string, _result: any): Promise<void> {
+	throw new Error('Stage 1 sync does not support current values or asset allocation import');
 }
 
 /**
@@ -66,7 +41,5 @@ export async function syncPayees(payeeNames: string[]): Promise<void> {
 		throw new Error('No payees received');
 	}
 
-	const dal = new CashierDAL();
-	await dal.deletePayees();
-	await appService.importPayees(payeeNames);
+	await appService.replacePayees(payeeNames);
 }

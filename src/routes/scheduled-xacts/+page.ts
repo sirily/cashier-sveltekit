@@ -17,12 +17,12 @@ async function loadData() {
 
 	// sort also by payee, case insensitive
 	sorted.sort((a, b) => {
-		const tx1 = a.transaction;
-		const tx2 = b.transaction;
+		const payee1 = a.transaction?.payee ?? '';
+		const payee2 = b.transaction?.payee ?? '';
 
 		const sorting = a.nextDate.localeCompare(b.nextDate);
 		return sorting == 0
-			? tx1.payee.localeCompare(tx2.payee, 'en', { sensitivity: 'base' })
+			? payee1.localeCompare(payee2, 'en', { sensitivity: 'base' })
 			: sorting;
 	});
 

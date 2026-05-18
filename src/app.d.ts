@@ -13,6 +13,14 @@ declare global {
 		// interface PageData {}
 		// interface Platform {}
 	}
+
+	interface FileSystemDirectoryHandle {
+		entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
+		[Symbol.asyncIterator](): AsyncIterableIterator<[string, FileSystemHandle]>;
+		requestPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+		queryPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
+	}
+
 	const __BUILD_TIMESTAMP__: string;
 }
 

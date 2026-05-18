@@ -34,12 +34,20 @@
 		return configSource === LedgerDataSource.filesystem;
 	}
 
+	function supportsCurrentValuesSync() {
+		return configSource === LedgerDataSource.filesystem;
+	}
+
+	function supportsAssetAllocationSync() {
+		return configSource === LedgerDataSource.filesystem;
+	}
+
 	function hasSelectedSyncStep() {
 		return (
 			syncAccounts ||
 			(supportsOpeningBalancesSync() && syncOpeningBalances) ||
-			syncAaValues ||
-			syncAssetAllocation ||
+			(supportsCurrentValuesSync() && syncAaValues) ||
+			(supportsAssetAllocationSync() && syncAssetAllocation) ||
 			syncPayees
 		);
 	}
@@ -49,12 +57,24 @@
 	}
 
 	function recomputeSyncAll() {
-		const visibleSteps = [syncAccounts, syncAaValues, syncAssetAllocation, syncPayees];
+		const visibleSteps = [syncAccounts, syncPayees];
 		if (supportsOpeningBalancesSync()) {
 			visibleSteps.splice(1, 0, syncOpeningBalances);
 		}
+		if (supportsCurrentValuesSync()) {
+			visibleSteps.splice(visibleSteps.length - 1, 0, syncAaValues);
+		}
+		if (supportsAssetAllocationSync()) {
+			visibleSteps.splice(visibleSteps.length - 1, 0, syncAssetAllocation);
+		}
 
 		syncAll = areAllVisibleSyncStepsSelected(visibleSteps);
+	}
+
+	function clearUnsupportedSyncSteps() {
+		if (!supportsOpeningBalancesSync()) syncOpeningBalances = false;
+		if (!supportsCurrentValuesSync()) syncAaValues = false;
+		if (!supportsAssetAllocationSync()) syncAssetAllocation = false;
 	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
@@ -196,6 +216,7 @@
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
 		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
+		clearUnsupportedSyncSteps();
 		recomputeSyncAll();
 	}
 
@@ -239,11 +260,12 @@
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
 
 		try {
+			clearUnsupportedSyncSteps();
 			const syncOptions: SyncBeancount.SyncSteps = {
 				syncAccounts,
 				syncOpeningBalances: supportsOpeningBalancesSync() ? syncOpeningBalances : false,
-				syncAaValues,
-				syncAssetAllocation,
+				syncAaValues: supportsCurrentValuesSync() ? syncAaValues : false,
+				syncAssetAllocation: supportsAssetAllocationSync() ? syncAssetAllocation : false,
 				syncPayees
 			};
 
@@ -307,6 +329,7 @@
 	}
 
 	async function saveSettings() {
+		clearUnsupportedSyncSteps();
 		recomputeSyncAll();
 		await settings.set(SettingKeys.syncAccounts, syncAccounts);
 		await settings.set(SettingKeys.syncOpeningBalances, syncOpeningBalances);
@@ -316,6 +339,7 @@
 	}
 
 	async function saveDataSource() {
+		clearUnsupportedSyncSteps();
 		if (configSource === LedgerDataSource.beancount) {
 			const hasUrl = !!syncServerUrl.trim();
 			if (!hasUrl) {
@@ -355,9 +379,14 @@
 		if (supportsOpeningBalancesSync()) {
 			syncOpeningBalances = checked;
 		}
-		syncAaValues = checked;
-		syncAssetAllocation = checked;
+		if (supportsCurrentValuesSync()) {
+			syncAaValues = checked;
+		}
+		if (supportsAssetAllocationSync()) {
+			syncAssetAllocation = checked;
+		}
 		syncPayees = checked;
+		clearUnsupportedSyncSteps();
 
 		await saveSettings();
 	}
@@ -464,6 +493,7 @@
 					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 2)?.status)}</td>{/if}
 				</tr>
 			{/if}
+			{#if supportsCurrentValuesSync()}
 			<tr>
 				<td>
 					<input
@@ -481,6 +511,8 @@
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 4)?.status)}</td>{/if}
 			</tr>
+			{/if}
+			{#if supportsAssetAllocationSync()}
 			<tr>
 				<td>
 					<input
@@ -498,6 +530,7 @@
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 3)?.status)}</td>{/if}
 			</tr>
+			{/if}
 			<tr>
 				<td>
 					<input

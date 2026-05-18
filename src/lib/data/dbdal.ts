@@ -22,7 +22,11 @@ export default class CashierDAL implements DAL {
 	}
 
 	async getAccount(name: string): Promise<Account> {
-		return await db.accounts.get(name);
+		const account = await db.accounts.get(name);
+		if (!account) {
+			throw new Error(`Account not found: ${name}`);
+		}
+		return account;
 	}
 
 	/**
