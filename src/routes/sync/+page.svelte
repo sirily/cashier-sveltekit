@@ -284,12 +284,6 @@
 					// cashier-server-python
 					syncResult = await SyncBeancount.synchronize(syncOptions);
 					break;
-				case LedgerDataSource.rledger:
-					// cashier-server-rust
-					Notifier.warning(
-						'Synchronization with Cashier Server (Rust Ledger) not implemented yet.'
-					);
-					break;
 				case LedgerDataSource.ledger:
 					Notifier.warning('Synchronization with Cashier Server (Ledger-cli) not implemented yet.');
 					break;

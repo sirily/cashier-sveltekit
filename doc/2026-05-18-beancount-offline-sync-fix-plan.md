@@ -401,14 +401,21 @@ USER FLOW COVERAGE
 
 Playwright should verify visible UX. Unit tests should verify OPFS write details.
 
-### Commands
+### Required Commands
 
 ```bash
 npm run check
 npm run lint
 npm run test:unit
-npm run test:e2e
 npm run build
+```
+
+### Optional Commands
+
+Run when Playwright browsers and local HTTPS test environment are available:
+
+```bash
+npm run test:e2e
 ```
 
 ## Quick Safe Cleanup
@@ -682,14 +689,19 @@ Conflict flags:
 
 ### Automated
 
-Run when environment permits:
+Required before merge:
 
 ```bash
 npm run check
 npm run lint
 npm run test:unit
-npm run test:e2e
 npm run build
+```
+
+Optional when Playwright environment is ready:
+
+```bash
+npm run test:e2e
 ```
 
 ### Browser QA
@@ -731,12 +743,24 @@ And does not use:
 
 Status reviewed against branch `merge-main-beancount-sync-recovery` vs `main` on 2026-05-18.
 
+Latest status update: review + CSO pass on 2026-05-18 after commits through
+`5641b5a docs: update beancount sync status`.
+
+Verdict:
+
+- Core Beancount offline sync implementation is done.
+- Quick safety fixes from review/CSO are done.
+- The whole plan is not fully complete because `/sync` Playwright coverage, route inventory coverage,
+  full multi-currency UI audit, and deeper rledger enum/branch cleanup remain.
+
 ### Automated Verification
 
 - `npm run check`: pass, 6 pre-existing warnings only
 - `npm run lint`: pass
-- `npm run test:unit -- --run`: pass
-- `npm run test:e2e`: not verified locally in review because Playwright browser install was unavailable
+- `npm run test:unit -- --run`: pass, 22 tests
+- `npm audit --omit=dev --audit-level=moderate`: pass, 0 production dependency vulnerabilities
+- `npm run build`: deferred in latest pass; run separately with the remaining test batch
+- `npm run test:e2e`: deferred in latest pass; previous blocker was missing local Playwright Chromium binary
 
 ### Implementation Task Status
 
@@ -761,6 +785,42 @@ Status reviewed against branch `merge-main-beancount-sync-recovery` vs `main` on
 5. Remove or hide user-facing dead rledger/test/demo paths: mostly done
 6. Remove unused Stage 1 Beancount POST client methods: done
 7. Fix obvious dead UI links and `Not implemented` actions: mostly done
+
+### Latest Review And CSO Results
+
+Review status: `DONE_WITH_CONCERNS`.
+
+CSO status: `DONE_WITH_CONCERNS`.
+
+Findings checked and closed in the latest review cycle:
+
+1. Closed. Stage 1 Beancount sync exposed a destructive server shutdown surface.
+   - Fix: removed `CashierSyncBeancount.shutdown()`, removed `/sync` toolbar shutdown action, and removed the visible `Server Shutdown` button.
+   - Verification: targeted search for `shutdown(`, `/shutdown`, `Server Shutdown`, and `Shut down server` in `src/lib/sync`, `src/routes/sync`, and Beancount sync tests returned no matches.
+   - References:
+     - `src/lib/sync/sync-beancount.ts`
+     - `src/routes/sync/+page.svelte`
+
+2. Closed. Stage 1 Beancount sync needed executable tests for path safety and read-only client invariants.
+   - Fix: added `tests/sync-beancount.test.ts`.
+   - Coverage now includes path normalization, include parsing, include resolution, local OPFS path mapping, outside-root rejection, include rewrite behavior, duplicate/cyclic include handling, rollback on parse failure, `cashier.bean` preservation, `cashier.bean` overwrite rejection, failed include fetch before OPFS writes, and absence of `search`, `xact`, and `shutdown` methods.
+   - Verification: `npm run test:unit -- --run` passes with 22 tests.
+   - References:
+     - `tests/sync-beancount.test.ts`
+     - `src/lib/sync/sync-beancount.ts`
+
+3. Closed. Stage 1 Beancount sync should not use mutating server endpoints.
+   - Fix: unused `search()` and `xact()` POST methods were removed earlier, and `shutdown()` was removed in the latest pass.
+   - Verification: targeted search for `method: 'POST'`, `/xact`, `/search`, and `/shutdown` in Beancount sync code found no active sync client usage.
+   - Remaining non-sync matches for words like `xact` are transaction UI/domain names, not server write-back calls.
+
+4. CSO note. Client-side path normalization is implemented, but the server must still enforce its own infrastructure root jail / allowlist.
+   - Impact: a browser client cannot be the security boundary for `/infrastructure?file_path=...`.
+   - Status: accepted as server-side requirement outside this repo's PWA-only change.
+
+5. CSO note. WebDAV password/app token is still stored in browser settings/IndexedDB.
+   - Impact: unchanged existing PWA risk; acceptable for local-first app only if documented as device-local secret storage.
+   - Status: not introduced by this Beancount sync work; track in a separate security hardening task if WebDAV becomes a supported production backup path.
 
 ### Closed Findings
 
@@ -813,9 +873,85 @@ Status reviewed against branch `merge-main-beancount-sync-recovery` vs `main` on
 1. Deeper rledger cleanup is not complete:
    - `LedgerDataSource.rledger`, `PtaSystems.rledger`, and related dead branches still exist
 
-### Next Fix Order
+### Execution Plan For Remaining Work
 
-1. Add Playwright coverage for `/sync`
+#### Phase A. Close acceptance-risk gaps first
+
+1. Finish the multi-currency UI audit.
+2. Add route inventory coverage for visible navigation.
+3. Re-run required verification commands.
+
+Why first:
+
+- these items affect current user-visible correctness and merge confidence
+- they do not depend on Playwright availability
+- they reduce the remaining acceptance blockers in the current review state
+
+Implementation notes:
+
+- audit remaining account summary/card surfaces that still collapse to a single quantity
+- prefer existing `balances` / `currencies` model where the UI can show multiple commodities without layout regressions
+- add a static route inventory test that covers visible `href`, `targetNav`, and common `goto()` usage against real `src/routes/**` pages
+
+Acceptance for Phase A:
+
+- no known key account surfaces silently flatten multi-currency data without explicit fallback behavior
+- visible navigation links have automated coverage
+- `npm run check`, `npm run lint`, `npm run test:unit`, and `npm run build` pass
+
+#### Phase B. Finish deferred `/sync` browser coverage
+
+1. Add Playwright coverage for `/sync` success path.
+2. Add Playwright coverage for metadata-only sync.
+3. Add Playwright coverage for include download failure and non-green result.
+
+Why second:
+
+- this is still valuable product coverage, but it is environment-dependent
+- the current branch can still make progress without blocking on missing local Playwright browsers
+
+Implementation notes:
+
+- keep Playwright assertions focused on visible UX and diagnostics, not OPFS implementation details already covered by unit tests
+- use mocked server responses only; do not depend on external Beancount infrastructure in CI/local verification
+- keep these tests in `tests/ui` only
+
+Acceptance for Phase B:
+
+- `npm run test:e2e` passes when Playwright browsers are installed
+- no Playwright test is required to validate OPFS write edge cases already covered by unit tests
+
+#### Phase C. Complete deeper `rledger` cleanup
+
+1. Remove remaining `LedgerDataSource.rledger` and `PtaSystems.rledger` branches.
+2. Remove dead query/data-source branches in sync and asset-allocation code.
+3. Re-run targeted search for stale `rledger` user-facing references.
+
+Why third:
+
+- this is cleanup rather than the main acceptance blocker for the Beancount offline sync fix
+- it can touch multiple files and enums, so it is safer after correctness gaps are closed
+
+Implementation notes:
+
+- preserve the active WASM engine used by the ledger worker
+- remove only dead user-facing product branches and stale query paths
+- verify imports and switch statements after enum cleanup to avoid hidden runtime regressions
+
+Acceptance for Phase C:
+
+- no user-facing `rledger` data-source path remains
+- only worker/WASM implementation references remain where required by the Beancount engine
+
+#### Phase D. Final review pass
+
+1. Run the required verification suite.
+2. Run optional Playwright verification if environment permits.
+3. Re-check the current status section and update it with the final pass results.
+
+### Updated Priority Order
+
+1. Finish the multi-currency UI audit
 2. Add route inventory coverage for visible navigation
-3. Finish the multi-currency UI audit
-4. Continue deeper rledger cleanup
+3. Add Playwright coverage for `/sync` as optional-but-desired verification
+4. Continue deeper `rledger` cleanup

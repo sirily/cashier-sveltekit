@@ -79,53 +79,11 @@ const BeancountQueries: Queries = {
 	basis: (symbol: string, currency: string) => `b ^Assets and :${symbol}$ -B -n -X ${currency}`
 };
 
-const RustledgerQueries: Queries = {
-	/**
-	 * # is url-encoded (%23)
-	 * @returns accounts query
-	 */
-	accounts: () => 'SELECT sum(number) as balance, currency, account ORDER BY account',
-	openAccounts: () => 'SELECT account, open, currencies from #accounts where close is null',
-	balances: () => 'SELECT account, sum(number) as balance, currency ORDER BY account',
-	currentValues: (rootAccount: string, currency: string) =>
-		`SELECT account, str(value(sum(position), '${currency}')) as value
-        WHERE account ~ '^${rootAccount}'
-        GROUP BY account
-        HAVING number(value(sum(position), 'EUR')) != 0
-        ORDER BY account`,
-	// HAVING NOT empty(sum(position))
-	lots: (_symbol: string) => 'balances',
-	payees: () =>
-		`SELECT DISTINCT COALESCE(payee, narration) as payee FROM transactions ORDER BY payee`,
-	/**
-	 * Income balance for symbol
-	 * @returns Income from the security.
-	 */
-	incomeBalance: (symbol: string, yieldFrom: string, currency: string) =>
-		`SELECT str(CONVERT(value(sum(position)), '${currency}')) as balance, account \
-        WHERE account ~ '^Income.*:${symbol}$' \
-            AND date >= ${yieldFrom}`,
-	gainLoss: (symbol: string, currency: string) =>
-		`SELECT 
-            str(convert(cost(sum(position)), '${currency}')) AS cost_basis, \
-            str(convert(value(sum(position)), '${currency}')) AS market_value \
-        WHERE currency = '${symbol}'`,
-	valueBalance: (symbol: string, currency: string) => {
-		// convert the symbol to the account-name-compatible form.
-		// symbol = symbol.replace('.', '-')
-		return `select str(convert(sum(position), '${currency}')) \
-                where currency = '${symbol}'`;
-	},
-	basis: (symbol: string, currency: string) => `b ^Assets and :${symbol}$ -B -n -X ${currency}`
-};
-
 export function getQueries(ptaSystem: string): Queries {
 	if (ptaSystem === PtaSystems.ledger) {
 		return LedgerQueries;
 	} else if (ptaSystem == PtaSystems.beancount) {
 		return BeancountQueries;
-	} else if (ptaSystem == PtaSystems.rledger) {
-		return RustledgerQueries;
 	} else {
 		throw new Error('Unknown PTA system: ' + ptaSystem);
 	}

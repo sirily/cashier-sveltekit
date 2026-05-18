@@ -8,7 +8,6 @@ import { settings, SettingKeys } from '$lib/settings';
 // import moment from 'moment';
 // import { ISODATEFORMAT } from '$lib/constants';
 import * as syncCommon from '$lib/sync/sync-common';
-// import * as RledgerParser from '$lib/utils/rledgerParser';
 // import { OPFSBackend } from '$lib/storage';
 import { syncProgress } from '$lib/stores/syncProgressStore';
 // import type { AccountFileEntry } from '$lib/data/opfsTypes';
@@ -193,9 +192,6 @@ async function synchronize(_syncOptions: syncCommon.SyncSteps): Promise<boolean>
 		// 	console.log('Parse errors:', errors);
 		// 	throw new Error('Parsing errors occurred. See console for details.');
 		// }
-
-		// Run queries and store results via sync-common.
-		// const queries = getQueries(PtaSystems.rledger);
 
 		// Synchronization steps:
 

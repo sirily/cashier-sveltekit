@@ -62,7 +62,7 @@ export const SettingKeys = {
 	syncServerUrl: 'syncServerUrl',
 	syncBeancountRootFile: 'syncBeancountRootFile',
 	// External data source system
-	ledgerDataSource: 'ledgerDataSource', // beancount, rledger, ledger, filesystem
+	ledgerDataSource: 'ledgerDataSource', // beancount, ledger, filesystem
 	// synchronization choices
 	syncAccounts: 'syncAccounts',
 	syncAaValues: 'syncAaValues',

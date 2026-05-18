@@ -130,7 +130,7 @@
 	async function runSymbolDebugQueries(symbol: string) {
 		const queryFn = data.wasmQuery as WasmQueryFn;
 		const currency = data.currency as string;
-		const queries = getQueries(PtaSystems.rledger);
+		const queries = getQueries(PtaSystems.beancount);
 		const yieldFrom = moment().subtract(1, 'year').format('YYYY-MM-DD');
 
 		symbolDebug[symbol] = {

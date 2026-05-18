@@ -14,7 +14,6 @@ export const HomeCardNames = {
 export enum LedgerDataSource {
 	filesystem = 'filesystem',
 	beancount = 'beancount',
-	rledger = 'rledger',
 	ledger = 'ledger'
 }
 
@@ -29,7 +28,6 @@ export const RecurrencePeriods = {
 
 export enum PtaSystems {
 	beancount = 'beancount',
-	rledger = 'rledger',
 	ledger = 'ledger'
 }
 
