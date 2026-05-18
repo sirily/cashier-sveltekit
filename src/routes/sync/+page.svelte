@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { BoxIcon, PowerIcon, RefreshCcw } from '@lucide/svelte';
+	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { SettingKeys, settings } from '$lib/settings';
 	import Notifier from '$lib/utils/notifier';
@@ -237,22 +237,6 @@
 		await goto('/opfs');
 	}
 
-	async function onShutdownClick() {
-		if (configSource !== LedgerDataSource.beancount) return;
-
-		const activeUrl = await persistSyncServerUrl(true);
-		if (!activeUrl) return;
-
-		const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
-		try {
-			await sync.shutdown();
-			Notifier.info('The server shutdown request sent.');
-		} catch (error: any) {
-			console.error(error);
-			Notifier.error(error.message || 'Failed to shut down server.');
-		}
-	}
-
 	async function onSyncClicked() {
 		if (!hasSelectedSyncStep()) {
 			Notifier.error('Select at least one synchronization step before starting sync.');
@@ -435,9 +419,6 @@
 
 <Toolbar title="Synchronization">
 	{#snippet menuItems()}
-		{#if configSource === LedgerDataSource.beancount}
-			<ToolbarMenuItem text="Shut down server" Icon={PowerIcon} onclick={onShutdownClick} />
-		{/if}
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
 	{/snippet}
 </Toolbar>
@@ -657,11 +638,6 @@
 		<hr class="my-10" />
 
 		<center>
-			<button class="btn text-accent bg-secondary mr-5 rounded uppercase" onclick={onShutdownClick}>
-				<span><PowerIcon /></span>
-				<span>Server Shutdown</span>
-			</button>
-
 			<button
 				class="btn bg-primary text-accent rounded uppercase"
 				onclick={reloadData}

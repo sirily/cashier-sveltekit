@@ -280,13 +280,6 @@ class CashierSyncBeancount {
 
 		return content;
 	}
-
-	/**
-	 * Shutdown Cashier Server from the client app.
-	 */
-	shutdown() {
-		return this.get('/shutdown');
-	}
 }
 
 /**
@@ -473,4 +466,11 @@ function getLastDiagnostics() {
 	return lastDiagnostics;
 }
 
-export { CashierSyncBeancount, type SyncSteps, synchronize, getLastDiagnostics };
+const __test__ = {
+	normalizeRemotePath,
+	parseIncludes,
+	resolveRemoteInclude,
+	mapRemoteFilesToLocalPaths
+};
+
+export { CashierSyncBeancount, type SyncSteps, synchronize, getLastDiagnostics, __test__ };
