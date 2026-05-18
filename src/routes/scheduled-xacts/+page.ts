@@ -21,9 +21,7 @@ async function loadData() {
 		const payee2 = b.transaction?.payee ?? '';
 
 		const sorting = a.nextDate.localeCompare(b.nextDate);
-		return sorting == 0
-			? payee1.localeCompare(payee2, 'en', { sensitivity: 'base' })
-			: sorting;
+		return sorting == 0 ? payee1.localeCompare(payee2, 'en', { sensitivity: 'base' }) : sorting;
 	});
 
 	return { sorted };

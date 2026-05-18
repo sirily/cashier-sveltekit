@@ -236,7 +236,11 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 			case 'ensure-loaded': {
 				if (!ledger) {
 					const t0 = performance.now();
-					await loadFromCacheOrFiles(e.data.mainFileName, e.data.userBookFilename, e.data.useCaching ?? true);
+					await loadFromCacheOrFiles(
+						e.data.mainFileName,
+						e.data.userBookFilename,
+						e.data.useCaching ?? true
+					);
 					const ms = performance.now() - t0;
 					reply({
 						type: 'load-done',

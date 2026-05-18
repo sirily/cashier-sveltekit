@@ -4,7 +4,9 @@
  */
 import { settings, SettingKeys } from '$lib/settings';
 import moment from 'moment';
-import { ISODATEFORMAT } from '$lib/constants';
+import { CASHIER_XACT_FILE, ISODATEFORMAT } from '$lib/constants';
+import * as opfs from '$lib/utils/opfslib';
+import fullLedgerService from '$lib/services/ledgerWorkerClient';
 import { getQueries } from './sync-queries';
 import type { Queries } from './sync-queries';
 import Notifier from '$lib/utils/notifier';
@@ -14,6 +16,81 @@ import { initializeSyncProgress, updateSyncStep } from '$lib/stores/syncProgress
 import { PtaSystems } from '$lib/enums';
 
 Notifier.init();
+
+const DEFAULT_BEANCOUNT_ROOT_FILE = '/workspace/main.bean';
+const INCLUDE_DIRECTIVE_REGEX = /^\s*include\s+"([^"]+)"/gm;
+
+export interface BeancountSyncDiagnostics {
+	accountsCount?: number;
+	payeesCount?: number;
+	ledgerFilesCount?: number;
+	selectedRootBookFilename?: string;
+	rootBookSize?: number;
+	parseErrorCount?: number;
+}
+
+let lastDiagnostics: BeancountSyncDiagnostics | null = null;
+
+function normalizeRemotePath(path: string): string {
+	const normalized = path.replace(/\\/g, '/');
+	const isAbsolute = normalized.startsWith('/');
+	const stack: string[] = [];
+	for (const part of normalized.split('/')) {
+		if (!part || part === '.') continue;
+		if (part === '..') {
+			if (stack.length === 0) throw new Error(`Invalid infrastructure path: ${path}`);
+			stack.pop();
+			continue;
+		}
+		stack.push(part);
+	}
+	return `${isAbsolute ? '/' : ''}${stack.join('/')}`;
+}
+
+function dirname(path: string): string {
+	const normalized = normalizeRemotePath(path);
+	const index = normalized.lastIndexOf('/');
+	if (index <= 0) return normalized.startsWith('/') ? '/' : '';
+	return normalized.slice(0, index);
+}
+
+function basename(path: string): string {
+	return normalizeRemotePath(path).split('/').pop() ?? '';
+}
+
+function resolveRemoteInclude(parentPath: string, includePath: string): string {
+	if (includePath.startsWith('/')) return normalizeRemotePath(includePath);
+	const parentDir = dirname(parentPath);
+	return normalizeRemotePath(parentDir ? `${parentDir}/${includePath}` : includePath);
+}
+
+function parseIncludes(content: string): string[] {
+	return Array.from(content.matchAll(INCLUDE_DIRECTIVE_REGEX), (match) => match[1]);
+}
+
+function mapRemoteFilesToLocalPaths(
+	rootRemotePath: string,
+	remoteFiles: Map<string, string>
+): Map<string, string> {
+	const rootDir = dirname(rootRemotePath);
+	const rootLocalName = basename(rootRemotePath);
+	const localFiles = new Map<string, string>();
+	for (const [remotePath, content] of remoteFiles) {
+		let localPath = remotePath === rootRemotePath ? rootLocalName : '';
+		if (!localPath) {
+			const prefix = rootDir === '/' ? '/' : `${rootDir}/`;
+			if (!remotePath.startsWith(prefix)) {
+				throw new Error(`Included file is outside the selected root tree: ${remotePath}`);
+			}
+			localPath = normalizeRemotePath(remotePath.slice(prefix.length));
+		}
+		if (!localPath || localPath.startsWith('/') || localPath.split('/').includes('..')) {
+			throw new Error(`Invalid local OPFS path for ${remotePath}`);
+		}
+		localFiles.set(localPath, content);
+	}
+	return localFiles;
+}
 
 /**
  * Cashier Sync class communicates with the CashierSync server over network.
@@ -140,6 +217,27 @@ class CashierSyncBeancount {
 		return json.content;
 	}
 
+	async readLedgerFiles(rootFilePath: string): Promise<Map<string, string>> {
+		const rootPath = normalizeRemotePath(rootFilePath);
+		const files = new Map<string, string>();
+		const visiting = new Set<string>();
+
+		const visit = async (remotePath: string) => {
+			if (files.has(remotePath)) return;
+			if (visiting.has(remotePath)) return;
+			visiting.add(remotePath);
+			const content = await this.readFile(remotePath);
+			files.set(remotePath, content);
+			for (const includePath of parseIncludes(content)) {
+				await visit(resolveRemoteInclude(remotePath, includePath));
+			}
+			visiting.delete(remotePath);
+		};
+
+		await visit(rootPath);
+		return files;
+	}
+
 	async readLots(symbol: string) {
 		const query = this.queries.lots(symbol);
 
@@ -224,12 +322,14 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			syncAccounts: true,
 			syncAaValues: false,
 			syncAssetAllocation: false,
-			syncPayees: true
+			syncPayees: true,
+			syncLedgerFiles: true
 		};
 	}
 
 	// Initialize sync progress
 	initializeSyncProgress();
+	lastDiagnostics = {};
 
 	// Cashier Sync synchronization
 
@@ -279,6 +379,16 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			}
 			updateSyncStep(5, 'completed');
 		}
+		if (syncOptions.syncLedgerFiles) {
+			updateSyncStep(6, 'in-progress');
+			try {
+				await synchronizeLedgerFiles(sync);
+			} catch (error) {
+				updateSyncStep(6, 'error');
+				throw error;
+			}
+			updateSyncStep(6, 'completed');
+		}
 	} catch (error: any) {
 		console.error(error);
 		Notifier.error(error.message);
@@ -291,6 +401,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 async function synchronizeAccounts(sync: CashierSyncBeancount) {
 	const response = await sync.readAccounts();
 	await SyncCommon.syncAccounts(sync.ptaSystem, response);
+	lastDiagnostics = { ...lastDiagnostics, accountsCount: Object.keys(response).length };
 	Notifier.success('Accounts fetched from Ledger');
 }
 
@@ -303,7 +414,54 @@ async function synchronizeAaValues(sync: CashierSyncBeancount) {
 async function synchronizePayees(sync: CashierSyncBeancount) {
 	const response = await sync.readPayees();
 	await SyncCommon.syncPayees(response);
+	lastDiagnostics = { ...lastDiagnostics, payeesCount: response.length };
 	Notifier.success('Payees fetched from Ledger');
 }
 
-export { CashierSyncBeancount, type SyncSteps, synchronize };
+async function ensureCashierFileExists() {
+	if (await opfs.fileExists(CASHIER_XACT_FILE)) return;
+	await opfs.saveFile(CASHIER_XACT_FILE, '');
+}
+
+async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
+	const rootFilePath =
+		(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? DEFAULT_BEANCOUNT_ROOT_FILE;
+	await settings.set(SettingKeys.syncBeancountRootFile, rootFilePath);
+	const remoteFiles = await sync.readLedgerFiles(rootFilePath);
+	const localFiles = mapRemoteFilesToLocalPaths(normalizeRemotePath(rootFilePath), remoteFiles);
+	const selectedRootBookFilename = basename(rootFilePath);
+	const rootBook = localFiles.get(selectedRootBookFilename);
+	if (!rootBook) throw new Error('Downloaded root book is missing');
+	if (rootBook.trim().length === 0) throw new Error('Downloaded root book is empty');
+	for (const [path, content] of localFiles) {
+		if (content === undefined || content === null)
+			throw new Error(`Downloaded file is empty: ${path}`);
+	}
+	await ensureCashierFileExists();
+	for (const [path, content] of localFiles) {
+		await opfs.saveFile(path, content);
+	}
+	updateSyncStep(7, 'in-progress');
+	await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
+	updateSyncStep(7, 'completed');
+	updateSyncStep(8, 'in-progress');
+	await fullLedgerService.deleteCache();
+	await fullLedgerService.invalidate();
+	const errors = await fullLedgerService.getErrors();
+	lastDiagnostics = {
+		...lastDiagnostics,
+		ledgerFilesCount: localFiles.size,
+		selectedRootBookFilename,
+		rootBookSize: rootBook.length,
+		parseErrorCount: errors.length
+	};
+	if (errors.length > 0) throw new Error(`Full ledger parsed with ${errors.length} errors`);
+	updateSyncStep(8, 'completed');
+	Notifier.success('Ledger files downloaded to OPFS');
+}
+
+function getLastDiagnostics() {
+	return lastDiagnostics;
+}
+
+export { CashierSyncBeancount, type SyncSteps, synchronize, getLastDiagnostics };

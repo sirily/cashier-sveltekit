@@ -1,6 +1,11 @@
 /**
- * RustLedger WASM Service
+ * RustLedger WASM Service (DEPRECATED)
  * Provides Beancount parsing functionality using @rustledger/wasm
+ * 
+ * @deprecated This service is deprecated and should be removed.
+ * It is kept for backward compatibility but initialization is disabled
+ * to prevent WASM URL resolution errors in environments like Vitest.
+ * Use fullLedgerService or ledgerService instead.
  */
 
 import { Account } from '$lib/data/model';
@@ -11,7 +16,7 @@ import type {
 	ValidationResult,
 	Ledger
 } from '@rustledger/wasm';
-import wasmUrl from '@rustledger/wasm/rustledger_wasm_bg.wasm?url';
+// import wasmUrl from '@rustledger/wasm/rustledger_wasm_bg.wasm?url';
 
 // WASM module instance
 let wasmModule: typeof import('@rustledger/wasm') | null = null;
@@ -24,6 +29,9 @@ async function initWasm(): Promise<void> {
 	if (wasmModule) return;
 	if (initPromise) return initPromise;
 
+	console.warn('RustLedger WASM Service is deprecated and initialization is disabled.');
+	
+	/*
 	initPromise = (async () => {
 		try {
 			// Dynamically import the WASM package
@@ -43,8 +51,9 @@ async function initWasm(): Promise<void> {
 			throw error;
 		}
 	})();
+    */
 
-	return initPromise;
+	return Promise.resolve();
 }
 
 /**

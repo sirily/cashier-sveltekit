@@ -10,6 +10,7 @@ export interface SyncSteps {
 	syncAssetAllocation?: boolean;
 	syncPayees?: boolean;
 	syncOpeningBalances?: boolean;
+	syncLedgerFiles?: boolean;
 }
 
 /**

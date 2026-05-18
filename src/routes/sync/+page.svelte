@@ -21,8 +21,11 @@
 	let syncAssetAllocation = $state(false);
 	let syncOpeningBalances = $state(false);
 	let syncPayees = $state(false);
+	let syncLedgerFiles = $state(false);
 
 	let syncServerUrl = $state('');
+	let syncBeancountRootFile = $state('');
+	let diagnostics = $state<SyncBeancount.BeancountSyncDiagnostics | null>(null);
 	let rotationClass = $state('');
 	let syncStarted = $state(false);
 	let syncing = $state(false);
@@ -48,7 +51,8 @@
 			(supportsOpeningBalancesSync() && syncOpeningBalances) ||
 			(supportsCurrentValuesSync() && syncAaValues) ||
 			(supportsAssetAllocationSync() && syncAssetAllocation) ||
-			syncPayees
+			syncPayees ||
+			syncLedgerFiles
 		);
 	}
 
@@ -57,7 +61,7 @@
 	}
 
 	function recomputeSyncAll() {
-		const visibleSteps = [syncAccounts, syncPayees];
+		const visibleSteps = [syncAccounts, syncPayees, syncLedgerFiles];
 		if (supportsOpeningBalancesSync()) {
 			visibleSteps.splice(1, 0, syncOpeningBalances);
 		}
@@ -75,6 +79,7 @@
 		if (!supportsOpeningBalancesSync()) syncOpeningBalances = false;
 		if (!supportsCurrentValuesSync()) syncAaValues = false;
 		if (!supportsAssetAllocationSync()) syncAssetAllocation = false;
+		if (configSource !== LedgerDataSource.beancount) syncLedgerFiles = false;
 	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
@@ -196,7 +201,9 @@
 
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
-		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? '';
+		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? ''; 
+		const storedRootFile =
+			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? '/workspace/main.bean';
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
 		const activeStoredServer = activeSyncServerId
@@ -210,12 +217,15 @@
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
 		syncServerUrl = storedSyncServerUrl || activeStoredServer?.url || '';
+		syncBeancountRootFile = storedRootFile;
+		await settings.set(SettingKeys.syncBeancountRootFile, storedRootFile);
 
 		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
 		syncOpeningBalances = (await settings.get(SettingKeys.syncOpeningBalances)) ?? false;
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
 		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
+		syncLedgerFiles = (await settings.get(SettingKeys.syncBeancountRootFile)) ? configSource === LedgerDataSource.beancount : false;
 		clearUnsupportedSyncSteps();
 		recomputeSyncAll();
 	}
@@ -253,8 +263,13 @@
 			if (!validatedUrl) return;
 		}
 
+		if (configSource === LedgerDataSource.beancount) {
+			await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile.trim() || '/workspace/main.bean');
+		}
+
 		Notifier.info('Synchronization starting...');
 
+		diagnostics = null;
 		syncing = true;
 		syncStarted = true;
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
@@ -266,7 +281,8 @@
 				syncOpeningBalances: supportsOpeningBalancesSync() ? syncOpeningBalances : false,
 				syncAaValues: supportsCurrentValuesSync() ? syncAaValues : false,
 				syncAssetAllocation: supportsAssetAllocationSync() ? syncAssetAllocation : false,
-				syncPayees
+				syncPayees,
+				syncLedgerFiles: configSource === LedgerDataSource.beancount ? syncLedgerFiles : false
 			};
 
 			let syncResult = false;
@@ -294,8 +310,11 @@
 				throw new Error('Synchronization failed. Please check the logs for more details.');
 			}
 
-			// invalidate cache and reload data
-			await ledgerService.invalidate();
+			if (configSource === LedgerDataSource.filesystem) {
+				await ledgerService.invalidate();
+			} else if (configSource === LedgerDataSource.beancount) {
+				diagnostics = SyncBeancount.getLastDiagnostics();
+			}
 
 			Notifier.success('Synchronization completed successfully!');
 			rotationClass = '';
@@ -373,6 +392,11 @@
 		await persistSyncServerUrl();
 	}
 
+	async function saveBeancountRootFile() {
+		syncBeancountRootFile = syncBeancountRootFile.trim() || '/workspace/main.bean';
+		await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile);
+	}
+
 	async function toggleAllCheckboxes(checked: boolean) {
 		syncAll = checked;
 		syncAccounts = checked;
@@ -386,6 +410,9 @@
 			syncAssetAllocation = checked;
 		}
 		syncPayees = checked;
+		if (configSource === LedgerDataSource.beancount) {
+			syncLedgerFiles = checked;
+		}
 		clearUnsupportedSyncSteps();
 
 		await saveSettings();
@@ -425,6 +452,17 @@
 						onblur={saveSyncServerUrl}
 						class="input input-bordered w-full"
 						placeholder="https://cashier.example.com/api"
+					/>
+				</label>
+				<label class="form-control w-full">
+					<div class="label"><span class="label-text">Remote root book file</span></div>
+					<input
+						type="text"
+						bind:value={syncBeancountRootFile}
+						onchange={saveBeancountRootFile}
+						onblur={saveBeancountRootFile}
+						class="input input-bordered w-full"
+						placeholder="/workspace/main.bean"
 					/>
 				</label>
 			{/if}
@@ -546,6 +584,33 @@
 				</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 5)?.status)}</td>{/if}
 			</tr>
+			{#if configSource === LedgerDataSource.beancount}
+				<tr>
+					<td>
+						<input
+							id="sync-ledger-files"
+							class="checkbox checkbox-primary rounded"
+							type="checkbox"
+							bind:checked={syncLedgerFiles}
+							onchange={saveSettings}
+						/>
+					</td>
+					<td>
+						<label for="sync-ledger-files" class="block cursor-pointer py-3">Ledger files to OPFS</label>
+					</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 6)?.status)}</td>{/if}
+				</tr>
+				<tr>
+					<td></td>
+					<td>Root book selected</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 7)?.status)}</td>{/if}
+				</tr>
+				<tr>
+					<td></td>
+					<td>Full ledger parsed</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 8)?.status)}</td>{/if}
+				</tr>
+			{/if}
 		</tbody>
 	</table>
 
@@ -559,6 +624,22 @@
 			<span>Synchronize</span>
 		</button>
 	</center>
+
+	{#if diagnostics}
+		<div class="card bg-base-100 border border-base-300 shadow-sm">
+			<div class="card-body p-4">
+				<h2 class="card-title">Sync diagnostics</h2>
+				<div class="grid grid-cols-2 gap-2 text-sm">
+					<div>Accounts</div><div>{diagnostics.accountsCount ?? '-'}</div>
+					<div>Payees</div><div>{diagnostics.payeesCount ?? '-'}</div>
+					<div>Ledger files</div><div>{diagnostics.ledgerFilesCount ?? '-'}</div>
+					<div>Selected root book</div><div>{diagnostics.selectedRootBookFilename ?? '-'}</div>
+					<div>Root book size</div><div>{diagnostics.rootBookSize ?? '-'}</div>
+					<div>Parse errors</div><div>{diagnostics.parseErrorCount ?? '-'}</div>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	{#if configSource === LedgerDataSource.beancount}
 		<hr class="my-10" />
