@@ -94,6 +94,78 @@ function mapRemoteFilesToLocalPaths(
 	return localFiles;
 }
 
+function rewriteIncludesToLocalPaths(
+	rootRemotePath: string,
+	localFiles: Map<string, string>
+): Map<string, string> {
+	const localByRemotePath = new Map<string, string>();
+	const rootDir = dirname(rootRemotePath);
+	const rootLocalName = basename(rootRemotePath);
+
+	for (const localPath of localFiles.keys()) {
+		const remotePath =
+			localPath === rootLocalName
+				? rootRemotePath
+				: normalizeRemotePath(`${rootDir === '/' ? '' : rootDir}/${localPath}`);
+		localByRemotePath.set(remotePath, localPath);
+	}
+
+	const rewritten = new Map<string, string>();
+	for (const [localPath, content] of localFiles) {
+		const remotePath =
+			localPath === rootLocalName
+				? rootRemotePath
+				: localByRemotePath
+					? Array.from(localByRemotePath.entries()).find(
+							([, candidate]) => candidate === localPath
+						)?.[0]
+					: undefined;
+		const sourceRemotePath = remotePath ?? rootRemotePath;
+		const nextContent = content.replace(
+			INCLUDE_DIRECTIVE_REGEX,
+			(directive, includePath: string) => {
+				const resolvedRemotePath = resolveRemoteInclude(sourceRemotePath, includePath);
+				const targetLocalPath = localByRemotePath.get(resolvedRemotePath);
+				if (!targetLocalPath) {
+					throw new Error(`Included file is outside the selected root tree: ${resolvedRemotePath}`);
+				}
+				return directive.replace(includePath, targetLocalPath);
+			}
+		);
+		rewritten.set(localPath, nextContent);
+	}
+	return rewritten;
+}
+
+function ensureSafeLocalLedgerFiles(files: Map<string, string>): void {
+	for (const [path, content] of files) {
+		if (path === CASHIER_XACT_FILE) {
+			throw new Error('Downloaded infrastructure cannot overwrite cashier.bean');
+		}
+		if (content === undefined || content === null) {
+			throw new Error(`Downloaded file is empty: ${path}`);
+		}
+	}
+}
+
+async function snapshotExistingFiles(paths: string[]): Promise<Map<string, string | undefined>> {
+	const snapshot = new Map<string, string | undefined>();
+	for (const path of paths) {
+		snapshot.set(path, await opfs.readFile(path));
+	}
+	return snapshot;
+}
+
+async function restoreFiles(snapshot: Map<string, string | undefined>) {
+	for (const [path, content] of snapshot) {
+		if (content === undefined) {
+			await opfs.deleteFile(path);
+		} else {
+			await opfs.saveFile(path, content);
+		}
+	}
+}
+
 /**
  * Cashier Sync class communicates with the CashierSync server over network.
  * The methods here represent the methods implemented by the server.
@@ -368,7 +440,14 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 async function synchronizeAccounts(sync: CashierSyncBeancount) {
 	const response = await sync.readAccounts();
 	await SyncCommon.syncAccounts(sync.ptaSystem, response);
-	lastDiagnostics = { ...lastDiagnostics, accountsCount: Object.keys(response).length };
+	const accountsCount =
+		typeof response === 'object' &&
+		response !== null &&
+		'rows' in response &&
+		Array.isArray(response.rows)
+			? response.rows.length
+			: Object.keys(response).length;
+	lastDiagnostics = { ...lastDiagnostics, accountsCount };
 	Notifier.success('Accounts fetched from Ledger');
 }
 
@@ -397,30 +476,36 @@ async function persistLedgerFiles(files: Map<string, string>) {
 }
 
 async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
+	let previousBookFilename: string | null = null;
 	let selectedRootBookFilename = '';
 	let rootBook = '';
 	let localFiles = new Map<string, string>();
+	let fileSnapshot = new Map<string, string | undefined>();
+	let wroteFiles = false;
+	let switchedBook = false;
 
 	updateSyncStep(6, 'in-progress');
 	try {
 		const rootFilePath =
 			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ??
 			DEFAULT_BEANCOUNT_ROOT_FILE;
+		previousBookFilename = await settings.get<string>(SettingKeys.bookFilename);
 		await settings.set(SettingKeys.syncBeancountRootFile, rootFilePath);
 		const remoteFiles = await sync.readLedgerFiles(rootFilePath);
 		localFiles = mapRemoteFilesToLocalPaths(normalizeRemotePath(rootFilePath), remoteFiles);
+		localFiles = rewriteIncludesToLocalPaths(normalizeRemotePath(rootFilePath), localFiles);
 		selectedRootBookFilename = basename(rootFilePath);
 		rootBook = localFiles.get(selectedRootBookFilename) ?? '';
 		if (!rootBook) throw new Error('Downloaded root book is missing');
 		if (rootBook.trim().length === 0) throw new Error('Downloaded root book is empty');
-		for (const [path, content] of localFiles) {
-			if (content === undefined || content === null)
-				throw new Error(`Downloaded file is empty: ${path}`);
-		}
+		ensureSafeLocalLedgerFiles(localFiles);
+		fileSnapshot = await snapshotExistingFiles([...localFiles.keys()]);
 		await ensureCashierFileExists();
 		await persistLedgerFiles(localFiles);
+		wroteFiles = true;
 		updateSyncStep(6, 'completed');
 	} catch (error) {
+		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
 		updateSyncStep(6, 'error');
 		throw error;
 	}
@@ -428,8 +513,10 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 	updateSyncStep(7, 'in-progress');
 	try {
 		await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
+		switchedBook = true;
 		updateSyncStep(7, 'completed');
 	} catch (error) {
+		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
 		updateSyncStep(7, 'error');
 		throw error;
 	}
@@ -455,6 +542,25 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 		}
 		updateSyncStep(8, 'completed');
 	} catch (error) {
+		if (switchedBook) {
+			await settings.set(SettingKeys.bookFilename, previousBookFilename);
+		}
+		if (wroteFiles) {
+			await restoreFiles(fileSnapshot);
+		}
+		try {
+			await fullLedgerService.deleteCache();
+			await fullLedgerService.invalidate();
+		} catch {
+			// Best-effort recovery so the app doesn't stay on the failed ledger state.
+		}
+		lastDiagnostics = {
+			...lastDiagnostics,
+			ledgerFilesCount: localFiles.size || undefined,
+			selectedRootBookFilename: selectedRootBookFilename || undefined,
+			rootBookSize: rootBook.length || undefined,
+			parseResult: 'error'
+		};
 		updateSyncStep(8, 'error');
 		throw error;
 	}
@@ -470,7 +576,8 @@ const __test__ = {
 	normalizeRemotePath,
 	parseIncludes,
 	resolveRemoteInclude,
-	mapRemoteFilesToLocalPaths
+	mapRemoteFilesToLocalPaths,
+	rewriteIncludesToLocalPaths
 };
 
 export { CashierSyncBeancount, type SyncSteps, synchronize, getLastDiagnostics, __test__ };

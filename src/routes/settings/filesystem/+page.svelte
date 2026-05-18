@@ -51,11 +51,8 @@
 	let aaDefinitionFileName = $state(''); // same
 
 	onMount(async () => {
-		// const externalBook = await settings.get<string>(SettingKeys.externalBook);
-		// bookRootFileName = externalBook ?? '';
-
-		// const aaDef = await settings.get<string>(SettingKeys.externalAssetAllocation);
-		// aaDefinitionFileName = aaDef ?? '';
+		bookRootFileName = (await settings.get<string>(SettingKeys.importBookFileSpec)) ?? '';
+		aaDefinitionFileName = (await settings.get<string>(SettingKeys.assetAllocationDefinition)) ?? '';
 
 		const stored = await loadPersistedHandle(HANDLE_KEY);
 		if (stored && (await requestReadPermission(stored))) {
@@ -205,6 +202,10 @@
 		return new Date(ms).toLocaleString();
 	}
 
+	function displaySelectedPath(path: string): string {
+		return dirName ? `${dirName}/${path}` : path;
+	}
+
 	function isTextFile(name: string): boolean {
 		const textExtensions = [
 			'.beancount',
@@ -296,21 +297,27 @@
 	}
 
 	async function selectBookFile() {
-		// if (!selectedEntry || selectedEntry.kind !== 'file') return;
-		// const fullPath = `${dirName}/${selectedEntry.path}`;
-		// await settings.set(SettingKeys.externalBook, fullPath);
-		// bookRootFileName = fullPath;
-		// Notifier.success(`Book file set to: ${selectedEntry.path}`);
-		Notifier.warning('Not implemented!');
+		if (!selectedEntry || selectedEntry.kind !== 'file') return;
+		await settings.set(SettingKeys.importBookFileSpec, selectedEntry.path);
+		bookRootFileName = selectedEntry.path;
+		Notifier.success(`Book file set to: ${selectedEntry.path}`);
 	}
 
 	async function selectAssetAllocationFile() {
-		// if (!selectedEntry || selectedEntry.kind !== 'file') return;
-		// const fullPath = `${dirName}/${selectedEntry.path}`;
-		// await settings.set(SettingKeys.externalAssetAllocation, fullPath);
-		// aaDefinitionFileName = fullPath;
-		// Notifier.success(`Asset Allocation file set to: ${selectedEntry.path}`);
-		Notifier.warning('Not implemented!');
+		if (!selectedEntry || selectedEntry.kind !== 'file') return;
+		await settings.set(SettingKeys.assetAllocationDefinition, selectedEntry.path);
+		aaDefinitionFileName = selectedEntry.path;
+		Notifier.success(`Asset Allocation file set to: ${selectedEntry.path}`);
+	}
+
+	async function unsetBookFile() {
+		bookRootFileName = '';
+		await settings.set(SettingKeys.importBookFileSpec, null);
+	}
+
+	async function unsetAssetAllocationFile() {
+		aaDefinitionFileName = '';
+		await settings.set(SettingKeys.assetAllocationDefinition, null);
 	}
 
 	function onFab() {
@@ -387,7 +394,7 @@
 							<tr
 								class="cursor-pointer hover"
 								class:bg-secondary={selectedEntry?.path === entry.path}
-								class:book-root-row={`${dirName}/${entry.path}` === bookRootFileName &&
+								class:book-root-row={entry.path === bookRootFileName &&
 									selectedEntry?.path !== entry.path}
 								onclick={() => onEntryClick(entry)}
 							>
@@ -454,11 +461,8 @@
 					{#if bookRootFileName}
 						<div role="alert" class="alert alert-success">
 							<input type="checkbox" class="checkbox checkbox-sm checkbox-success" checked disabled />
-							<span>Book set: {bookRootFileName}</span>
-							<button class="btn btn-xs btn-ghost border border-warning" onclick={() => {
-								bookRootFileName = '';
-								// settings.set(SettingKeys.externalBook, null);
-							}}>
+							<span>Book set: {displaySelectedPath(bookRootFileName)}</span>
+							<button class="btn btn-xs btn-ghost border border-warning" onclick={unsetBookFile}>
 								<XIcon class="w-4 h-4" /> Unset
 							</button>
 						</div>
@@ -466,11 +470,8 @@
 					{#if aaDefinitionFileName}
 						<div role="alert" class="alert alert-success">
 							<input type="checkbox" class="checkbox checkbox-sm checkbox-success" checked disabled />
-							<span>Asset Allocation set: {aaDefinitionFileName}</span>
-							<button class="btn btn-xs btn-ghost border border-warning" onclick={() => {
-								aaDefinitionFileName = '';
-								// settings.set(SettingKeys.externalAssetAllocation, null);
-							}}>
+							<span>Asset Allocation set: {displaySelectedPath(aaDefinitionFileName)}</span>
+							<button class="btn btn-xs btn-ghost border border-warning" onclick={unsetAssetAllocationFile}>
 								<XIcon class="w-4 h-4" /> Unset
 							</button>
 						</div>

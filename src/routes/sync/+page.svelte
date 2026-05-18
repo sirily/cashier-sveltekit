@@ -61,7 +61,7 @@
 	}
 
 	function recomputeSyncAll() {
-		const visibleSteps = [syncAccounts, syncPayees, syncLedgerFiles];
+		const visibleSteps = [syncAccounts, syncPayees];
 		if (supportsOpeningBalancesSync()) {
 			visibleSteps.splice(1, 0, syncOpeningBalances);
 		}
@@ -70,6 +70,9 @@
 		}
 		if (supportsAssetAllocationSync()) {
 			visibleSteps.splice(visibleSteps.length - 1, 0, syncAssetAllocation);
+		}
+		if (configSource === LedgerDataSource.beancount) {
+			visibleSteps.push(syncLedgerFiles);
 		}
 
 		syncAll = areAllVisibleSyncStepsSelected(visibleSteps);

@@ -16,7 +16,7 @@ import type {
 	ValidationResult,
 	Ledger
 } from '@rustledger/wasm';
-// import wasmUrl from '@rustledger/wasm/rustledger_wasm_bg.wasm?url';
+import wasmUrl from '@rustledger/wasm/rustledger_wasm_bg.wasm?url';
 
 // WASM module instance
 let wasmModule: typeof import('@rustledger/wasm') | null = null;
@@ -29,9 +29,6 @@ async function initWasm(): Promise<void> {
 	if (wasmModule) return;
 	if (initPromise) return initPromise;
 
-	console.warn('RustLedger WASM Service is deprecated and initialization is disabled.');
-
-	/*
 	initPromise = (async () => {
 		try {
 			// Dynamically import the WASM package
@@ -51,9 +48,8 @@ async function initWasm(): Promise<void> {
 			throw error;
 		}
 	})();
-    */
 
-	return Promise.resolve();
+	return initPromise;
 }
 
 /**
