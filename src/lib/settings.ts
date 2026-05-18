@@ -88,7 +88,8 @@ export const SettingKeys = {
 	ledgerCacheEnabled: 'ledgerCacheEnabled',
 	// Account groups for the groups page
 	accountGroups: 'accountGroups',
-	// WebDAV backup configuration
+	// TODO(webdav-removal): legacy personal-backup settings. This is not the target sync path.
+	// Remove with the WebDAV backup UI so password/app-token storage disappears completely.
 	webdavSettings: 'webdav-settings',
 	// Date display format (moment.js format string)
 	dateFormat: 'dateFormat'

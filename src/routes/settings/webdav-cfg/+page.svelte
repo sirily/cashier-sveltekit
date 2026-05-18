@@ -58,6 +58,8 @@
 	}
 
 	async function saveSettings() {
+		// TODO(webdav-removal): legacy personal-backup config. Do not build new flows
+		// around this stored password/app token; remove with the WebDAV UI.
 		await settings.set(SettingKeys.webdavSettings, { url, username, password });
 	}
 

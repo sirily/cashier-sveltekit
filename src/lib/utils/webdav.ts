@@ -11,6 +11,8 @@ export class WebDavClient {
 	private password: string;
 
 	constructor(url: string, username: string, password: string) {
+		// TODO(webdav-removal): this legacy client keeps a password/app token in memory
+		// from IndexedDB-backed settings. WebDAV is not the target sync solution; remove it.
 		this.baseUrl = url.endsWith('/') ? url : url + '/';
 		this.username = username;
 		this.password = password;
