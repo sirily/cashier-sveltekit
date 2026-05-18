@@ -726,3 +726,109 @@ And does not use:
 
 - This plan intentionally preserves the existing architecture where `cashier.bean` is the writable local overlay and the full book is read from synced OPFS files.
 - It does not introduce Stage 2 write-back behavior.
+
+## Current Status
+
+Status reviewed against branch `merge-main-beancount-sync-recovery` vs `main` on 2026-05-18.
+
+### Automated Verification
+
+- `npm run check`: pass, 6 pre-existing warnings only
+- `npm run lint`: pass
+- `npm run test:unit -- --run`: pass
+- `npm run test:e2e`: not verified locally in review because Playwright browser install was unavailable
+
+### Implementation Task Status
+
+1. Task 1. Add explicit Beancount root book setting: done
+2. Task 2. Implement recursive Beancount file download from `/infrastructure`: done
+3. Task 3. Map remote file paths to OPFS paths: mostly done
+4. Task 4. Persist synced Beancount files into OPFS: partial
+5. Task 5. Preserve `cashier.bean` and only create it if missing: partial
+6. Task 6. Auto-configure the selected book after successful file sync: done
+7. Task 7. Invalidate and reload the full ledger after file sync: partial
+8. Task 8. Split metadata sync from ledger-file sync in UI and progress: partial
+9. Task 9. Add sync diagnostics for Beancount: partial
+10. Task 10. Improve account navigation fallback: done
+11. Task 11. Audit multi-currency UI usage: partial
+
+### Test And Cleanup Status
+
+1. Fix unit/E2E runner separation: done
+2. Add Beancount sync unit tests: partial
+3. Add minimal `/sync` E2E tests with mocked server responses: missing
+4. Add route inventory tests for visible navigation: missing
+5. Remove or hide user-facing dead rledger/test/demo paths: mostly done
+6. Remove unused Stage 1 Beancount POST client methods: done
+7. Fix obvious dead UI links and `Not implemented` actions: partial
+
+### Current Findings Blocking Acceptance
+
+1. High. `rustledger.ts` initialization is disabled, but `ledgerService` still depends on it for local `cashier.bean` parsing.
+   - Impact: journal/edit/delete flows can return no transactions or fail with `Failed to parse cashier.bean`.
+   - References:
+     - `src/lib/services/rustledger.ts:32`
+     - `src/lib/services/ledgerService.ts:128`
+     - `src/lib/services/ledgerService.ts:268`
+
+2. High. Beancount sync writes downloaded files and switches `userBookFilename` before full-ledger parse validation succeeds.
+   - Impact: failed parse leaves the app pointed at an invalid downloaded book after cache deletion.
+   - References:
+     - `src/lib/sync/sync-beancount.ts:420`
+     - `src/lib/sync/sync-beancount.ts:430`
+     - `src/lib/sync/sync-beancount.ts:450`
+
+3. High. `cashier.bean` preservation is still not guaranteed.
+   - Impact: if a downloaded remote root/include maps to `cashier.bean`, local mobile transactions can be overwritten.
+   - References:
+     - `src/lib/sync/sync-beancount.ts:388`
+     - `src/lib/sync/sync-beancount.ts:421`
+
+4. Medium. Absolute include paths can be downloaded successfully but still fail after remapping to local OPFS paths.
+   - Impact: a book containing `include "/workspace/accounts.bean"` may sync into OPFS but fail to load locally because the worker only sees relative local keys.
+   - References:
+     - `src/lib/sync/sync-beancount.ts:63`
+     - `src/lib/sync/sync-beancount.ts:87`
+     - `src/lib/workers/ledger.worker.ts:187`
+
+5. Low. Filesystem `Sync all` state is inconsistent.
+   - Impact: the UI includes hidden `syncLedgerFiles` in the all-visible calculation, so all visible filesystem steps can be selected while `Sync all` appears unchecked.
+   - Reference:
+     - `src/routes/sync/+page.svelte:64`
+
+### Remaining Missing Coverage
+
+1. Missing unit coverage for `synchronizeLedgerFiles()` behavior:
+   - preserving existing `cashier.bean`
+   - no OPFS writes on failed include fetch
+   - `bookFilename` update ordering
+   - cache deletion/invalidation behavior
+   - parse-error failure behavior
+   - diagnostics contents
+
+2. Missing Playwright coverage for `/sync`:
+   - successful offline-ledger Beancount sync with mocked server
+   - metadata-only Beancount sync
+   - include-fetch failure path with visible non-green result
+
+3. Missing route inventory coverage for visible navigation links.
+
+### Remaining Cleanup Gaps
+
+1. Broken cloud-backup navigation remains:
+   - `src/lib/components/BackupScxCard.svelte:27` still redirects to missing `/cloud-backup-settings`
+
+2. Filesystem settings still expose unimplemented actions:
+   - `src/routes/settings/filesystem/+page.svelte:304`
+   - `src/routes/settings/filesystem/+page.svelte:313`
+
+3. Deeper rledger cleanup is not complete:
+   - `LedgerDataSource.rledger`, `PtaSystems.rledger`, and related dead branches still exist
+
+### Next Fix Order
+
+1. Restore or replace the disabled `rustledger.ts` dependency path used by `ledgerService`
+2. Make Beancount ledger sync atomic with respect to file writes, selected book, and parse validation
+3. Enforce `cashier.bean` preservation regardless of remote filename layout
+4. Fix absolute-include local load behavior
+5. Add missing sync tests before broader cleanup
