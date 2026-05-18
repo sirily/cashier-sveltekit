@@ -225,7 +225,9 @@
 		syncAaValues = (await settings.get(SettingKeys.syncAaValues)) ?? false;
 		syncAssetAllocation = (await settings.get(SettingKeys.syncAssetAllocation)) ?? false;
 		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
-		syncLedgerFiles = (await settings.get(SettingKeys.syncBeancountRootFile)) ? configSource === LedgerDataSource.beancount : false;
+		syncLedgerFiles =
+			((await settings.get<boolean>(SettingKeys.syncLedgerFiles)) ?? false) &&
+			configSource === LedgerDataSource.beancount;
 		clearUnsupportedSyncSteps();
 		recomputeSyncAll();
 	}
@@ -316,10 +318,17 @@
 				diagnostics = SyncBeancount.getLastDiagnostics();
 			}
 
-			Notifier.success('Synchronization completed successfully!');
+			Notifier.success(
+				configSource === LedgerDataSource.beancount && !syncOptions.syncLedgerFiles
+					? 'Metadata synchronization completed successfully.'
+					: 'Synchronization completed successfully!'
+			);
 			rotationClass = '';
 			syncing = false;
 		} catch (error: any) {
+			if (configSource === LedgerDataSource.beancount) {
+				diagnostics = SyncBeancount.getLastDiagnostics();
+			}
 			rotationClass = '';
 			syncing = false;
 			console.error(error);
@@ -355,6 +364,7 @@
 		await settings.set(SettingKeys.syncAaValues, syncAaValues);
 		await settings.set(SettingKeys.syncAssetAllocation, syncAssetAllocation);
 		await settings.set(SettingKeys.syncPayees, syncPayees);
+		await settings.set(SettingKeys.syncLedgerFiles, syncLedgerFiles);
 	}
 
 	async function saveDataSource() {
@@ -630,11 +640,13 @@
 			<div class="card-body p-4">
 				<h2 class="card-title">Sync diagnostics</h2>
 				<div class="grid grid-cols-2 gap-2 text-sm">
+					<div>Sync mode</div><div>{diagnostics.syncMode ?? '-'}</div>
 					<div>Accounts</div><div>{diagnostics.accountsCount ?? '-'}</div>
 					<div>Payees</div><div>{diagnostics.payeesCount ?? '-'}</div>
 					<div>Ledger files</div><div>{diagnostics.ledgerFilesCount ?? '-'}</div>
 					<div>Selected root book</div><div>{diagnostics.selectedRootBookFilename ?? '-'}</div>
 					<div>Root book size</div><div>{diagnostics.rootBookSize ?? '-'}</div>
+					<div>Parse result</div><div>{diagnostics.parseResult ?? '-'}</div>
 					<div>Parse errors</div><div>{diagnostics.parseErrorCount ?? '-'}</div>
 				</div>
 			</div>

@@ -21,11 +21,13 @@ const DEFAULT_BEANCOUNT_ROOT_FILE = '/workspace/main.bean';
 const INCLUDE_DIRECTIVE_REGEX = /^\s*include\s+"([^"]+)"/gm;
 
 export interface BeancountSyncDiagnostics {
+	syncMode?: 'metadata-only' | 'offline-ledger';
 	accountsCount?: number;
 	payeesCount?: number;
 	ledgerFilesCount?: number;
 	selectedRootBookFilename?: string;
 	rootBookSize?: number;
+	parseResult?: 'ok' | 'error' | 'skipped';
 	parseErrorCount?: number;
 }
 
@@ -329,7 +331,10 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 
 	// Initialize sync progress
 	initializeSyncProgress();
-	lastDiagnostics = {};
+	lastDiagnostics = {
+		syncMode: syncOptions.syncLedgerFiles ? 'offline-ledger' : 'metadata-only',
+		parseResult: syncOptions.syncLedgerFiles ? 'skipped' : 'skipped'
+	};
 
 	// Cashier Sync synchronization
 
@@ -380,14 +385,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			updateSyncStep(5, 'completed');
 		}
 		if (syncOptions.syncLedgerFiles) {
-			updateSyncStep(6, 'in-progress');
-			try {
-				await synchronizeLedgerFiles(sync);
-			} catch (error) {
-				updateSyncStep(6, 'error');
-				throw error;
-			}
-			updateSyncStep(6, 'completed');
+			await synchronizeLedgerFiles(sync);
 		}
 	} catch (error: any) {
 		console.error(error);
@@ -423,40 +421,75 @@ async function ensureCashierFileExists() {
 	await opfs.saveFile(CASHIER_XACT_FILE, '');
 }
 
-async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
-	const rootFilePath =
-		(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? DEFAULT_BEANCOUNT_ROOT_FILE;
-	await settings.set(SettingKeys.syncBeancountRootFile, rootFilePath);
-	const remoteFiles = await sync.readLedgerFiles(rootFilePath);
-	const localFiles = mapRemoteFilesToLocalPaths(normalizeRemotePath(rootFilePath), remoteFiles);
-	const selectedRootBookFilename = basename(rootFilePath);
-	const rootBook = localFiles.get(selectedRootBookFilename);
-	if (!rootBook) throw new Error('Downloaded root book is missing');
-	if (rootBook.trim().length === 0) throw new Error('Downloaded root book is empty');
-	for (const [path, content] of localFiles) {
-		if (content === undefined || content === null)
-			throw new Error(`Downloaded file is empty: ${path}`);
-	}
-	await ensureCashierFileExists();
-	for (const [path, content] of localFiles) {
+async function persistLedgerFiles(files: Map<string, string>) {
+	for (const [path, content] of files) {
 		await opfs.saveFile(path, content);
 	}
+}
+
+async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
+	let selectedRootBookFilename = '';
+	let rootBook = '';
+	let localFiles = new Map<string, string>();
+
+	updateSyncStep(6, 'in-progress');
+	try {
+		const rootFilePath =
+			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ??
+			DEFAULT_BEANCOUNT_ROOT_FILE;
+		await settings.set(SettingKeys.syncBeancountRootFile, rootFilePath);
+		const remoteFiles = await sync.readLedgerFiles(rootFilePath);
+		localFiles = mapRemoteFilesToLocalPaths(normalizeRemotePath(rootFilePath), remoteFiles);
+		selectedRootBookFilename = basename(rootFilePath);
+		rootBook = localFiles.get(selectedRootBookFilename) ?? '';
+		if (!rootBook) throw new Error('Downloaded root book is missing');
+		if (rootBook.trim().length === 0) throw new Error('Downloaded root book is empty');
+		for (const [path, content] of localFiles) {
+			if (content === undefined || content === null)
+				throw new Error(`Downloaded file is empty: ${path}`);
+		}
+		await ensureCashierFileExists();
+		await persistLedgerFiles(localFiles);
+		updateSyncStep(6, 'completed');
+	} catch (error) {
+		updateSyncStep(6, 'error');
+		throw error;
+	}
+
 	updateSyncStep(7, 'in-progress');
-	await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
-	updateSyncStep(7, 'completed');
+	try {
+		await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
+		updateSyncStep(7, 'completed');
+	} catch (error) {
+		updateSyncStep(7, 'error');
+		throw error;
+	}
+
 	updateSyncStep(8, 'in-progress');
-	await fullLedgerService.deleteCache();
-	await fullLedgerService.invalidate();
-	const errors = await fullLedgerService.getErrors();
-	lastDiagnostics = {
-		...lastDiagnostics,
-		ledgerFilesCount: localFiles.size,
-		selectedRootBookFilename,
-		rootBookSize: rootBook.length,
-		parseErrorCount: errors.length
-	};
-	if (errors.length > 0) throw new Error(`Full ledger parsed with ${errors.length} errors`);
-	updateSyncStep(8, 'completed');
+	try {
+		await fullLedgerService.deleteCache();
+		await fullLedgerService.invalidate();
+		const errors = await fullLedgerService.getErrors();
+		lastDiagnostics = {
+			...lastDiagnostics,
+			ledgerFilesCount: localFiles.size,
+			selectedRootBookFilename,
+			rootBookSize: rootBook.length,
+			parseResult: errors.length > 0 ? 'error' : 'ok',
+			parseErrorCount: errors.length
+		};
+		if (errors.length > 0) {
+			lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
+			throw new Error(
+				`Full ledger parsed with ${errors.length} errors for ${selectedRootBookFilename}`
+			);
+		}
+		updateSyncStep(8, 'completed');
+	} catch (error) {
+		updateSyncStep(8, 'error');
+		throw error;
+	}
+
 	Notifier.success('Ledger files downloaded to OPFS');
 }
 

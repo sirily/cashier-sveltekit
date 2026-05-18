@@ -118,6 +118,13 @@
 		}
 	}
 
+	function formatAccountBalances(balances: Record<string, number> | undefined): string {
+		if (!balances) return '';
+		return Object.entries(balances)
+			.map(([currency, amount]) => `${amount} ${currency}`)
+			.join(', ');
+	}
+
 	// --- Debug ---
 
 	async function runSymbolDebugQueries(symbol: string) {
@@ -261,8 +268,7 @@
 						{#each stock.accounts as account}
 							<div class="ms-3">
 								{account.name},
-								{account.balance?.quantity}
-								{account.balance?.currency},
+								{formatAccountBalances(account.balances) || 'No balances'},
 								{account.currentValue?.toFixed(2)}
 								{account.currentCurrency}
 							</div>

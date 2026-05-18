@@ -22,10 +22,16 @@
 
 	let maxBalance: number = $state(0);
 
+	function getPrimaryQuantity(account: Account): number {
+		if (account.balance?.quantity != null) return account.balance.quantity;
+		const firstAmount = Object.values(account.balances ?? {})[0];
+		return typeof firstAmount === 'number' ? firstAmount : 0;
+	}
+
 	$effect(() => {
 		if (accounts.length > 0) {
 			const quantities = accounts
-				.map((account) => Math.abs(account.balance?.quantity as number))
+				.map((account) => Math.abs(getPrimaryQuantity(account)))
 				.filter((q) => !isNaN(q) && q > 0);
 			maxBalance = quantities.length > 0 ? Math.max(...quantities) : 0;
 		}

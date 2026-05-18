@@ -68,6 +68,7 @@ export const SettingKeys = {
 	syncAaValues: 'syncAaValues',
 	syncAssetAllocation: 'syncAssetAllocation',
 	syncPayees: 'syncPayees',
+	syncLedgerFiles: 'syncLedgerFiles',
 	syncOpeningBalances: 'syncOpeningBalances',
 	// Home cards
 	visibleCards: 'homeCardNames',
