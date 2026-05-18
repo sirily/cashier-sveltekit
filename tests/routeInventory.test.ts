@@ -37,7 +37,9 @@ function routeExists(route: string, routes: Set<string>): boolean {
 		// Exact match with params
 		if (
 			candidateSegments.length === routeSegments.length &&
-			candidateSegments.every((segment, index) => segment.startsWith(':') || segment === routeSegments[index])
+			candidateSegments.every(
+				(segment, index) => segment.startsWith(':') || segment === routeSegments[index]
+			)
 		) {
 			return true;
 		}
