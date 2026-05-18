@@ -34,6 +34,7 @@
 	let expenseMonths = $state<MonthDetail[]>([]);
 	let incomeExpanded = $state(false);
 	let expensesExpanded = $state(false);
+	let displayCurrency = $state('');
 
 	let maxIncome = $derived(incomeData.reduce((m, v) => Math.max(m, v), 1));
 	let maxExpenses = $derived(expensesData.reduce((m, v) => Math.max(m, v), 1));
@@ -91,6 +92,10 @@
 		return items.map((m) => ({ ...m, isOutlier: m.total > 0 && Math.abs(m.total - mean) > threshold }));
 	}
 
+	function formatMoney(amount: number): string {
+		return `${amount.toFixed(2)}${displayCurrency ? ` ${displayCurrency}` : ''}`;
+	}
+
 	function txSearchUrl(accountPattern: string, monthKey?: string, singleDate?: string): string {
 		const params = new URLSearchParams({ account: accountPattern });
 		if (singleDate) {
@@ -110,6 +115,7 @@
 
 		try {
 			const currency = await settings.get<string>(SettingKeys.currency);
+			displayCurrency = currency ?? '';
 			await fullLedgerService.ensureLoaded();
 
 			const monthList = getMonthList();
@@ -234,7 +240,7 @@
 			</div>
 		{:else}
 			{#if months.length > 0}
-				<IncomeExpenseChart {months} income={incomeData} expenses={expensesData} />
+				<IncomeExpenseChart {months} income={incomeData} expenses={expensesData} currency={displayCurrency} />
 			{:else}
 				<div class="py-12 text-center text-base-content/50 text-sm">No data available.</div>
 			{/if}
@@ -244,7 +250,7 @@
 					<!-- Income breakdown -->
 					<AccordionSection
 						title="Income"
-						badge={incomeTotal > 0 ? incomeTotal.toFixed(2) : undefined}
+						badge={incomeTotal > 0 ? formatMoney(incomeTotal) : undefined}
 						expanded={incomeExpanded}
 						onToggle={() => (incomeExpanded = !incomeExpanded)}
 					>
@@ -269,7 +275,7 @@
 											</div>
 											<span
 												class="w-20 text-right font-mono text-sm tabular-nums"
-												class:text-warning={month.isOutlier}>{month.total.toFixed(2)}</span
+												class:text-warning={month.isOutlier}>{formatMoney(month.total)}</span
 											>
 											<span
 												class="text-xs text-base-content/40 transition-transform group-open:rotate-90"
@@ -289,7 +295,7 @@
 												class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
 											>
 												<span class="text-base-content/70">{day.label}</span>
-												<span class="font-mono tabular-nums">{day.amount.toFixed(2)}</span>
+												<span class="font-mono tabular-nums">{formatMoney(day.amount)}</span>
 											</a>
 										{/each}
 									</div>
@@ -301,7 +307,7 @@
 					<!-- Expenses breakdown -->
 					<AccordionSection
 						title="Expenses"
-						badge={expensesTotal > 0 ? expensesTotal.toFixed(2) : undefined}
+						badge={expensesTotal > 0 ? formatMoney(expensesTotal) : undefined}
 						expanded={expensesExpanded}
 						onToggle={() => (expensesExpanded = !expensesExpanded)}
 					>
@@ -326,7 +332,7 @@
 											</div>
 											<span
 												class="w-20 text-right font-mono text-sm tabular-nums"
-												class:text-warning={month.isOutlier}>{month.total.toFixed(2)}</span
+												class:text-warning={month.isOutlier}>{formatMoney(month.total)}</span
 											>
 											<span
 												class="text-xs text-base-content/40 transition-transform group-open:rotate-90"
@@ -346,7 +352,7 @@
 												class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
 											>
 												<span class="text-base-content/70">{day.label}</span>
-												<span class="font-mono tabular-nums">{day.amount.toFixed(2)}</span>
+												<span class="font-mono tabular-nums">{formatMoney(day.amount)}</span>
 											</a>
 										{/each}
 									</div>

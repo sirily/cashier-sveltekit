@@ -12,9 +12,9 @@ The Beancount offline sync implementation is functionally complete for the plann
 
 The remaining gaps are hardening and follow-up verification items, not core implementation blockers:
 
-- Multi-currency UI audit is mostly complete, but chart/summary views still need a focused visual/data review.
+- Multi-currency chart/summary audit is complete for current PWA report surfaces; base-currency reports now label their converted totals/tooltips.
 - Server-side `/infrastructure` path confinement must be enforced in `cashier-server-python`; the PWA client cannot be the security boundary.
-- WebDAV password/app-token storage remains an existing local-browser secret-storage risk outside this Beancount sync change.
+- WebDAV password/app-token storage remains an existing local-browser secret-storage risk outside this Beancount sync change, now called out in the settings UI.
 
 ## Current Architecture
 
@@ -54,7 +54,7 @@ Important invariants currently enforced:
 8. Metadata vs ledger-file progress split in `/sync`: done.
 9. Beancount sync diagnostics summary: done.
 10. Account navigation fallback/discoverability: done.
-11. Multi-currency UI audit: partial, no known blocking regression found.
+11. Multi-currency UI audit: done for current PWA account, asset, expense, and income/expense report surfaces.
 12. Test runner separation: done.
 13. Beancount sync unit tests: done.
 14. Route inventory unit test: done.
@@ -99,7 +99,8 @@ Findings:
 3. The original `cashier.bean` overwrite risk is closed: downloaded infrastructure cannot map to `cashier.bean`.
 4. The original stale rledger product surface is closed for known UI/data-source routes.
 5. The route inventory test is useful but intentionally shallow; it catches literal visible routes, not every dynamic navigation or runtime-only link.
-6. No new blocking review findings were found in the refreshed branch.
+6. Focused chart/summary review found base-currency report labels missing on expenses and income/expense summaries; fixed by adding currency labels to totals and chart tooltips.
+7. No new blocking review findings were found in the refreshed branch.
 
 ## CSO Results
 
@@ -113,14 +114,14 @@ Findings:
 4. The PWA validates and normalizes infrastructure paths before OPFS writes, but the server must still enforce its own root jail / allowlist for `/infrastructure`.
 5. WebDAV credentials are stored in browser settings/IndexedDB. This is pre-existing, not introduced by Beancount sync, but it remains a security hardening item.
 6. The generated build still includes the RustLedger WASM asset because the active Beancount worker depends on it. This is expected.
-7. `6824f19` clarifies the WebDAV token-storage risk in documentation; no new secret material was introduced.
+7. `6824f19` clarifies the WebDAV token-storage risk in the settings UI; no new secret material was introduced.
+8. PWA-side `/infrastructure` path normalization remains covered by unit tests, but the server-side root jail cannot be verified from this repository.
 
 ## Remaining Work
 
-1. Finish focused multi-currency UI audit for chart and summary surfaces.
-2. Add or verify server-side `/infrastructure` path confinement in `cashier-server-python`.
-3. Decide whether WebDAV credential storage needs encryption, session-only storage, or clearer product warnings.
-4. Consider reducing the remaining Svelte warnings as a separate cleanup.
+1. Add or verify server-side `/infrastructure` path confinement in `cashier-server-python`.
+2. Decide whether WebDAV credential storage needs encryption or session-only storage beyond the current product warning.
+3. Consider reducing the remaining Svelte warnings as a separate cleanup.
 
 ## Acceptance Status
 
@@ -134,4 +135,4 @@ PWA-side implementation acceptance is met:
 - `/sync` status and diagnostics distinguish metadata, file download, selected book, and parse result
 - Stage 1 Beancount sync is read-only from the client
 
-Full project acceptance is not closed until server-side path confinement is verified and the focused multi-currency UI audit is completed.
+Full project acceptance is not closed until server-side path confinement is verified in `cashier-server-python`.
