@@ -15,11 +15,7 @@
 	@revalidate path /service-worker.js /sw.js /workbox-*.js /manifest.webmanifest /_app/version.json *.html
 	header @revalidate Cache-Control "no-cache"
 
-	@spa {
-		not file
-		header Accept *text/html*
-	}
-	rewrite @spa /index.html
+	try_files {path} {path}.html /index.html
 
 	file_server
 }
