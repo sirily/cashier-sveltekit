@@ -23,6 +23,8 @@
 	let syncPayees = $state(false);
 	let syncLedgerFiles = $state(false);
 
+	const DEFAULT_BEANCOUNT_ROOT_FILE = 'main.bean';
+
 	let syncServerUrl = $state('');
 	let syncBeancountRootFile = $state('');
 	let diagnostics = $state<SyncBeancount.BeancountSyncDiagnostics | null>(null);
@@ -145,6 +147,13 @@
 		}
 	}
 
+	function normalizeRootBookPath(path: string) {
+		const trimmedPath = path.trim() || DEFAULT_BEANCOUNT_ROOT_FILE;
+		if (trimmedPath === '/workspace/main.bean') return DEFAULT_BEANCOUNT_ROOT_FILE;
+		if (trimmedPath.startsWith('/workspace/')) return trimmedPath.slice('/workspace/'.length);
+		return trimmedPath;
+	}
+
 	async function syncStoredServerSelection(url: string) {
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
@@ -205,8 +214,9 @@
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
 		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? ''; 
-		const storedRootFile =
-			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? '/workspace/main.bean';
+		const storedRootFile = normalizeRootBookPath(
+			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? DEFAULT_BEANCOUNT_ROOT_FILE
+		);
 		const activeSyncServerId = await settings.get<string>(SettingKeys.syncActiveServerId);
 		const syncServers = (await settings.get<SyncServerEntry[]>(SettingKeys.syncServers)) ?? [];
 		const activeStoredServer = activeSyncServerId
@@ -253,7 +263,8 @@
 		}
 
 		if (configSource === LedgerDataSource.beancount) {
-			await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile.trim() || '/workspace/main.bean');
+			syncBeancountRootFile = normalizeRootBookPath(syncBeancountRootFile);
+			await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile);
 		}
 
 		Notifier.info('Synchronization starting...');
@@ -384,7 +395,7 @@
 	}
 
 	async function saveBeancountRootFile() {
-		syncBeancountRootFile = syncBeancountRootFile.trim() || '/workspace/main.bean';
+		syncBeancountRootFile = normalizeRootBookPath(syncBeancountRootFile);
 		await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile);
 	}
 
@@ -450,7 +461,7 @@
 						onchange={saveBeancountRootFile}
 						onblur={saveBeancountRootFile}
 						class="input input-bordered w-full"
-						placeholder="/workspace/main.bean"
+						placeholder="main.bean"
 					/>
 				</label>
 			{/if}

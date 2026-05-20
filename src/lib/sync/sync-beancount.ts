@@ -17,8 +17,16 @@ import { PtaSystems } from '$lib/enums';
 
 Notifier.init();
 
-const DEFAULT_BEANCOUNT_ROOT_FILE = '/workspace/main.bean';
+const DEFAULT_BEANCOUNT_ROOT_FILE = 'main.bean';
 const INCLUDE_DIRECTIVE_REGEX = /^\s*include\s+"([^"]+)"/gm;
+
+interface InfrastructureFileResponse {
+	content: string;
+}
+
+interface InfrastructureGlobResponse {
+	files: Array<{ path: string; content: string }>;
+}
 
 export interface BeancountSyncDiagnostics {
 	syncMode?: 'metadata-only' | 'offline-ledger';
@@ -49,6 +57,13 @@ function normalizeRemotePath(path: string): string {
 	return `${isAbsolute ? '/' : ''}${stack.join('/')}`;
 }
 
+function normalizeRootBookPath(path: string): string {
+	const trimmedPath = path.trim() || DEFAULT_BEANCOUNT_ROOT_FILE;
+	if (trimmedPath === '/workspace/main.bean') return DEFAULT_BEANCOUNT_ROOT_FILE;
+	if (trimmedPath.startsWith('/workspace/')) return trimmedPath.slice('/workspace/'.length);
+	return trimmedPath;
+}
+
 function dirname(path: string): string {
 	const normalized = normalizeRemotePath(path);
 	const index = normalized.lastIndexOf('/');
@@ -70,6 +85,47 @@ function parseIncludes(content: string): string[] {
 	return Array.from(content.matchAll(INCLUDE_DIRECTIVE_REGEX), (match) => match[1]);
 }
 
+function isGlobPath(path: string): boolean {
+	return path.includes('*') || path.includes('?') || path.includes('[') || path.includes(']');
+}
+
+function globPatternToRegExp(pattern: string): RegExp {
+	let source = '^';
+	for (const char of pattern) {
+		if (char === '*') {
+			source += '[^/]*';
+		} else if (char === '?') {
+			source += '[^/]';
+		} else {
+			source += char.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
+		}
+	}
+	return new RegExp(`${source}$`);
+}
+
+function expandIncludeDirective(
+	resolvedRemotePath: string,
+	localByRemotePath: Map<string, string>
+): string[] {
+	if (!isGlobPath(resolvedRemotePath)) {
+		const localPath = localByRemotePath.get(resolvedRemotePath);
+		if (!localPath) {
+			throw new Error(`Included file is outside the selected root tree: ${resolvedRemotePath}`);
+		}
+		return [localPath];
+	}
+
+	const regex = globPatternToRegExp(resolvedRemotePath);
+	const matches = Array.from(localByRemotePath.entries())
+		.filter(([remotePath]) => regex.test(remotePath))
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([, localPath]) => localPath);
+	if (matches.length === 0) {
+		throw new Error(`Included file is outside the selected root tree: ${resolvedRemotePath}`);
+	}
+	return matches;
+}
+
 function mapRemoteFilesToLocalPaths(
 	rootRemotePath: string,
 	remoteFiles: Map<string, string>
@@ -80,7 +136,7 @@ function mapRemoteFilesToLocalPaths(
 	for (const [remotePath, content] of remoteFiles) {
 		let localPath = remotePath === rootRemotePath ? rootLocalName : '';
 		if (!localPath) {
-			const prefix = rootDir === '/' ? '/' : `${rootDir}/`;
+			const prefix = rootDir === '/' ? '/' : rootDir ? `${rootDir}/` : '';
 			if (!remotePath.startsWith(prefix)) {
 				throw new Error(`Included file is outside the selected root tree: ${remotePath}`);
 			}
@@ -125,11 +181,10 @@ function rewriteIncludesToLocalPaths(
 			INCLUDE_DIRECTIVE_REGEX,
 			(directive, includePath: string) => {
 				const resolvedRemotePath = resolveRemoteInclude(sourceRemotePath, includePath);
-				const targetLocalPath = localByRemotePath.get(resolvedRemotePath);
-				if (!targetLocalPath) {
-					throw new Error(`Included file is outside the selected root tree: ${resolvedRemotePath}`);
-				}
-				return directive.replace(includePath, targetLocalPath);
+				const targetLocalPaths = expandIncludeDirective(resolvedRemotePath, localByRemotePath);
+				return targetLocalPaths
+			.map((targetLocalPath) => directive.replace(includePath, targetLocalPath))
+			.join('\n');
 			}
 		);
 		rewritten.set(localPath, nextContent);
@@ -277,9 +332,18 @@ class CashierSyncBeancount {
 	}
 
 	/**
-	 * Read file content from Cashier server.
+	 * Read infrastructure files from Cashier server.
 	 */
 	async readFile(filePath: string): Promise<string> {
+		const files = await this.readFiles(filePath);
+		const content = files.get(normalizeRemotePath(filePath));
+		if (content === undefined) {
+			throw new Error(`Error reading infrastructure file: ${filePath}`);
+		}
+		return content;
+	}
+
+	async readFiles(filePath: string): Promise<Map<string, string>> {
 		const url = new URL(`${this.serverUrl}/infrastructure`);
 		url.searchParams.append('file_path', filePath);
 		const response = await fetch(url);
@@ -287,12 +351,15 @@ class CashierSyncBeancount {
 			throw new Error(`Error reading infrastructure file: ${filePath}`);
 		}
 
-		const json = await response.json();
-		return json.content;
+		const json = (await response.json()) as InfrastructureFileResponse | InfrastructureGlobResponse;
+		if ('files' in json) {
+			return new Map(json.files.map((file) => [normalizeRemotePath(file.path), file.content]));
+		}
+		return new Map([[normalizeRemotePath(filePath), json.content]]);
 	}
 
 	async readLedgerFiles(rootFilePath: string): Promise<Map<string, string>> {
-		const rootPath = normalizeRemotePath(rootFilePath);
+		const rootPath = normalizeRemotePath(normalizeRootBookPath(rootFilePath));
 		const files = new Map<string, string>();
 		const visiting = new Set<string>();
 
@@ -300,10 +367,12 @@ class CashierSyncBeancount {
 			if (files.has(remotePath)) return;
 			if (visiting.has(remotePath)) return;
 			visiting.add(remotePath);
-			const content = await this.readFile(remotePath);
-			files.set(remotePath, content);
-			for (const includePath of parseIncludes(content)) {
-				await visit(resolveRemoteInclude(remotePath, includePath));
+			const downloadedFiles = await this.readFiles(remotePath);
+			for (const [downloadedPath, content] of downloadedFiles) {
+				files.set(downloadedPath, content);
+				for (const includePath of parseIncludes(content)) {
+					await visit(resolveRemoteInclude(downloadedPath, includePath));
+				}
 			}
 			visiting.delete(remotePath);
 		};
@@ -486,9 +555,9 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 
 	updateSyncStep(6, 'in-progress');
 	try {
-		const rootFilePath =
-			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ??
-			DEFAULT_BEANCOUNT_ROOT_FILE;
+		const rootFilePath = normalizeRootBookPath(
+			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? DEFAULT_BEANCOUNT_ROOT_FILE
+		);
 		previousBookFilename = await settings.get<string>(SettingKeys.bookFilename);
 		await settings.set(SettingKeys.syncBeancountRootFile, rootFilePath);
 		const remoteFiles = await sync.readLedgerFiles(rootFilePath);
@@ -574,6 +643,7 @@ function getLastDiagnostics() {
 
 const __test__ = {
 	normalizeRemotePath,
+	normalizeRootBookPath,
 	parseIncludes,
 	resolveRemoteInclude,
 	mapRemoteFilesToLocalPaths,

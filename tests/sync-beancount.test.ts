@@ -93,6 +93,13 @@ describe('Beancount sync path helpers', () => {
 		);
 	});
 
+	test('normalizes legacy workspace root book defaults to workspace-relative paths', () => {
+		expect(__test__.normalizeRootBookPath('/workspace/main.bean')).toBe('main.bean');
+		expect(__test__.normalizeRootBookPath('/workspace/books/main.bean')).toBe('books/main.bean');
+		expect(__test__.normalizeRootBookPath('books/main.bean')).toBe('books/main.bean');
+		expect(__test__.normalizeRootBookPath('')).toBe('main.bean');
+	});
+
 	test('parses include directives and ignores commented lines', () => {
 		const content = [
 			'option "title" "Cashier"',
@@ -142,20 +149,29 @@ describe('Beancount sync path helpers', () => {
 		);
 	});
 
-	test('rewrites absolute and relative includes to local OPFS paths', () => {
+	test('rewrites absolute, relative, and glob includes to local OPFS paths', () => {
 		const localFiles = new Map([
 			[
 				'main.bean',
-				['include "/workspace/accounts.bean"', 'include "prices/2026.bean"'].join('\n')
+				['include "/workspace/accounts.bean"', 'include "prices/*.bean"'].join('\n')
 			],
 			['accounts.bean', '2026-01-01 open Assets:Cash'],
+			['prices/2025.bean', '2025-01-01 price USD 1 EUR'],
 			['prices/2026.bean', '2026-01-01 price USD 1 EUR']
 		]);
 
 		expect(__test__.rewriteIncludesToLocalPaths('/workspace/main.bean', localFiles)).toEqual(
 			new Map([
-				['main.bean', ['include "accounts.bean"', 'include "prices/2026.bean"'].join('\n')],
+				[
+					'main.bean',
+					[
+						'include "accounts.bean"',
+						'include "prices/2025.bean"',
+						'include "prices/2026.bean"'
+					].join('\n')
+				],
 				['accounts.bean', '2026-01-01 open Assets:Cash'],
+				['prices/2025.bean', '2025-01-01 price USD 1 EUR'],
 				['prices/2026.bean', '2026-01-01 price USD 1 EUR']
 			])
 		);
@@ -178,31 +194,55 @@ describe('CashierSyncBeancount ledger file download', () => {
 
 	test('fetches nested includes once and handles include cycles', async () => {
 		const sync = new CashierSyncBeancount('https://cashier.example.test');
-		const readFile = vi.spyOn(sync, 'readFile').mockImplementation(async (path: string) => {
+		const readFiles = vi.spyOn(sync, 'readFiles').mockImplementation(async (path: string) => {
 			const files: Record<string, string> = {
-				'/workspace/main.bean': [
+				'main.bean': [
 					'include "accounts.bean"',
 					'include "accounts.bean"',
 					'include "prices/2026.bean"'
 				].join('\n'),
-				'/workspace/accounts.bean': 'include "main.bean"',
-				'/workspace/prices/2026.bean': '2026-01-01 price USD 1 EUR'
+				'accounts.bean': 'include "main.bean"',
+				'prices/2026.bean': '2026-01-01 price USD 1 EUR'
 			};
 			const content = files[path];
 			if (content === undefined) throw new Error(`missing ${path}`);
-			return content;
+			return new Map([[path, content]]);
 		});
 
 		const files = await sync.readLedgerFiles('/workspace/main.bean');
 
 		expect(files).toEqual(
 			new Map([
-				['/workspace/main.bean', expect.any(String)],
-				['/workspace/accounts.bean', 'include "main.bean"'],
-				['/workspace/prices/2026.bean', '2026-01-01 price USD 1 EUR']
+				['main.bean', expect.any(String)],
+				['accounts.bean', 'include "main.bean"'],
+				['prices/2026.bean', '2026-01-01 price USD 1 EUR']
 			])
 		);
-		expect(readFile).toHaveBeenCalledTimes(3);
+		expect(readFiles).toHaveBeenCalledTimes(3);
+	});
+
+	test('fetches glob include responses as concrete files', async () => {
+		const sync = new CashierSyncBeancount('https://cashier.example.test');
+		vi.spyOn(sync, 'readFiles').mockImplementation(async (path: string) => {
+			if (path === 'main.bean') {
+				return new Map([['main.bean', 'include "prices/*.bean"']]);
+			}
+			if (path === 'prices/*.bean') {
+				return new Map([
+					['prices/2024.bean', '2024-01-01 price USD 1 USD'],
+					['prices/2025.bean', '2025-01-01 price USD 1 USD']
+				]);
+			}
+			throw new Error(`missing ${path}`);
+		});
+
+		await expect(sync.readLedgerFiles('/workspace/main.bean')).resolves.toEqual(
+			new Map([
+				['main.bean', 'include "prices/*.bean"'],
+				['prices/2024.bean', '2024-01-01 price USD 1 USD'],
+				['prices/2025.bean', '2025-01-01 price USD 1 USD']
+			])
+		);
 	});
 
 	test('does not expose mutating Stage 1 server methods', () => {
