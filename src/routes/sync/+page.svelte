@@ -637,6 +637,17 @@
 					<div>Root book size</div><div>{diagnostics.rootBookSize ?? '-'}</div>
 					<div>Parse result</div><div>{diagnostics.parseResult ?? '-'}</div>
 					<div>Parse errors</div><div>{diagnostics.parseErrorCount ?? '-'}</div>
+					{#if diagnostics.lastError}
+						<div>Last error</div><div class="break-words">{diagnostics.lastError}</div>
+					{/if}
+					{#if diagnostics.parseErrors?.length}
+						<div>Parse error details</div>
+						<div class="space-y-1 break-words">
+							{#each diagnostics.parseErrors as error}
+								<div>{error}</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</div>
 		</div>

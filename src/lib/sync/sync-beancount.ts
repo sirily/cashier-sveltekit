@@ -37,9 +37,25 @@ export interface BeancountSyncDiagnostics {
 	rootBookSize?: number;
 	parseResult?: 'ok' | 'error' | 'skipped';
 	parseErrorCount?: number;
+	parseErrors?: string[];
+	lastError?: string;
 }
 
 let lastDiagnostics: BeancountSyncDiagnostics | null = null;
+
+function describeError(error: unknown): string {
+	if (error instanceof Error) return error.message;
+	if (typeof error === 'string') return error;
+	try {
+		return JSON.stringify(error);
+	} catch {
+		return String(error);
+	}
+}
+
+function describeParseErrors(errors: unknown[]): string[] {
+	return errors.map(describeError);
+}
 
 function normalizeRemotePath(path: string): string {
 	const normalized = path.replace(/\\/g, '/');
@@ -162,7 +178,7 @@ function rewriteIncludesToLocalPaths(
 		const remotePath =
 			localPath === rootLocalName
 				? rootRemotePath
-				: normalizeRemotePath(`${rootDir === '/' ? '' : rootDir}/${localPath}`);
+				: normalizeRemotePath(rootDir ? `${rootDir}/${localPath}` : localPath);
 		localByRemotePath.set(remotePath, localPath);
 	}
 
@@ -183,8 +199,8 @@ function rewriteIncludesToLocalPaths(
 				const resolvedRemotePath = resolveRemoteInclude(sourceRemotePath, includePath);
 				const targetLocalPaths = expandIncludeDirective(resolvedRemotePath, localByRemotePath);
 				return targetLocalPaths
-			.map((targetLocalPath) => directive.replace(includePath, targetLocalPath))
-			.join('\n');
+					.map((targetLocalPath) => directive.replace(includePath, targetLocalPath))
+					.join('\n');
 			}
 		);
 		rewritten.set(localPath, nextContent);
@@ -601,7 +617,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 			selectedRootBookFilename,
 			rootBookSize: rootBook.length,
 			parseResult: errors.length > 0 ? 'error' : 'ok',
-			parseErrorCount: errors.length
+			parseErrorCount: errors.length,
+			parseErrors: describeParseErrors(errors)
 		};
 		if (errors.length > 0) {
 			lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
@@ -628,7 +645,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 			ledgerFilesCount: localFiles.size || undefined,
 			selectedRootBookFilename: selectedRootBookFilename || undefined,
 			rootBookSize: rootBook.length || undefined,
-			parseResult: 'error'
+			parseResult: 'error',
+			lastError: describeError(error)
 		};
 		updateSyncStep(8, 'error');
 		throw error;

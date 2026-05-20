@@ -151,10 +151,7 @@ describe('Beancount sync path helpers', () => {
 
 	test('rewrites absolute, relative, and glob includes to local OPFS paths', () => {
 		const localFiles = new Map([
-			[
-				'main.bean',
-				['include "/workspace/accounts.bean"', 'include "prices/*.bean"'].join('\n')
-			],
+			['main.bean', ['include "/workspace/accounts.bean"', 'include "prices/*.bean"'].join('\n')],
 			['accounts.bean', '2026-01-01 open Assets:Cash'],
 			['prices/2025.bean', '2025-01-01 price USD 1 EUR'],
 			['prices/2026.bean', '2026-01-01 price USD 1 EUR']
@@ -174,6 +171,18 @@ describe('Beancount sync path helpers', () => {
 				['prices/2025.bean', '2025-01-01 price USD 1 EUR'],
 				['prices/2026.bean', '2026-01-01 price USD 1 EUR']
 			])
+		);
+	});
+
+	test('rewrites glob includes for workspace-relative root paths', () => {
+		const localFiles = new Map([
+			['main.bean', 'include "prices/*.bean"'],
+			['prices/2024.bean', '2024-01-01 price USD 1 USD'],
+			['prices/2025.bean', '2025-01-01 price USD 1 USD']
+		]);
+
+		expect(__test__.rewriteIncludesToLocalPaths('main.bean', localFiles).get('main.bean')).toBe(
+			['include "prices/2024.bean"', 'include "prices/2025.bean"'].join('\n')
 		);
 	});
 });
@@ -264,12 +273,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue(['Shop']);
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
 			new Map([
-				[
-					'/workspace/main.bean',
-					['include "/workspace/accounts.bean"', 'include "prices/2026.bean"'].join('\n')
-				],
-				['/workspace/accounts.bean', '2026-01-01 open Assets:Cash'],
-				['/workspace/prices/2026.bean', '2026-01-01 price USD 1 EUR']
+				['main.bean', ['include "accounts.bean"', 'include "prices/2026.bean"'].join('\n')],
+				['accounts.bean', '2026-01-01 open Assets:Cash'],
+				['prices/2026.bean', '2026-01-01 price USD 1 EUR']
 			])
 		);
 
@@ -306,8 +312,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue(['Shop']);
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
 			new Map([
-				['/workspace/main.bean', 'include "accounts.bean"'],
-				['/workspace/accounts.bean', '2026-01-01 open Assets:Cash']
+				['main.bean', 'include "accounts.bean"'],
+				['accounts.bean', '2026-01-01 open Assets:Cash']
 			])
 		);
 
