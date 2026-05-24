@@ -38,6 +38,8 @@ export interface BeancountSyncDiagnostics {
 	parseResult?: 'ok' | 'error' | 'skipped';
 	parseErrorCount?: number;
 	parseErrors?: string[];
+	unsupportedPythonPlugins?: string[];
+	unsupportedPythonPluginCount?: number;
 	lastError?: string;
 }
 
@@ -55,6 +57,15 @@ function describeError(error: unknown): string {
 
 function describeParseErrors(errors: unknown[]): string[] {
 	return errors.map(describeError);
+}
+
+const PYTHON_PLUGIN_WASM_ERROR_REGEX = /Python plugin "([^"]+)" requires python-plugin-wasm feature/;
+
+function extractUnsupportedPythonPlugins(parseErrors: string[]): string[] {
+	return [...new Set(parseErrors
+		.map((error) => PYTHON_PLUGIN_WASM_ERROR_REGEX.exec(error)?.[1])
+		.filter((plugin): plugin is string => Boolean(plugin))
+	)].sort();
 }
 
 function normalizeRemotePath(path: string): string {
@@ -611,6 +622,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 		await fullLedgerService.deleteCache();
 		await fullLedgerService.invalidate();
 		const errors = await fullLedgerService.getErrors();
+		const parseErrors = describeParseErrors(errors);
+		const unsupportedPythonPlugins = extractUnsupportedPythonPlugins(parseErrors);
 		lastDiagnostics = {
 			...lastDiagnostics,
 			ledgerFilesCount: localFiles.size,
@@ -618,7 +631,9 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 			rootBookSize: rootBook.length,
 			parseResult: errors.length > 0 ? 'error' : 'ok',
 			parseErrorCount: errors.length,
-			parseErrors: describeParseErrors(errors)
+			parseErrors,
+			unsupportedPythonPlugins,
+			unsupportedPythonPluginCount: unsupportedPythonPlugins.length
 		};
 		if (errors.length > 0) {
 			lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };

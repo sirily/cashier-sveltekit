@@ -330,6 +330,33 @@ describe('CashierSyncBeancount ledger file download', () => {
 		});
 	});
 
+	test('classifies unsupported Python plugin parse errors', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.getErrors
+			.mockResolvedValueOnce([
+				{ message: 'Python plugin "beancount.ops.documents" requires python-plugin-wasm feature' },
+				{ message: 'Python plugin "beancount.ops.pad" requires python-plugin-wasm feature' },
+				{ message: 'Python plugin "beancount.ops.pad" requires python-plugin-wasm feature' }
+			] as unknown[])
+			.mockResolvedValueOnce([]);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([
+				['main.bean', 'include "accounts.bean"'],
+				['accounts.bean', '2026-01-01 open Assets:Cash']
+			])
+		);
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+
+		expect(getLastDiagnostics()).toMatchObject({
+			parseResult: 'error',
+			unsupportedPythonPluginCount: 2,
+			unsupportedPythonPlugins: ['beancount.ops.documents', 'beancount.ops.pad']
+		});
+	});
+
 	test('rejects downloaded infrastructure that would overwrite cashier.bean', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/cashier.bean');

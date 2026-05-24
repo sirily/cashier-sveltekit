@@ -640,6 +640,19 @@
 					{#if diagnostics.lastError}
 						<div>Last error</div><div class="break-words">{diagnostics.lastError}</div>
 					{/if}
+					{#if diagnostics.unsupportedPythonPluginCount}
+						<div>Unsupported Python plugins</div>
+						<div class="space-y-1 break-words">
+							<div>
+								This ledger requires Python Beancount plugins that are not available in the current
+								offline parser build. Full offline parse cannot complete until python-plugin-wasm
+								support or a PWA-compatible ledger snapshot is available.
+							</div>
+							{#each diagnostics.unsupportedPythonPlugins ?? [] as plugin}
+								<div><code>{plugin}</code></div>
+							{/each}
+						</div>
+					{/if}
 					{#if diagnostics.parseErrors?.length}
 						<div>Parse error details</div>
 						<div class="space-y-1 break-words">
