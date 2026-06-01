@@ -7,13 +7,14 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
 
 - Project plans and docs are stored in the `/doc/` folder.
 - Completed project docs are in `/doc/completed-projects/`.
+- Current Stage 2 writeback plan for PWA agents: `/doc/2026-05-28-stage-2-manual-transaction-writeback-pwa.md`.
 
 ## Usage Scenarios
 
 ### Mobile App
 
 - balance overview
-- quick transaction entry. Stored in `cashier.bean`.
+- quick transaction entry, stored locally until confirmed by server sync
 - import/sync Beancount files into local storage (OPFS)
 
 #### Desktop App
@@ -30,6 +31,42 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
 - The ledger files are stored in OPFS, in Beancount format. The app data is in IndexedDb (via **Dexie**).
 - The configuration information is in Settings table in IndexedDb.
 - The app uses File System API to access the ledger files on the device.
+
+### Stage 1 accepted boundary
+
+Stage 1 is read-only offline-ledger sync:
+
+- PWA pulls `main.bean` and related Beancount sources from `cashier-server-python`.
+- Files are stored in OPFS.
+- The complete ledger parses through `@rustledger/wasm@0.14.1` with `0` parse errors.
+- The server ledger is authoritative for synced data.
+
+Do not regress this boundary when adding writeback.
+
+### Stage 2 manual transaction writeback
+
+Before implementing Stage 2 code, read `/doc/2026-05-28-stage-2-manual-transaction-writeback-pwa.md`.
+
+Stage 2 is a narrow one-button flow:
+
+```text
+1. push: local cashier.bean -> POST /api/xact -> server manual_transactions.bean
+2. pull: server main.bean -> OPFS / full ledger
+3. reconcile: delete local transaction only when its cashier_id appears in parsed pulled main.bean
+```
+
+Rules that code agents must follow:
+
+- Use `POST /api/xact` as the endpoint name.
+- Every local transaction must have a stable persisted `cashier_id` before first push.
+- Persist only two meaningful states: `local` and `synced`.
+- Do not add durable `uploading`, `accepted`, or `confirmed` states.
+- Local Journal entries may show `На устройстве`.
+- Show the concrete backend rejection reason for rejected transactions.
+- Stage 2 v1 sends only completed `*` transactions, not incomplete `!` transactions.
+- Delete local overlay entries only after the pulled full ledger parses and contains the same `cashier_id`.
+- Treat lost POST responses and failed pulls as retryable; keep local entries so server deduplication by `cashier_id` can make retry safe.
+- Mixed batches are allowed: valid entries may sync while invalid ones remain local.
 
 ### Rust Ledger WASM
 
