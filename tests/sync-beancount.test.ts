@@ -17,7 +17,10 @@ const mockState = vi.hoisted(() => {
 			error: vi.fn(),
 			info: vi.fn(),
 			warning: vi.fn()
-		}
+		},
+		pushTransactions: vi
+			.fn<(...args: unknown[]) => Promise<unknown>>()
+			.mockRejectedValue(new Error('Push failed'))
 	};
 });
 
@@ -71,8 +74,20 @@ vi.mock('$lib/sync/sync-common', () => ({
 	})
 }));
 
+vi.mock('$lib/sync/manual-writeback', async () => {
+	const actual = await vi.importActual<typeof import('$lib/sync/manual-writeback')>(
+		'$lib/sync/manual-writeback'
+	);
+	return {
+		...actual,
+		pushTransactions: mockState.pushTransactions
+	};
+});
+
 import * as opfs from '$lib/utils/opfslib';
 import { SettingKeys } from '$lib/settings';
+import { get } from 'svelte/store';
+import { syncProgress } from '$lib/stores/syncProgressStore';
 import {
 	CashierSyncBeancount,
 	__test__,
@@ -283,7 +298,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
 		).resolves.toBe(true);
 
-		expect(mockState.opfsFiles.get('cashier.bean')).toBe('2026-01-01 * "Local"');
+		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
+			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
+		);
 		expect(mockState.opfsFiles.get('main.bean')).toBe(
 			['include "accounts.bean"', 'include "prices/2026.bean"'].join('\n')
 		);
@@ -297,6 +314,26 @@ describe('CashierSyncBeancount ledger file download', () => {
 			selectedRootBookFilename: 'main.bean',
 			parseResult: 'ok'
 		});
+	});
+
+	test('failed xact push does not return false or leave step 0 error when pull succeeds', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			'2026-06-01 * "Local" "Test"\n    Expenses:Food  10 USD\n    Assets:Cash'
+		);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+
+		// mockState.pushTransactions already rejects by default
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+
+		const steps = get(syncProgress);
+		const step0 = steps.find((s) => s.id === 0);
+		expect(step0?.status).not.toBe('error');
 	});
 
 	test('rolls back downloaded files and selected book on parse failure', async () => {
@@ -341,7 +378,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 
-		expect(mockState.opfsFiles.get('cashier.bean')).toBe('2026-01-01 * "Local"');
+		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
+			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
+		);
 		expect(mockState.deleteCache).not.toHaveBeenCalled();
 		expect(getLastDiagnostics()).toMatchObject({ parseResult: 'error' });
 	});

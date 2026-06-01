@@ -14,6 +14,11 @@ import * as SyncCommon from '$lib/sync/sync-common';
 import type { SyncSteps } from '$lib/sync/sync-common';
 import { initializeSyncProgress, updateSyncStep } from '$lib/stores/syncProgressStore';
 import { PtaSystems } from '$lib/enums';
+import {
+	prepareLocalTransactions,
+	pushTransactions,
+	reconcileLocalJournal
+} from '$lib/sync/manual-writeback';
 
 Notifier.init();
 
@@ -511,7 +516,40 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			updateSyncStep(5, 'completed');
 		}
 		if (syncOptions.syncLedgerFiles) {
+			// Stage 2 writeback: push local completed transactions before pulling
+			updateSyncStep(0, 'in-progress');
+			const rejectedIds: string[] = [];
+			try {
+				const pending = await prepareLocalTransactions();
+				if (pending.length > 0) {
+					const response = await pushTransactions(activeUrl, pending);
+					const synced = response.synchronized.length;
+					const rejected = response.rejected.length;
+					if (synced > 0) {
+						Notifier.success(`Отправлено ${synced} операций`);
+					}
+					for (const r of response.rejected) {
+						if (r.cashier_id) rejectedIds.push(r.cashier_id);
+						Notifier.warning(r.reason || 'Операция отклонена');
+					}
+				}
+				updateSyncStep(0, 'completed');
+			} catch (error) {
+				Notifier.warning('Не удалось отправить локальные операции');
+				updateSyncStep(0, 'completed');
+			}
+
 			await synchronizeLedgerFiles(sync);
+
+			// Stage 2 writeback: reconcile local journal after successful pull
+			updateSyncStep(9, 'in-progress');
+			try {
+				await reconcileLocalJournal(rejectedIds);
+				updateSyncStep(9, 'completed');
+			} catch (error) {
+				updateSyncStep(9, 'error');
+				Notifier.warning('Не удалось выполнить сверку локального журнала');
+			}
 		}
 	} catch (error: any) {
 		console.error(error);
