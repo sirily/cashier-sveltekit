@@ -48,6 +48,7 @@ import type { PendingTransaction } from '$lib/sync/manual-writeback';
 let uuidSeqIndex = 0;
 
 beforeEach(() => {
+	vi.clearAllMocks();
 	mockState.opfsFiles.clear();
 	mockState.fetch.mockReset();
 	uuidSeqIndex = 0;
