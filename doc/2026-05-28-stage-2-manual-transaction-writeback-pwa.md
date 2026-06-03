@@ -31,9 +31,9 @@ Do not add a second permanent sync button for writeback. Do not add a separate h
 
 Persist only two meaningful states:
 
-| State | Storage | User surface |
-|---|---|---|
-| `local` | local `cashier.bean`; not confirmed in pulled `main.bean` | Journal entry may show `На устройстве` |
+| State    | Storage                                                      | User surface                                               |
+| -------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| `local`  | local `cashier.bean`; not confirmed in pulled `main.bean`    | Journal entry may show `На устройстве`                     |
 | `synced` | included in pulled server ledger; local overlay copy removed | appears once from the full ledger, with no local duplicate |
 
 Do not persist `uploading`, `accepted`, or `confirmed` as durable states. Transient in-memory progress during Sync is fine.
@@ -70,13 +70,13 @@ Expected response shape:
 
 ```json
 {
-  "synchronized": ["transaction-uuid-1"],
-  "rejected": [
-    {
-      "cashier_id": "transaction-uuid-2",
-      "reason": "Транзакция не сбалансирована: сумма по RUB равна 50.00 RUB"
-    }
-  ]
+	"synchronized": ["transaction-uuid-1"],
+	"rejected": [
+		{
+			"cashier_id": "transaction-uuid-2",
+			"reason": "Транзакция не сбалансирована: сумма по RUB равна 50.00 RUB"
+		}
+	]
 }
 ```
 

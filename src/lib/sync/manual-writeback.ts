@@ -20,6 +20,8 @@ export interface WritebackResponse {
 }
 
 const CASHIER_ID_RE = /^\s{4}cashier_id:\s*"([^"]*)"/m;
+const COMPLETED_TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+\*\s/;
+const TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+[*!]\s/;
 
 function generateCashierId(): string {
 	return crypto.randomUUID();
@@ -28,6 +30,29 @@ function generateCashierId(): string {
 function extractCashierId(blockText: string): string | null {
 	const match = blockText.match(CASHIER_ID_RE);
 	return match ? match[1] : null;
+}
+
+function isCompletedTransactionStart(line: string): boolean {
+	return COMPLETED_TRANSACTION_RE.test(line.trimStart());
+}
+
+function isTransactionStart(line: string): boolean {
+	return TRANSACTION_RE.test(line.trimStart());
+}
+
+function findNextTransactionStart(lines: string[], startIndex: number): number {
+	for (let i = startIndex; i < lines.length; i++) {
+		if (isTransactionStart(lines[i])) return i;
+	}
+	return lines.length;
+}
+
+function trimTrailingBlankLines(lines: string[], startIndex: number, endIndex: number): number {
+	let trimmedEnd = endIndex;
+	while (trimmedEnd > startIndex && lines[trimmedEnd - 1].trim() === '') {
+		trimmedEnd--;
+	}
+	return trimmedEnd;
 }
 
 /**
@@ -48,16 +73,11 @@ export async function prepareLocalTransactions(): Promise<PendingTransaction[]> 
 	let i = 0;
 
 	while (i < lines.length) {
-		const trimmed = lines[i].trimStart();
-		const txMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}\s+\*\s/);
+		if (isCompletedTransactionStart(lines[i])) {
+			const nextTransactionIndex = findNextTransactionStart(lines, i + 1);
+			const blockEndIndex = trimTrailingBlankLines(lines, i, nextTransactionIndex);
 
-		if (txMatch) {
-			let j = i + 1;
-			while (j < lines.length && lines[j].trim() !== '') {
-				j++;
-			}
-
-			const blockLines = lines.slice(i, j);
+			const blockLines = lines.slice(i, blockEndIndex);
 			const blockText = blockLines.join('\n');
 			const existingId = extractCashierId(blockText);
 
@@ -72,13 +92,14 @@ export async function prepareLocalTransactions(): Promise<PendingTransaction[]> 
 				sendBlock = [
 					lines[i],
 					`    cashier_id: "${cashierId}"`,
-					...lines.slice(i + 1, j)
+					...lines.slice(i + 1, blockEndIndex)
 				];
 			}
 
 			resultLines.push(...sendBlock);
+			resultLines.push(...lines.slice(blockEndIndex, nextTransactionIndex));
 			pending.push({ rawText: sendBlock.join('\n'), cashierId });
-			i = j;
+			i = nextTransactionIndex;
 		} else {
 			resultLines.push(lines[i]);
 			i++;
@@ -152,26 +173,22 @@ export async function reconcileLocalJournal(rejectedIds: string[]): Promise<void
 	let i = 0;
 
 	while (i < lines.length) {
-		const trimmed = lines[i].trimStart();
-		const txMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}\s+\*\s/);
+		if (isCompletedTransactionStart(lines[i])) {
+			const nextTransactionIndex = findNextTransactionStart(lines, i + 1);
+			const blockEndIndex = trimTrailingBlankLines(lines, i, nextTransactionIndex);
 
-		if (txMatch) {
-			let j = i + 1;
-			while (j < lines.length && lines[j].trim() !== '') {
-				j++;
-			}
-
-			const blockLines = lines.slice(i, j);
+			const blockLines = lines.slice(i, blockEndIndex);
 			const blockText = blockLines.join('\n');
 			const blockId = extractCashierId(blockText);
 
 			if (blockId && idsToRemove.has(blockId)) {
-				i = j;
+				i = blockEndIndex;
 				continue;
 			}
 
 			resultLines.push(...blockLines);
-			i = j;
+			resultLines.push(...lines.slice(blockEndIndex, nextTransactionIndex));
+			i = nextTransactionIndex;
 		} else {
 			resultLines.push(lines[i]);
 			i++;
@@ -199,10 +216,19 @@ async function findCashierIdsInPulledLedger(): Promise<Set<string>> {
 		const content = await opfs.readFile(entry.path);
 		if (!content) continue;
 
-		const re = /cashier_id:\s*"([^"]+)"/g;
-		let match;
-		while ((match = re.exec(content)) !== null) {
-			ids.add(match[1]);
+		const lines = content.split('\n');
+		let i = 0;
+		while (i < lines.length) {
+			if (!isCompletedTransactionStart(lines[i])) {
+				i++;
+				continue;
+			}
+
+			const nextTransactionIndex = findNextTransactionStart(lines, i + 1);
+			const blockEndIndex = trimTrailingBlankLines(lines, i, nextTransactionIndex);
+			const id = extractCashierId(lines.slice(i, blockEndIndex).join('\n'));
+			if (id) ids.add(id);
+			i = nextTransactionIndex;
 		}
 	}
 

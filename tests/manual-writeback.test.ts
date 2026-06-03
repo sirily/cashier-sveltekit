@@ -52,7 +52,8 @@ beforeEach(() => {
 	mockState.fetch.mockReset();
 	uuidSeqIndex = 0;
 	globalThis.crypto.randomUUID = () =>
-		(SEQ_UUIDS[uuidSeqIndex++] ?? `fallback-${uuidSeqIndex}`) as `${string}-${string}-${string}-${string}-${string}`;
+		(SEQ_UUIDS[uuidSeqIndex++] ??
+			`fallback-${uuidSeqIndex}`) as `${string}-${string}-${string}-${string}-${string}`;
 	globalThis.fetch = mockState.fetch;
 });
 
@@ -127,10 +128,7 @@ describe('prepareLocalTransactions', () => {
 			'2026-06-01 * "Supermarket" "Groceries"\n    cashier_id: "existing-uuid"\n    Expenses:Food  12.50 USD\n    Assets:Cash';
 		mockState.opfsFiles.set('cashier.bean', content);
 
-		const saveSpy = vi.spyOn(
-			await import('$lib/utils/opfslib'),
-			'saveFile'
-		);
+		const saveSpy = vi.spyOn(await import('$lib/utils/opfslib'), 'saveFile');
 
 		await prepareLocalTransactions();
 		// saveFile should NOT have been called since content didn't change
@@ -179,6 +177,38 @@ describe('prepareLocalTransactions', () => {
 		expect(result[1].cashierId).toBe('uuid-002');
 		expect(result[0].rawText).toContain('cashier_id: "uuid-001"');
 		expect(result[1].rawText).toContain('cashier_id: "uuid-002"');
+	});
+
+	test('handles adjacent completed transactions without a blank separator', async () => {
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-01 * "First" "Transaction"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash',
+				'2026-06-02 * "Second" "Another"',
+				'    Expenses:Transport  5 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+
+		const result = await prepareLocalTransactions();
+
+		expect(result).toHaveLength(2);
+		expect(result[0].rawText).not.toContain('"Second"');
+		expect(result[1].rawText).toContain('"Second"');
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(
+			[
+				'2026-06-01 * "First" "Transaction"',
+				'    cashier_id: "uuid-001"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash',
+				'2026-06-02 * "Second" "Another"',
+				'    cashier_id: "uuid-002"',
+				'    Expenses:Transport  5 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
 	});
 
 	test('handles mixed existing and missing cashier_ids', async () => {
@@ -241,7 +271,8 @@ describe('pushTransactions', () => {
 	test('POSTs transactions to /xact and returns response', async () => {
 		const pending: PendingTransaction[] = [
 			{
-				rawText: '2026-06-01 * "Test" "Xact"\n    cashier_id: "uuid-001"\n    Expenses:Food  10 USD\n    Assets:Cash',
+				rawText:
+					'2026-06-01 * "Test" "Xact"\n    cashier_id: "uuid-001"\n    Expenses:Food  10 USD\n    Assets:Cash',
 				cashierId: 'uuid-001'
 			}
 		];
@@ -291,9 +322,7 @@ describe('pushTransactions', () => {
 	});
 
 	test('throws on non-ok response', async () => {
-		const pending: PendingTransaction[] = [
-			{ rawText: 'xact1', cashierId: 'uuid-001' }
-		];
+		const pending: PendingTransaction[] = [{ rawText: 'xact1', cashierId: 'uuid-001' }];
 
 		mockState.fetch.mockResolvedValueOnce({
 			ok: false,
@@ -302,15 +331,11 @@ describe('pushTransactions', () => {
 			text: async () => 'Server error'
 		});
 
-		await expect(pushTransactions(SERVER_URL, pending)).rejects.toThrow(
-			/Server rejected request/
-		);
+		await expect(pushTransactions(SERVER_URL, pending)).rejects.toThrow(/Server rejected request/);
 	});
 
 	test('trims trailing slash from server URL', async () => {
-		const pending: PendingTransaction[] = [
-			{ rawText: 'xact1', cashierId: 'uuid-001' }
-		];
+		const pending: PendingTransaction[] = [{ rawText: 'xact1', cashierId: 'uuid-001' }];
 
 		mockState.fetch.mockResolvedValueOnce({
 			ok: true,
@@ -331,10 +356,7 @@ describe('pushTransactions', () => {
 // ---------------------------------------------------------------------------
 
 describe('reconcileLocalJournal', () => {
-	const MAIN_BEAN = [
-		'include "accounts.bean"',
-		'include "manual_transactions.bean"'
-	].join('\n');
+	const MAIN_BEAN = ['include "accounts.bean"', 'include "manual_transactions.bean"'].join('\n');
 
 	const ACCOUNTS_BEAN = '2026-01-01 open Assets:Cash';
 
@@ -495,6 +517,71 @@ describe('reconcileLocalJournal', () => {
 		expect(saved).not.toContain('good-uuid');
 		// bad-uuid is rejected → stays local
 		expect(saved).toContain('bad-uuid');
+	});
+
+	test('removes only the synced adjacent transaction when there is no blank separator', async () => {
+		mockState.opfsFiles.set(
+			'manual_transactions.bean',
+			[
+				'2026-06-01 * "Synced" "Gone"',
+				'    cashier_id: "synced-adjacent"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-01 * "Synced" "Gone"',
+				'    cashier_id: "synced-adjacent"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash',
+				'2026-06-02 * "Local" "Still here"',
+				'    cashier_id: "local-adjacent"',
+				'    Expenses:Transport  5 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+
+		await reconcileLocalJournal([]);
+
+		const saved = mockState.opfsFiles.get('cashier.bean');
+		expect(saved).not.toContain('synced-adjacent');
+		expect(saved).toContain('local-adjacent');
+		expect(saved).toContain('"Local"');
+	});
+
+	test('ignores cashier_id values outside completed transactions in pulled ledger files', async () => {
+		mockState.opfsFiles.set(
+			'manual_transactions.bean',
+			[
+				'; cashier_id: "comment-only"',
+				'2026-06-01 ! "Incomplete" "Not confirmed"',
+				'    cashier_id: "incomplete-only"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-01 * "Comment match" "Must stay"',
+				'    cashier_id: "comment-only"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash',
+				'',
+				'2026-06-02 * "Incomplete match" "Must stay"',
+				'    cashier_id: "incomplete-only"',
+				'    Expenses:Food  5 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+
+		await reconcileLocalJournal([]);
+
+		const saved = mockState.opfsFiles.get('cashier.bean');
+		expect(saved).toContain('comment-only');
+		expect(saved).toContain('incomplete-only');
 	});
 
 	test('keeps local IDs that are only in cashier.bean, not in pulled ledger', async () => {

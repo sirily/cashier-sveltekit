@@ -524,7 +524,6 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 				if (pending.length > 0) {
 					const response = await pushTransactions(activeUrl, pending);
 					const synced = response.synchronized.length;
-					const rejected = response.rejected.length;
 					if (synced > 0) {
 						Notifier.success(`Отправлено ${synced} операций`);
 					}
@@ -534,7 +533,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 					}
 				}
 				updateSyncStep(0, 'completed');
-			} catch (error) {
+			} catch {
 				Notifier.warning('Не удалось отправить локальные операции');
 				updateSyncStep(0, 'completed');
 			}
@@ -546,7 +545,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			try {
 				await reconcileLocalJournal(rejectedIds);
 				updateSyncStep(9, 'completed');
-			} catch (error) {
+			} catch {
 				updateSyncStep(9, 'error');
 				Notifier.warning('Не удалось выполнить сверку локального журнала');
 			}
