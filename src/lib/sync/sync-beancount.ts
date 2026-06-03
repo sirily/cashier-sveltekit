@@ -17,7 +17,7 @@ import { PtaSystems } from '$lib/enums';
 import {
 	prepareLocalTransactions,
 	pushTransactions,
-	reconcileLocalJournal
+	reconcileLocalJournalFromPaths
 } from '$lib/sync/manual-writeback';
 
 Notifier.init();
@@ -475,6 +475,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 
 	// const _ptaSystem = (await settings.get(SettingKeys.ptaSystem)) as PtaSystems;
 	const sync = new CashierSyncBeancount(activeUrl);
+	let hasRetryableWritebackFailure = false;
 
 	try {
 		if (syncOptions.syncAccounts) {
@@ -531,21 +532,30 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 						if (r.cashier_id) rejectedIds.push(r.cashier_id);
 						Notifier.warning(r.reason || 'Операция отклонена');
 					}
+					if (response.rejected.length > 0) {
+						hasRetryableWritebackFailure = true;
+						updateSyncStep(0, 'error');
+					} else {
+						updateSyncStep(0, 'completed');
+					}
+				} else {
+					updateSyncStep(0, 'completed');
 				}
-				updateSyncStep(0, 'completed');
-			} catch {
-				Notifier.warning('Не удалось отправить локальные операции');
-				updateSyncStep(0, 'completed');
+			} catch (error) {
+				hasRetryableWritebackFailure = true;
+				Notifier.warning(`Не удалось отправить локальные операции: ${describeError(error)}`);
+				updateSyncStep(0, 'error');
 			}
 
-			await synchronizeLedgerFiles(sync);
+			const pulledLedgerPaths = await synchronizeLedgerFiles(sync);
 
 			// Stage 2 writeback: reconcile local journal after successful pull
 			updateSyncStep(9, 'in-progress');
 			try {
-				await reconcileLocalJournal(rejectedIds);
+				await reconcileLocalJournalFromPaths(rejectedIds, pulledLedgerPaths);
 				updateSyncStep(9, 'completed');
 			} catch {
+				hasRetryableWritebackFailure = true;
 				updateSyncStep(9, 'error');
 				Notifier.warning('Не удалось выполнить сверку локального журнала');
 			}
@@ -556,7 +566,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 		return false;
 	}
 
-	return true;
+	return !hasRetryableWritebackFailure;
 }
 
 async function synchronizeAccounts(sync: CashierSyncBeancount) {
@@ -597,7 +607,7 @@ async function persistLedgerFiles(files: Map<string, string>) {
 	}
 }
 
-async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
+async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<string[]> {
 	let previousBookFilename: string | null = null;
 	let selectedRootBookFilename = '';
 	let rootBook = '';
@@ -690,6 +700,7 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount) {
 	}
 
 	Notifier.success('Ledger files downloaded to OPFS');
+	return Array.from(localFiles.keys());
 }
 
 function getLastDiagnostics() {

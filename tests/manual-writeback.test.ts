@@ -41,7 +41,8 @@ vi.mock('$lib/constants', () => ({
 import {
 	prepareLocalTransactions,
 	pushTransactions,
-	reconcileLocalJournal
+	reconcileLocalJournal,
+	reconcileLocalJournalFromPaths
 } from '$lib/sync/manual-writeback';
 import type { PendingTransaction } from '$lib/sync/manual-writeback';
 
@@ -122,6 +123,24 @@ describe('prepareLocalTransactions', () => {
 		expect(result[0].rawText).toContain('cashier_id: "existing-uuid"');
 		// File unchanged
 		expect(mockState.opfsFiles.get('cashier.bean')).toContain('cashier_id: "existing-uuid"');
+	});
+
+	test('reuses existing cashier_id with nonstandard metadata indentation', async () => {
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-01 * "Supermarket" "Groceries"',
+				'  cashier_id: "existing-uuid"',
+				'  Expenses:Food  12.50 USD',
+				'  Assets:Cash'
+			].join('\n')
+		);
+
+		const result = await prepareLocalTransactions();
+
+		expect(result).toHaveLength(1);
+		expect(result[0].cashierId).toBe('existing-uuid');
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain('  cashier_id: "existing-uuid"');
 	});
 
 	test('does not persist if no new cashier_ids were assigned', async () => {
@@ -269,7 +288,7 @@ describe('pushTransactions', () => {
 		expect(mockState.fetch).not.toHaveBeenCalled();
 	});
 
-	test('POSTs transactions to /xact and returns response', async () => {
+	test('POSTs transactions to /api/xact and returns response', async () => {
 		const pending: PendingTransaction[] = [
 			{
 				rawText:
@@ -344,6 +363,22 @@ describe('pushTransactions', () => {
 		});
 
 		await pushTransactions('https://cashier.example.test/api/', pending);
+
+		expect(mockState.fetch).toHaveBeenCalledWith(
+			'https://cashier.example.test/api/xact',
+			expect.any(Object)
+		);
+	});
+
+	test('adds /api/xact when server URL does not include api prefix', async () => {
+		const pending: PendingTransaction[] = [{ rawText: 'xact1', cashierId: 'uuid-001' }];
+
+		mockState.fetch.mockResolvedValueOnce({
+			ok: true,
+			json: async () => ({ synchronized: ['uuid-001'], rejected: [] })
+		});
+
+		await pushTransactions('https://cashier.example.test', pending);
 
 		expect(mockState.fetch).toHaveBeenCalledWith(
 			'https://cashier.example.test/api/xact',
@@ -603,6 +638,33 @@ describe('reconcileLocalJournal', () => {
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).toContain('never-pushed');
+	});
+
+	test('ignores stale OPFS files outside the current pulled ledger path set', async () => {
+		mockState.opfsFiles.set(
+			'stale/manual_transactions.bean',
+			[
+				'2026-06-01 * "Stale" "Old root"',
+				'    cashier_id: "stale-only"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-01 * "Local" "Must stay"',
+				'    cashier_id: "stale-only"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+
+		await reconcileLocalJournalFromPaths([], ['main.bean', 'accounts.bean']);
+
+		const saved = mockState.opfsFiles.get('cashier.bean');
+		expect(saved).toContain('stale-only');
+		expect(saved).toContain('"Must stay"');
 	});
 
 	test('preserves non-transaction content in cashier.bean after reconciliation', async () => {

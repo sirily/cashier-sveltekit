@@ -2,7 +2,7 @@
  * Stage 2 manual transaction writeback.
  *
  * 1. Prepare local cashier.bean: ensure cashier_id on every completed * transaction.
- * 2. Push pending transactions to server POST /xact.
+ * 2. Push pending transactions to server POST /api/xact.
  * 3. Reconcile: remove local entries whose cashier_id appears in the pulled ledger
  *    (and was not rejected in the current push batch).
  */
@@ -19,7 +19,7 @@ export interface WritebackResponse {
 	rejected: Array<{ cashier_id: string | null; reason: string }>;
 }
 
-const CASHIER_ID_RE = /^\s{4}cashier_id:\s*"([^"]*)"/m;
+const CASHIER_ID_RE = /^\s+cashier_id:\s*"([^"]*)"/m;
 const COMPLETED_TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+\*\s/;
 const TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+[*!]\s/;
 
@@ -115,7 +115,7 @@ export async function prepareLocalTransactions(): Promise<PendingTransaction[]> 
 }
 
 /**
- * POST pending transactions to the server /xact endpoint.
+ * POST pending transactions to the server /api/xact endpoint.
  * Returns the server response or throws on network error.
  */
 export async function pushTransactions(
@@ -127,7 +127,7 @@ export async function pushTransactions(
 	}
 
 	const base = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
-	const url = `${base}/xact`;
+	const url = base.endsWith('/api') ? `${base}/xact` : `${base}/api/xact`;
 
 	const response = await fetch(url, {
 		method: 'POST',
@@ -153,10 +153,17 @@ export async function pushTransactions(
  * pulled ledger and was not rejected in the current push batch.
  */
 export async function reconcileLocalJournal(rejectedIds: string[]): Promise<void> {
+	return reconcileLocalJournalFromPaths(rejectedIds);
+}
+
+export async function reconcileLocalJournalFromPaths(
+	rejectedIds: string[],
+	pulledLedgerPaths?: string[]
+): Promise<void> {
 	const content = (await opfs.readFile(CASHIER_XACT_FILE)) ?? '';
 	if (!content.trim()) return;
 
-	const syncedIds = await findCashierIdsInPulledLedger();
+	const syncedIds = await findCashierIdsInPulledLedger(pulledLedgerPaths);
 	const rejectedSet = new Set(rejectedIds);
 	const idsToRemove = new Set<string>();
 
@@ -204,16 +211,17 @@ export async function reconcileLocalJournal(rejectedIds: string[]): Promise<void
 /**
  * Scan all non-cashier .bean files in OPFS (recursively) for cashier_id metadata.
  */
-async function findCashierIdsInPulledLedger(): Promise<Set<string>> {
+async function findCashierIdsInPulledLedger(pulledLedgerPaths?: string[]): Promise<Set<string>> {
 	const ids = new Set<string>();
-	const tree = await opfs.listFileTree();
+	const paths =
+		pulledLedgerPaths ??
+		(await opfs.listFileTree()).filter((entry) => entry.kind === 'file').map((entry) => entry.path);
 
-	for (const entry of tree) {
-		if (entry.kind !== 'file') continue;
-		if (!entry.name.endsWith('.bean')) continue;
-		if (entry.path === CASHIER_XACT_FILE) continue;
+	for (const path of paths) {
+		if (!path.endsWith('.bean')) continue;
+		if (path === CASHIER_XACT_FILE) continue;
 
-		const content = await opfs.readFile(entry.path);
+		const content = await opfs.readFile(path);
 		if (!content) continue;
 
 		const lines = content.split('\n');

@@ -55,6 +55,13 @@ vi.mock('$lib/utils/opfslib', () => ({
 	deleteFile: vi.fn(async (path: string) => {
 		mockState.opfsFiles.delete(path);
 		return true;
+	}),
+	listFileTree: vi.fn(async () => {
+		return Array.from(mockState.opfsFiles.keys()).map((path) => ({
+			path,
+			name: path.split('/').pop() ?? path,
+			kind: 'file'
+		}));
 	})
 }));
 
@@ -212,6 +219,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.invalidate.mockClear();
 		mockState.getErrors.mockReset();
 		mockState.getErrors.mockResolvedValue([]);
+		mockState.pushTransactions.mockReset();
+		mockState.pushTransactions.mockRejectedValue(new Error('Push failed'));
 		Object.values(mockState.notifier).forEach((fn) => fn.mockClear());
 		vi.clearAllMocks();
 	});
@@ -281,6 +290,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 		mockState.opfsFiles.set('cashier.bean', '2026-01-01 * "Local"');
+		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: ['uuid-001'], rejected: [] });
 
 		vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockResolvedValue({
 			rows: [['10', 'USD', 'Assets:Cash']]
@@ -298,6 +308,15 @@ describe('CashierSyncBeancount ledger file download', () => {
 			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
 		).resolves.toBe(true);
 
+		expect(mockState.pushTransactions).toHaveBeenCalledTimes(1);
+		expect(mockState.pushTransactions).toHaveBeenCalledWith(
+			'https://cashier.example.test',
+			expect.arrayContaining([
+				expect.objectContaining({
+					rawText: expect.stringMatching(/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/)
+				})
+			])
+		);
 		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
 			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
 		);
@@ -316,7 +335,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		});
 	});
 
-	test('failed xact push does not return false or leave step 0 error when pull succeeds', async () => {
+	test('failed xact push keeps local entries, marks send step error, and prevents full success', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 		mockState.opfsFiles.set(
@@ -329,11 +348,14 @@ describe('CashierSyncBeancount ledger file download', () => {
 		);
 
 		// mockState.pushTransactions already rejects by default
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 
 		const steps = get(syncProgress);
 		const step0 = steps.find((s) => s.id === 0);
-		expect(step0?.status).not.toBe('error');
+		const step6 = steps.find((s) => s.id === 6);
+		expect(step0?.status).toBe('error');
+		expect(step6?.status).toBe('completed');
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain('cashier_id:');
 	});
 
 	test('rolls back downloaded files and selected book on parse failure', async () => {

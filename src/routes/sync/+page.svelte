@@ -585,6 +585,11 @@
 			</tr>
 			{#if configSource === LedgerDataSource.beancount}
 				<tr>
+					<td></td>
+					<td>Отправка локальных операций</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 0)?.status)}</td>{/if}
+				</tr>
+				<tr>
 					<td>
 						<input
 							id="sync-ledger-files"
@@ -608,6 +613,11 @@
 					<td></td>
 					<td>Full ledger parsed</td>
 					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 8)?.status)}</td>{/if}
+				</tr>
+				<tr>
+					<td></td>
+					<td>Сверка локального журнала</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 9)?.status)}</td>{/if}
 				</tr>
 			{/if}
 		</tbody>
