@@ -3,6 +3,7 @@ FROM --platform=$BUILDPLATFORM node:24.15.0-alpine3.23 AS build
 WORKDIR /src
 
 COPY package*.json ./
+COPY .npmrc ./
 RUN npm ci
 
 COPY . .
