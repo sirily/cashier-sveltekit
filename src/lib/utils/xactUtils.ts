@@ -3,6 +3,25 @@ import { DirectiveFormatter } from '$lib/rledger/directiveFormatter';
 
 export const PLACEHOLDER_ACCOUNT = 'Expenses:Uncategorized';
 
+export function applyAutoIncompleteFlag(
+	tx: Xact,
+	hasPlaceholder: boolean,
+	autoIncomplete: boolean
+): boolean {
+	if (hasPlaceholder) {
+		if (tx.flag !== '!') {
+			tx.flag = '!';
+			return true;
+		}
+		return autoIncomplete;
+	}
+
+	if (autoIncomplete && tx.flag === '!') {
+		tx.flag = '*';
+	}
+	return false;
+}
+
 /**
  * Convert an Xact to a Beancount transaction string using DirectiveFormatter.
  */
