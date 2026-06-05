@@ -32,7 +32,7 @@
 			{/if}
 			{xact.payee}
 			{#if isLocal}
-				<span class="badge badge-xs badge-ghost opacity-60">На устройстве</span>
+				<span class="badge badge-xs badge-ghost opacity-60">On device</span>
 			{/if}
 		</div>
 	</div>

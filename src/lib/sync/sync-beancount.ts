@@ -7,6 +7,7 @@ import moment from 'moment';
 import { CASHIER_XACT_FILE, ISODATEFORMAT } from '$lib/constants';
 import * as opfs from '$lib/utils/opfslib';
 import fullLedgerService from '$lib/services/ledgerWorkerClient';
+import { createLedger, ensureInitialized } from '$lib/services/rustledger';
 import { getQueries } from './sync-queries';
 import type { Queries } from './sync-queries';
 import Notifier from '$lib/utils/notifier';
@@ -60,6 +61,19 @@ function describeError(error: unknown): string {
 
 function describeParseErrors(errors: unknown[]): string[] {
 	return errors.map(describeError);
+}
+
+async function parseDownloadedLedger(
+	files: Map<string, string>,
+	entryPoint: string
+): Promise<unknown[]> {
+	await ensureInitialized();
+	const ledger = createLedger(Object.fromEntries(files), entryPoint);
+	try {
+		return ledger.getErrors();
+	} finally {
+		ledger.free();
+	}
 }
 
 function normalizeRemotePath(path: string): string {
@@ -526,11 +540,11 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 					const response = await pushTransactions(activeUrl, pending);
 					const synced = response.synchronized.length;
 					if (synced > 0) {
-						Notifier.success(`Отправлено ${synced} операций`);
+						Notifier.success(`Sent ${synced} transaction(s)`);
 					}
 					for (const r of response.rejected) {
 						if (r.cashier_id) rejectedIds.push(r.cashier_id);
-						Notifier.warning(r.reason || 'Операция отклонена');
+						Notifier.warning(r.reason || 'Transaction rejected');
 					}
 					if (response.rejected.length > 0) {
 						hasRetryableWritebackFailure = true;
@@ -543,7 +557,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 				}
 			} catch (error) {
 				hasRetryableWritebackFailure = true;
-				Notifier.warning(`Не удалось отправить локальные операции: ${describeError(error)}`);
+				Notifier.warning(`Failed to send local transactions: ${describeError(error)}`);
 				updateSyncStep(0, 'error');
 			}
 
@@ -557,7 +571,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			} catch {
 				hasRetryableWritebackFailure = true;
 				updateSyncStep(9, 'error');
-				Notifier.warning('Не удалось выполнить сверку локального журнала');
+				Notifier.warning('Failed to reconcile local journal');
 			}
 		}
 	} catch (error: any) {
@@ -655,9 +669,7 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 
 	updateSyncStep(8, 'in-progress');
 	try {
-		await fullLedgerService.deleteCache();
-		await fullLedgerService.invalidate();
-		const errors = await fullLedgerService.getErrors();
+		const errors = await parseDownloadedLedger(localFiles, selectedRootBookFilename);
 		lastDiagnostics = {
 			...lastDiagnostics,
 			ledgerFilesCount: localFiles.size,
@@ -672,6 +684,14 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 			throw new Error(
 				`Full ledger parsed with ${errors.length} errors for ${selectedRootBookFilename}`
 			);
+		}
+		try {
+			await fullLedgerService.deleteCache();
+			await fullLedgerService.invalidate();
+		} catch {
+			// Local cashier.bean may contain rejected/pending entries that are not
+			// valid against the server book yet. The downloaded server ledger is
+			// already validated above, so keep sync parse status focused on that.
 		}
 		updateSyncStep(8, 'completed');
 	} catch (error) {

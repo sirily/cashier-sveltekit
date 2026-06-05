@@ -16,16 +16,16 @@ export const syncProgress = writable<SyncStep[]>([]);
  */
 export function initializeSyncProgress() {
 	syncProgress.set([
-		{ id: 0, name: 'Отправка локальных операций', status: 'pending' },
+		{ id: 0, name: 'Send local transactions', status: 'pending' },
 		{ id: 1, name: 'Sync accounts', status: 'pending' },
 		{ id: 2, name: 'Sync opening balances', status: 'pending' },
 		{ id: 3, name: 'Sync asset allocation', status: 'pending' },
 		{ id: 4, name: 'Sync account balances', status: 'pending' },
 		{ id: 5, name: 'Sync payees', status: 'pending' },
-		{ id: 6, name: 'Загрузка полной книги', status: 'pending' },
+		{ id: 6, name: 'Download full ledger', status: 'pending' },
 		{ id: 7, name: 'Select root book', status: 'pending' },
 		{ id: 8, name: 'Parse full ledger', status: 'pending' },
-		{ id: 9, name: 'Сверка локального журнала', status: 'pending' }
+		{ id: 9, name: 'Reconcile local journal', status: 'pending' }
 	]);
 }
 

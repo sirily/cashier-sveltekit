@@ -586,7 +586,7 @@
 			{#if configSource === LedgerDataSource.beancount}
 				<tr>
 					<td></td>
-					<td>Отправка локальных операций</td>
+					<td>Send local transactions</td>
 					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 0)?.status)}</td>{/if}
 				</tr>
 				<tr>
@@ -616,7 +616,7 @@
 				</tr>
 				<tr>
 					<td></td>
-					<td>Сверка локального журнала</td>
+					<td>Reconcile local journal</td>
 					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 9)?.status)}</td>{/if}
 				</tr>
 			{/if}
