@@ -547,6 +547,10 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 						Notifier.warning(r.reason || 'Transaction rejected');
 					}
 					if (response.rejected.length > 0) {
+						const rejectionReasons = response.rejected.map(
+							(r) => r.reason || 'Transaction rejected'
+						);
+						lastDiagnostics = { ...lastDiagnostics, lastError: rejectionReasons.join('\n') };
 						hasRetryableWritebackFailure = true;
 						updateSyncStep(0, 'error');
 					} else {
@@ -557,7 +561,9 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 				}
 			} catch (error) {
 				hasRetryableWritebackFailure = true;
-				Notifier.warning(`Failed to send local transactions: ${describeError(error)}`);
+				const message = `Failed to send local transactions: ${describeError(error)}`;
+				lastDiagnostics = { ...lastDiagnostics, lastError: message };
+				Notifier.warning(message);
 				updateSyncStep(0, 'error');
 			}
 

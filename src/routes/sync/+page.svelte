@@ -294,6 +294,7 @@
 				case LedgerDataSource.beancount:
 					// cashier-server-python
 					syncResult = await SyncBeancount.synchronize(syncOptions);
+					diagnostics = SyncBeancount.getLastDiagnostics();
 					break;
 				case LedgerDataSource.ledger:
 					Notifier.warning('Synchronization with Cashier Server (Ledger-cli) not implemented yet.');
@@ -301,7 +302,9 @@
 			}
 
 			if (!syncResult) {
-				throw new Error('Synchronization failed. Please check the logs for more details.');
+				throw new Error(
+					diagnostics?.lastError ?? 'Synchronization failed. Please check the logs for more details.'
+				);
 			}
 
 			if (configSource === LedgerDataSource.filesystem) {

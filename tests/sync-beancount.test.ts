@@ -409,7 +409,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(steps.find((s) => s.id === 8)?.status).toBe('completed');
 		expect(getLastDiagnostics()).toMatchObject({
 			parseResult: 'ok',
-			parseErrorCount: 0
+			parseErrorCount: 0,
+			lastError: 'Unknown account(s): Assets:NoSuchBank:Cash'
 		});
 		expect(mockState.notifier.warning).toHaveBeenCalledWith(
 			'Unknown account(s): Assets:NoSuchBank:Cash'
@@ -419,6 +420,48 @@ describe('CashierSyncBeancount ledger file download', () => {
 			entryPoint: 'main.bean',
 			files: { 'main.bean': '2026-01-01 open Assets:Physical:Cash' }
 		});
+	});
+
+	test('repeated rejected writeback keeps surfacing the backend reason', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-18 * "STAGE2FIXQA Invalid Cafe" "invalid browser sync qa"',
+				'    cashier_id: "11111111-1111-4111-8111-111111111111"',
+				'    Expenses:EatingOut:Coffee  1.11 USD',
+				'    Assets:NoSuchBank:Cash    -1.11 USD'
+			].join('\n')
+		);
+		const rejection = {
+			synchronized: [],
+			rejected: [
+				{
+					cashier_id: '11111111-1111-4111-8111-111111111111',
+					reason: 'Unknown account(s): Assets:NoSuchBank:Cash'
+				}
+			]
+		};
+		mockState.pushTransactions.mockResolvedValueOnce(rejection).mockResolvedValueOnce(rejection);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Physical:Cash']])
+		);
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+
+		expect(mockState.notifier.warning).toHaveBeenCalledWith(
+			'Unknown account(s): Assets:NoSuchBank:Cash'
+		);
+		expect(
+			mockState.notifier.warning.mock.calls.filter(
+				([message]) => message === 'Unknown account(s): Assets:NoSuchBank:Cash'
+			)
+		).toHaveLength(2);
+		expect(getLastDiagnostics()?.lastError).toBe('Unknown account(s): Assets:NoSuchBank:Cash');
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain('Assets:NoSuchBank:Cash');
 	});
 
 	test('rolls back downloaded files and selected book on parse failure', async () => {
