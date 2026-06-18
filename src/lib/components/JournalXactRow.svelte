@@ -6,8 +6,9 @@
 	interface Props {
 		xact: Xact;
 		onclick?: (xact: Xact) => void;
+		isLocal?: boolean;
 	}
-	let { xact, onclick }: Props = $props();
+	let { xact, onclick, isLocal = false }: Props = $props();
 
 	function onRowClicked() {
 		if (onclick) {
@@ -30,6 +31,9 @@
 				<TriangleAlertIcon class="text-warning size-4 shrink-0" />
 			{/if}
 			{xact.payee}
+			{#if isLocal}
+				<span class="badge badge-xs badge-ghost opacity-60">On device</span>
+			{/if}
 		</div>
 	</div>
 

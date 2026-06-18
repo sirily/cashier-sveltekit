@@ -1,6 +1,5 @@
 .git
 .github
-.npmrc
 node_modules
 .svelte-kit
 build

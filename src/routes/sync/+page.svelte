@@ -294,6 +294,7 @@
 				case LedgerDataSource.beancount:
 					// cashier-server-python
 					syncResult = await SyncBeancount.synchronize(syncOptions);
+					diagnostics = SyncBeancount.getLastDiagnostics();
 					break;
 				case LedgerDataSource.ledger:
 					Notifier.warning('Synchronization with Cashier Server (Ledger-cli) not implemented yet.');
@@ -301,7 +302,9 @@
 			}
 
 			if (!syncResult) {
-				throw new Error('Synchronization failed. Please check the logs for more details.');
+				throw new Error(
+					diagnostics?.lastError ?? 'Synchronization failed. Please check the logs for more details.'
+				);
 			}
 
 			if (configSource === LedgerDataSource.filesystem) {
@@ -585,6 +588,11 @@
 			</tr>
 			{#if configSource === LedgerDataSource.beancount}
 				<tr>
+					<td></td>
+					<td>Send local transactions</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 0)?.status)}</td>{/if}
+				</tr>
+				<tr>
 					<td>
 						<input
 							id="sync-ledger-files"
@@ -608,6 +616,11 @@
 					<td></td>
 					<td>Full ledger parsed</td>
 					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 8)?.status)}</td>{/if}
+				</tr>
+				<tr>
+					<td></td>
+					<td>Reconcile local journal</td>
+					{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 9)?.status)}</td>{/if}
 				</tr>
 			{/if}
 		</tbody>

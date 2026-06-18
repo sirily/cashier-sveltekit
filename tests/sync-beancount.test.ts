@@ -11,13 +11,18 @@ const mockState = vi.hoisted(() => {
 		deleteCache: vi.fn(async () => {}),
 		invalidate: vi.fn(async () => {}),
 		getErrors: vi.fn<() => Promise<unknown[]>>(async () => []),
+		parseErrors: [] as unknown[],
+		createdLedgers: [] as Array<{ files: Record<string, string>; entryPoint: string }>,
 		notifier: {
 			init: vi.fn(),
 			success: vi.fn(),
 			error: vi.fn(),
 			info: vi.fn(),
 			warning: vi.fn()
-		}
+		},
+		pushTransactions: vi
+			.fn<(...args: unknown[]) => Promise<unknown>>()
+			.mockRejectedValue(new Error('Push failed'))
 	};
 });
 
@@ -52,6 +57,13 @@ vi.mock('$lib/utils/opfslib', () => ({
 	deleteFile: vi.fn(async (path: string) => {
 		mockState.opfsFiles.delete(path);
 		return true;
+	}),
+	listFileTree: vi.fn(async () => {
+		return Array.from(mockState.opfsFiles.keys()).map((path) => ({
+			path,
+			name: path.split('/').pop() ?? path,
+			kind: 'file'
+		}));
 	})
 }));
 
@@ -63,6 +75,17 @@ vi.mock('$lib/services/ledgerWorkerClient', () => ({
 	}
 }));
 
+vi.mock('$lib/services/rustledger', () => ({
+	ensureInitialized: vi.fn(async () => {}),
+	createLedger: vi.fn((files: Record<string, string>, entryPoint: string) => {
+		mockState.createdLedgers.push({ files, entryPoint });
+		return {
+			getErrors: () => mockState.parseErrors,
+			free: vi.fn()
+		};
+	})
+}));
+
 vi.mock('$lib/sync/sync-common', () => ({
 	syncAccounts: mockState.syncAccounts,
 	syncPayees: mockState.syncPayees,
@@ -71,8 +94,20 @@ vi.mock('$lib/sync/sync-common', () => ({
 	})
 }));
 
+vi.mock('$lib/sync/manual-writeback', async () => {
+	const actual = await vi.importActual<typeof import('$lib/sync/manual-writeback')>(
+		'$lib/sync/manual-writeback'
+	);
+	return {
+		...actual,
+		pushTransactions: mockState.pushTransactions
+	};
+});
+
 import * as opfs from '$lib/utils/opfslib';
 import { SettingKeys } from '$lib/settings';
+import { get } from 'svelte/store';
+import { syncProgress } from '$lib/stores/syncProgressStore';
 import {
 	CashierSyncBeancount,
 	__test__,
@@ -197,6 +232,10 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.invalidate.mockClear();
 		mockState.getErrors.mockReset();
 		mockState.getErrors.mockResolvedValue([]);
+		mockState.parseErrors = [];
+		mockState.createdLedgers = [];
+		mockState.pushTransactions.mockReset();
+		mockState.pushTransactions.mockRejectedValue(new Error('Push failed'));
 		Object.values(mockState.notifier).forEach((fn) => fn.mockClear());
 		vi.clearAllMocks();
 	});
@@ -266,6 +305,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 		mockState.opfsFiles.set('cashier.bean', '2026-01-01 * "Local"');
+		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: ['uuid-001'], rejected: [] });
 
 		vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockResolvedValue({
 			rows: [['10', 'USD', 'Assets:Cash']]
@@ -283,7 +323,18 @@ describe('CashierSyncBeancount ledger file download', () => {
 			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
 		).resolves.toBe(true);
 
-		expect(mockState.opfsFiles.get('cashier.bean')).toBe('2026-01-01 * "Local"');
+		expect(mockState.pushTransactions).toHaveBeenCalledTimes(1);
+		expect(mockState.pushTransactions).toHaveBeenCalledWith(
+			'https://cashier.example.test',
+			expect.arrayContaining([
+				expect.objectContaining({
+					rawText: expect.stringMatching(/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/)
+				})
+			])
+		);
+		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
+			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
+		);
 		expect(mockState.opfsFiles.get('main.bean')).toBe(
 			['include "accounts.bean"', 'include "prices/2026.bean"'].join('\n')
 		);
@@ -299,15 +350,127 @@ describe('CashierSyncBeancount ledger file download', () => {
 		});
 	});
 
+	test('failed xact push keeps local entries, marks send step error, and prevents full success', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			'2026-06-01 * "Local" "Test"\n    Expenses:Food  10 USD\n    Assets:Cash'
+		);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+
+		// mockState.pushTransactions already rejects by default
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+
+		const steps = get(syncProgress);
+		const step0 = steps.find((s) => s.id === 0);
+		const step6 = steps.find((s) => s.id === 6);
+		expect(step0?.status).toBe('error');
+		expect(step6?.status).toBe('completed');
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain('cashier_id:');
+	});
+
+	test('rejected writeback keeps local transaction without turning downloaded ledger parse red', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-05 * "QAEDGE UI Invalid"',
+				'    cashier_id: "11111111-1111-4111-8111-111111111111"',
+				'    Assets:NoSuchBank:Cash  -2.22 GBP',
+				'    Expenses:Groceries       2.22 GBP'
+			].join('\n')
+		);
+		mockState.pushTransactions.mockResolvedValueOnce({
+			synchronized: [],
+			rejected: [
+				{
+					cashier_id: '11111111-1111-4111-8111-111111111111',
+					reason: 'Unknown account(s): Assets:NoSuchBank:Cash'
+				}
+			]
+		});
+		mockState.invalidate.mockRejectedValueOnce(
+			new Error('Account Assets:NoSuchBank:Cash was never opened')
+		);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Physical:Cash']])
+		);
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+
+		const steps = get(syncProgress);
+		expect(steps.find((s) => s.id === 0)?.status).toBe('error');
+		expect(steps.find((s) => s.id === 8)?.status).toBe('completed');
+		expect(getLastDiagnostics()).toMatchObject({
+			parseResult: 'ok',
+			parseErrorCount: 0,
+			lastError: 'Unknown account(s): Assets:NoSuchBank:Cash'
+		});
+		expect(mockState.notifier.warning).toHaveBeenCalledWith(
+			'Unknown account(s): Assets:NoSuchBank:Cash'
+		);
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain('Assets:NoSuchBank:Cash');
+		expect(mockState.createdLedgers[0]).toMatchObject({
+			entryPoint: 'main.bean',
+			files: { 'main.bean': '2026-01-01 open Assets:Physical:Cash' }
+		});
+	});
+
+	test('repeated rejected writeback keeps surfacing the backend reason', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-06-18 * "STAGE2FIXQA Invalid Cafe" "invalid browser sync qa"',
+				'    cashier_id: "11111111-1111-4111-8111-111111111111"',
+				'    Expenses:EatingOut:Coffee  1.11 USD',
+				'    Assets:NoSuchBank:Cash    -1.11 USD'
+			].join('\n')
+		);
+		const rejection = {
+			synchronized: [],
+			rejected: [
+				{
+					cashier_id: '11111111-1111-4111-8111-111111111111',
+					reason: 'Unknown account(s): Assets:NoSuchBank:Cash'
+				}
+			]
+		};
+		mockState.pushTransactions.mockResolvedValueOnce(rejection).mockResolvedValueOnce(rejection);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Physical:Cash']])
+		);
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+
+		expect(mockState.notifier.warning).toHaveBeenCalledWith(
+			'Unknown account(s): Assets:NoSuchBank:Cash'
+		);
+		expect(
+			mockState.notifier.warning.mock.calls.filter(
+				([message]) => message === 'Unknown account(s): Assets:NoSuchBank:Cash'
+			)
+		).toHaveLength(2);
+		expect(getLastDiagnostics()?.lastError).toBe('Unknown account(s): Assets:NoSuchBank:Cash');
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain('Assets:NoSuchBank:Cash');
+	});
+
 	test('rolls back downloaded files and selected book on parse failure', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 		mockState.settingsStore.set(SettingKeys.bookFilename, 'previous.bean');
 		mockState.opfsFiles.set('main.bean', 'old root');
 		mockState.opfsFiles.set('accounts.bean', 'old include');
-		mockState.getErrors
-			.mockResolvedValueOnce([{ message: 'parse failed' }] as unknown[])
-			.mockResolvedValueOnce([]);
+		mockState.parseErrors = [{ message: 'parse failed' }];
 
 		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue(['Shop']);
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
@@ -322,8 +485,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(mockState.settingsStore.get(SettingKeys.bookFilename)).toBe('previous.bean');
 		expect(mockState.opfsFiles.get('main.bean')).toBe('old root');
 		expect(mockState.opfsFiles.get('accounts.bean')).toBe('old include');
-		expect(mockState.deleteCache).toHaveBeenCalledTimes(2);
-		expect(mockState.invalidate).toHaveBeenCalledTimes(2);
+		expect(mockState.deleteCache).toHaveBeenCalledTimes(1);
+		expect(mockState.invalidate).toHaveBeenCalledTimes(1);
 		expect(getLastDiagnostics()).toMatchObject({
 			parseResult: 'error',
 			selectedRootBookFilename: 'main.bean'
@@ -341,7 +504,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 
-		expect(mockState.opfsFiles.get('cashier.bean')).toBe('2026-01-01 * "Local"');
+		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
+			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
+		);
 		expect(mockState.deleteCache).not.toHaveBeenCalled();
 		expect(getLastDiagnostics()).toMatchObject({ parseResult: 'error' });
 	});

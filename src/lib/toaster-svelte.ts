@@ -10,8 +10,14 @@ class DaisyUIToaster {
 	private toastContainer: HTMLElement | null = null;
 
 	constructor() {
+		this.ensureToastContainer();
+	}
+
+	private ensureToastContainer() {
 		// Create a container for all toasts if it doesn't exist
-		this.toastContainer = document.getElementById('toast-container');
+		if (!this.toastContainer || !this.toastContainer.isConnected) {
+			this.toastContainer = document.getElementById('toast-container');
+		}
 		if (!this.toastContainer) {
 			this.toastContainer = document.createElement('div');
 			this.toastContainer.id = 'toast-container';
@@ -22,6 +28,7 @@ class DaisyUIToaster {
 	}
 
 	show(options: ToastOptions) {
+		this.ensureToastContainer();
 		if (!this.toastContainer) {
 			console.error('Toast container not initialized');
 			return;
@@ -47,7 +54,9 @@ class DaisyUIToaster {
 				break;
 		}
 
-		toast.innerHTML = `<span>${options.message}</span>`;
+		const message = document.createElement('span');
+		message.textContent = options.message;
+		toast.appendChild(message);
 		this.toastContainer.appendChild(toast);
 
 		// Remove the toast after the specified duration

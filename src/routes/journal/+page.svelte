@@ -87,6 +87,7 @@
 				<JournalXactRow
 					xact={item.xact}
 					onclick={() => onRowClick(item.xact, item.span)}
+					isLocal={true}
 				/>
 			{/each}
 		{/if}

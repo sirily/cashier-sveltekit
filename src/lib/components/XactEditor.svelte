@@ -7,8 +7,8 @@
 	import appService from '$lib/services/appService';
 	import { getAccountBalance, loadAccount } from '$lib/services/accountsService';
 	import { SelectionModeMetadata, SettingKeys, settings } from '$lib/settings';
-	import { getEmptyPostingIndex } from '$lib/utils/xactUtils';
-	import { Posting } from '$lib/data/model';
+	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '$lib/utils/xactUtils';
+	import { Posting, type Xact } from '$lib/data/model';
 	import {
 		ArrowUpDownIcon,
 		SigmaIcon,
@@ -30,6 +30,8 @@
 	const DATE_FORMAT_DEFAULT = 'D MMM YYYY';
 	let dateFormatValue = $state(DATE_FORMAT_DEFAULT);
 	let dateInputEl: HTMLInputElement | undefined;
+	let autoIncomplete = $state(false);
+	let autoIncompleteXact: Xact | undefined = $state(undefined);
 
 	let formattedDate = $derived.by(() => {
 		if (!$xact?.date) return 'Date';
@@ -62,8 +64,12 @@
 	});
 
 	$effect(() => {
-		if (hasPlaceholder && $xact && $xact.flag !== '!') {
-			$xact.flag = '!';
+		if ($xact) {
+			if ($xact !== autoIncompleteXact) {
+				autoIncomplete = false;
+				autoIncompleteXact = $xact;
+			}
+			autoIncomplete = applyAutoIncompleteFlag($xact, hasPlaceholder, autoIncomplete);
 		}
 	});
 	if (!$xact) {
@@ -213,6 +219,12 @@
 		$xact.date = d.toISOString().slice(0, 10);
 	}
 
+	function setFlag(flag: '*' | '!') {
+		if (!$xact) return;
+		autoIncomplete = false;
+		$xact.flag = flag;
+	}
+
 </script>
 
 <div class="flex h-full flex-col space-y-3 py-2">
@@ -269,7 +281,7 @@
 					class="join-item btn btn-sm"
 					class:btn-warning={$xact.flag === '!'}
 					class:btn-outline={$xact.flag !== '!'}
-					onclick={() => ($xact.flag = '!')}
+					onclick={() => setFlag('!')}
 				>
 					<TriangleAlertIcon class="h-4 w-4" />
 					<span>!</span>
@@ -281,7 +293,7 @@
 					class:btn-success={$xact.flag === '*'}
 					class:btn-outline={$xact.flag !== '*'}
 					disabled={hasPlaceholder}
-					onclick={() => ($xact.flag = '*')}
+					onclick={() => setFlag('*')}
 				>
 					<CircleCheckIcon class="h-4 w-4" />
 					<span>*</span>
