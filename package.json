@@ -66,5 +66,15 @@
 		"vitest": "^4.1.8",
 		"webdav": "^5.7.1",
 		"workbox-window": "^7.4.0"
+	},
+	"overrides": {
+		"@opentelemetry/core": "2.8.0",
+		"@opentelemetry/resources": "2.8.0",
+		"@opentelemetry/sdk-trace-base": "2.8.0",
+		"@opentelemetry/sdk-trace-node": "2.8.0",
+		"@sveltejs/kit": {
+			"cookie": "0.7.2"
+		},
+		"esbuild": "0.28.1"
 	}
 }
