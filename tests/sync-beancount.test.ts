@@ -301,6 +301,55 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect('shutdown' in sync).toBe(false);
 	});
 
+	test('does not reintroduce a confirmed local overlay on repeated sync', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			[
+				'2026-01-01 * "Local"',
+				'    cashier_id: "confirmed-uuid"',
+				'    Expenses:Food  10 USD',
+				'    Assets:Cash'
+			].join('\n')
+		);
+		mockState.pushTransactions.mockResolvedValueOnce({
+			synchronized: ['confirmed-uuid'],
+			rejected: []
+		});
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockResolvedValue({ rows: [] });
+		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue([]);
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([
+				[
+					'main.bean',
+					[
+						'2026-01-01 * "Local"',
+						'    cashier_id: "confirmed-uuid"',
+						'    Expenses:Food  10 USD',
+						'    Assets:Cash'
+					].join('\n')
+				]
+			])
+		);
+
+		const cashierContentsWhenUiLedgerRefreshes: Array<string | undefined> = [];
+		mockState.invalidate.mockImplementation(async () => {
+			cashierContentsWhenUiLedgerRefreshes.push(mockState.opfsFiles.get('cashier.bean'));
+		});
+
+		await expect(
+			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
+		).resolves.toBe(true);
+		await expect(
+			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
+		).resolves.toBe(true);
+
+		expect(mockState.opfsFiles.get('cashier.bean')?.trim()).toBe('');
+		expect(cashierContentsWhenUiLedgerRefreshes).toEqual(['', '']);
+	});
+
 	test('preserves existing cashier.bean and rewrites synced includes', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');

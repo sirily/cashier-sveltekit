@@ -573,6 +573,18 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			updateSyncStep(9, 'in-progress');
 			try {
 				await reconcileLocalJournalFromPaths(rejectedIds, pulledLedgerPaths);
+				// Refresh the UI ledger only after confirmed local overlays have been
+				// removed. Refreshing earlier parses both the pulled server copy and
+				// cashier.bean, leaving the in-memory ledger duplicated until OPFS is
+				// cleared or another reload happens.
+				try {
+					await fullLedgerService.deleteCache();
+					await fullLedgerService.invalidate();
+				} catch {
+					// Rejected/pending local entries may still be invalid against the
+					// server book. Reconciliation itself succeeded, so keep the sync
+					// result focused on the validated downloaded ledger.
+				}
 				updateSyncStep(9, 'completed');
 			} catch {
 				hasRetryableWritebackFailure = true;
@@ -690,14 +702,6 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 			throw new Error(
 				`Full ledger parsed with ${errors.length} errors for ${selectedRootBookFilename}`
 			);
-		}
-		try {
-			await fullLedgerService.deleteCache();
-			await fullLedgerService.invalidate();
-		} catch {
-			// Local cashier.bean may contain rejected/pending entries that are not
-			// valid against the server book yet. The downloaded server ledger is
-			// already validated above, so keep sync parse status focused on that.
 		}
 		updateSyncStep(8, 'completed');
 	} catch (error) {
