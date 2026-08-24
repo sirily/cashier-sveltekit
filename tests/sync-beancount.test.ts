@@ -105,7 +105,8 @@ vi.mock('$lib/sync/manual-writeback', async () => {
 });
 
 import * as opfs from '$lib/utils/opfslib';
-import { SettingKeys } from '$lib/settings';
+import * as manualWriteback from '$lib/sync/manual-writeback';
+import { SettingKeys, settings } from '$lib/settings';
 import { get } from 'svelte/store';
 import { syncProgress } from '$lib/stores/syncProgressStore';
 import {
@@ -224,6 +225,7 @@ describe('Beancount sync path helpers', () => {
 
 describe('CashierSyncBeancount ledger file download', () => {
 	beforeEach(() => {
+		vi.restoreAllMocks();
 		mockState.settingsStore.clear();
 		mockState.opfsFiles.clear();
 		mockState.syncAccounts.mockClear();
@@ -397,6 +399,127 @@ describe('CashierSyncBeancount ledger file download', () => {
 			selectedRootBookFilename: 'main.bean',
 			parseResult: 'ok'
 		});
+	});
+
+	const persistentFailureCases: Array<{
+		name: string;
+		options: Parameters<typeof synchronize>[0];
+		arrange: () => void;
+		message: string;
+		stage: 'accounts' | 'payees' | 'other';
+	}> = [
+		{
+			name: 'accounts',
+			options: { syncAccounts: true },
+			arrange: () => {
+				vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockRejectedValueOnce(new Error('accounts unavailable'));
+			},
+			message: 'accounts unavailable',
+			stage: 'accounts'
+		},
+		{
+			name: 'payees',
+			options: { syncPayees: true },
+			arrange: () => {
+				vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockRejectedValueOnce(new Error('payees unavailable'));
+			},
+			message: 'payees unavailable',
+			stage: 'payees'
+		},
+		{
+			name: 'asset-allocation',
+			options: { syncAssetAllocation: true },
+			arrange: () => {},
+			message: 'Stage 1 sync does not support asset allocation definition import',
+			stage: 'other'
+		},
+		{
+			name: 'account-current-values',
+			options: { syncAaValues: true },
+			arrange: () => {
+				vi.spyOn(CashierSyncBeancount.prototype, 'readCurrentValues').mockRejectedValueOnce(new Error('values unavailable'));
+			},
+			message: 'values unavailable',
+			stage: 'other'
+		}
+	];
+
+	for (const testCase of persistentFailureCases) {
+		test(`records a persistent ${testCase.name} failure`, async () => {
+			mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+			testCase.arrange();
+			await expect(synchronize(testCase.options)).resolves.toBe(false);
+			expect(getLastDiagnostics()?.syncErrors).toEqual([{ stage: testCase.stage, message: testCase.message }]);
+		});
+	}
+
+	test('records pull, root-book-selection, and parse failures separately', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValueOnce(new Error('pull unavailable'));
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([{ stage: 'pull', message: 'pull unavailable' }]);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValueOnce(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+		vi.spyOn(settings, 'set').mockImplementationOnce(async () => undefined).mockRejectedValueOnce(new Error('book selection unavailable'));
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([{ stage: 'other', message: 'book selection unavailable' }]);
+
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValueOnce(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+		mockState.parseErrors = [{ message: 'parse unavailable' }];
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([
+			{ stage: 'parse', message: 'Full ledger parsed with 1 errors for main.bean' }
+		]);
+	});
+
+	test('records multiple server rejections and clears them at the next run', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			'2026-06-01 * "Local"\n    cashier_id: "local-1"\n    Assets:Cash -1 USD\n    Equity:Opening-Balances 1 USD'
+		);
+		mockState.pushTransactions.mockResolvedValueOnce({
+			synchronized: [],
+			rejected: [
+				{ cashier_id: 'local-1', reason: 'first rejection' },
+				{ cashier_id: 'local-2', reason: 'second rejection' }
+			]
+		});
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([
+			{ stage: 'send', message: 'first rejection', cashierId: 'local-1' },
+			{ stage: 'send', message: 'second rejection', cashierId: 'local-2' }
+		]);
+
+		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: [], rejected: [] });
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([]);
+	});
+
+	test('records a reconciliation failure after an otherwise valid pull', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
+		mockState.opfsFiles.set('cashier.bean', '2026-06-01 * "Local"\n    cashier_id: "local-1"\n    Assets:Cash -1 USD\n    Equity:Opening-Balances 1 USD');
+		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: [], rejected: [] });
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValueOnce(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+		vi.spyOn(manualWriteback, 'reconcileLocalJournalFromPaths').mockRejectedValueOnce(new Error('reconcile unavailable'));
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([
+			{ stage: 'reconcile', message: 'Failed to reconcile local journal: reconcile unavailable' }
+		]);
 	});
 
 	test('failed xact push keeps local entries, marks send step error, and prevents full success', async () => {
