@@ -637,6 +637,21 @@
 		</button>
 	</center>
 
+	{#if diagnostics?.syncErrors?.length}
+		<div class="alert alert-error items-start shadow-sm" role="alert">
+			<div>
+				<h2 class="font-semibold">Synchronization completed with errors</h2>
+				<ul class="mt-2 list-disc space-y-1 pl-5">
+					{#each diagnostics.syncErrors as error}
+						<li>
+							<span class="font-medium">{error.stage}:</span> {error.message}
+						</li>
+					{/each}
+				</ul>
+			</div>
+		</div>
+	{/if}
+
 	{#if diagnostics}
 		<div class="card bg-base-100 border border-base-300 shadow-sm">
 			<div class="card-body p-4">

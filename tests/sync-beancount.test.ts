@@ -459,7 +459,14 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(getLastDiagnostics()).toMatchObject({
 			parseResult: 'ok',
 			parseErrorCount: 0,
-			lastError: 'Unknown account(s): Assets:NoSuchBank:Cash'
+			lastError: 'Unknown account(s): Assets:NoSuchBank:Cash',
+			syncErrors: [
+				{
+					stage: 'send',
+					message: 'Unknown account(s): Assets:NoSuchBank:Cash',
+					cashierId: '11111111-1111-4111-8111-111111111111'
+				}
+			]
 		});
 		expect(mockState.notifier.warning).toHaveBeenCalledWith(
 			'Unknown account(s): Assets:NoSuchBank:Cash'
