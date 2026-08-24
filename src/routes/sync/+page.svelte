@@ -640,7 +640,7 @@
 	{#if diagnostics?.syncErrors?.length}
 		<div class="alert alert-error items-start shadow-sm" role="alert">
 			<div>
-				<h2 class="font-semibold">Synchronization completed with errors</h2>
+				<h2 class="font-semibold">Synchronization has errors</h2>
 				<ul class="mt-2 list-disc space-y-1 pl-5">
 					{#each diagnostics.syncErrors as error}
 						<li>

@@ -523,16 +523,19 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 
 		// Asset Allocation definition (.toml)
 		if (syncOptions.syncAssetAllocation) {
+			const message = 'Stage 1 sync does not support asset allocation definition import';
 			updateSyncStep(3, 'in-progress');
+			recordSyncError({ stage: 'other', message });
 			updateSyncStep(3, 'error');
-			throw new Error('Stage 1 sync does not support asset allocation definition import');
-		}
+			throw new Error(message);
+	}
 
 		if (syncOptions.syncAaValues) {
 			updateSyncStep(4, 'in-progress');
 			try {
 				await synchronizeAaValues(sync);
 			} catch (error) {
+				recordSyncError({ stage: 'other', message: describeError(error) });
 				updateSyncStep(4, 'error');
 				throw error;
 			}
@@ -704,6 +707,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 		switchedBook = true;
 		updateSyncStep(7, 'completed');
 	} catch (error) {
+		const message = describeError(error);
+		recordSyncError({ stage: 'other', message });
 		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
 		updateSyncStep(7, 'error');
 		throw error;
