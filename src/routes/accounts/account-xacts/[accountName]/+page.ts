@@ -40,12 +40,6 @@ export async function load({ params }) {
 		xact.postings?.some((p) => p.account === params.accountName)
 	);
 
-	// Full ledger transactions for this account
-	const bql = `SELECT date, payee, narration, number, currency \
-WHERE account = '${params.accountName}'`;
-	const { columns, rows, errors } = await fullLedgerService.query(bql);
-	if (errors?.length) console.warn('Ledger xact query errors:', errors);
-
 	// Normalize device xacts
 	const deviceRows: UnifiedXact[] = deviceXacts.map(({ xact, span }) => {
 		const posting = xact.postings?.find((p) => p.account === params.accountName);
@@ -61,23 +55,44 @@ WHERE account = '${params.accountName}'`;
 		};
 	});
 
-	// Normalize ledger rows
-	const safeColumns: string[] = columns ?? [];
-	const safeRows = (rows ?? []) as unknown[][];
-	const dateIdx = safeColumns.indexOf('date');
-	const payeeIdx = safeColumns.indexOf('payee');
-	const narrationIdx = safeColumns.indexOf('narration');
-	const numberIdx = safeColumns.indexOf('number');
-	const currencyIdx = safeColumns.indexOf('currency');
+	// Build one row per server transaction directive. A BQL account query returns
+	// one row per matching posting, so mapping those rows directly duplicates a
+	// transaction that has multiple postings to the selected account.
+	const directives = (await fullLedgerService.getDirectives()) as Array<{
+		type?: string;
+		date?: string;
+		payee?: string;
+		narration?: string;
+		postings?: Array<{
+			account?: string;
+			units?: { number?: string | number; currency?: string };
+		}>;
+	}>;
+	const ledgerNormalized: UnifiedXact[] = directives.flatMap((directive) => {
+		if (directive.type !== 'transaction') return [];
+		const matchingPostings = (directive.postings ?? []).filter(
+			(posting) => posting.account === params.accountName
+		);
+		if (matchingPostings.length === 0) return [];
 
-	const ledgerNormalized: UnifiedXact[] = safeRows.map((row) => ({
-		date: row[dateIdx] as string,
-		payee: row[payeeIdx] as string,
-		narration: row[narrationIdx] as string,
-		amount: parseFloat(row[numberIdx] as string),
-		currency: row[currencyIdx] as string,
-		isDevice: false
-	}));
+		const currencies = new Set(matchingPostings.map((posting) => posting.units?.currency ?? ''));
+		const sameCurrency = currencies.size === 1;
+		return [
+			{
+				date: directive.date ?? '',
+				payee: directive.payee ?? '',
+				narration: directive.narration ?? '',
+				amount: sameCurrency
+					? matchingPostings.reduce(
+							(sum, posting) => sum + Number(posting.units?.number ?? 0),
+							0
+						)
+					: Number(matchingPostings[0].units?.number ?? 0),
+				currency: matchingPostings[0].units?.currency ?? '',
+				isDevice: false
+			}
+		];
+	});
 
 	// Mark ledger rows that match a device row, then add only unmatched device rows
 	const unmatchedDeviceRows: UnifiedXact[] = [];
