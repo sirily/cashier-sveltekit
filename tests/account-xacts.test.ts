@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('$lib/services/ledgerWorkerClient', () => ({
 	default: {
+		ensureLoaded: vi.fn(async () => {}),
 		getAccountWithBalances: vi.fn(async () => null),
 		getDirectives: vi.fn(async () => state.fullDirectives)
 	}

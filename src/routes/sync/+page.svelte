@@ -663,7 +663,7 @@
 					<div>Ledger files</div><div>{diagnostics.ledgerFilesCount ?? '-'}</div>
 					<div>Selected root book</div><div>{diagnostics.selectedRootBookFilename ?? '-'}</div>
 					<div>Root book size</div><div>{diagnostics.rootBookSize ?? '-'}</div>
-					<div>Parse result</div><div>{diagnostics.parseResult ?? '-'}</div>
+					<div>Parse result</div><div data-testid="sync-parse-result">{diagnostics.parseResult ?? '-'}</div>
 					<div>Parse errors</div><div>{diagnostics.parseErrorCount ?? '-'}</div>
 					{#if diagnostics.lastError}
 						<div>Last error</div><div class="break-words">{diagnostics.lastError}</div>
