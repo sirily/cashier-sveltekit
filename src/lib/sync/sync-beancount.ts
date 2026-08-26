@@ -34,6 +34,12 @@ interface InfrastructureGlobResponse {
 	files: Array<{ path: string; content: string }>;
 }
 
+export interface SyncError {
+	stage: 'send' | 'accounts' | 'payees' | 'pull' | 'parse' | 'reconcile' | 'other';
+	message: string;
+	cashierId?: string;
+}
+
 export interface BeancountSyncDiagnostics {
 	syncMode?: 'metadata-only' | 'offline-ledger';
 	accountsCount?: number;
@@ -45,6 +51,7 @@ export interface BeancountSyncDiagnostics {
 	parseErrorCount?: number;
 	parseErrors?: string[];
 	lastError?: string;
+	syncErrors?: SyncError[];
 }
 
 let lastDiagnostics: BeancountSyncDiagnostics | null = null;
@@ -61,6 +68,15 @@ function describeError(error: unknown): string {
 
 function describeParseErrors(errors: unknown[]): string[] {
 	return errors.map(describeError);
+}
+
+function recordSyncError(error: SyncError): void {
+	const syncErrors = lastDiagnostics?.syncErrors ?? [];
+	lastDiagnostics = {
+		...lastDiagnostics,
+		lastError: error.message,
+		syncErrors: [...syncErrors, error]
+	};
 }
 
 async function parseDownloadedLedger(
@@ -478,7 +494,8 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 	initializeSyncProgress();
 	lastDiagnostics = {
 		syncMode: syncOptions.syncLedgerFiles ? 'offline-ledger' : 'metadata-only',
-		parseResult: syncOptions.syncLedgerFiles ? 'skipped' : 'skipped'
+		parseResult: 'skipped',
+		syncErrors: []
 	};
 
 	// Cashier Sync synchronization
@@ -497,6 +514,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			try {
 				await synchronizeAccounts(sync);
 			} catch (error) {
+				recordSyncError({ stage: 'accounts', message: describeError(error) });
 				updateSyncStep(1, 'error');
 				throw error;
 			}
@@ -505,16 +523,19 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 
 		// Asset Allocation definition (.toml)
 		if (syncOptions.syncAssetAllocation) {
+			const message = 'Stage 1 sync does not support asset allocation definition import';
 			updateSyncStep(3, 'in-progress');
+			recordSyncError({ stage: 'other', message });
 			updateSyncStep(3, 'error');
-			throw new Error('Stage 1 sync does not support asset allocation definition import');
-		}
+			throw new Error(message);
+	}
 
 		if (syncOptions.syncAaValues) {
 			updateSyncStep(4, 'in-progress');
 			try {
 				await synchronizeAaValues(sync);
 			} catch (error) {
+				recordSyncError({ stage: 'other', message: describeError(error) });
 				updateSyncStep(4, 'error');
 				throw error;
 			}
@@ -525,6 +546,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			try {
 				await synchronizePayees(sync);
 			} catch (error) {
+				recordSyncError({ stage: 'payees', message: describeError(error) });
 				updateSyncStep(5, 'error');
 				throw error;
 			}
@@ -544,13 +566,11 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 					}
 					for (const r of response.rejected) {
 						if (r.cashier_id) rejectedIds.push(r.cashier_id);
-						Notifier.warning(r.reason || 'Transaction rejected');
+						const message = r.reason || 'Transaction rejected';
+						recordSyncError({ stage: 'send', message, cashierId: r.cashier_id ?? undefined });
+						Notifier.warning(message);
 					}
 					if (response.rejected.length > 0) {
-						const rejectionReasons = response.rejected.map(
-							(r) => r.reason || 'Transaction rejected'
-						);
-						lastDiagnostics = { ...lastDiagnostics, lastError: rejectionReasons.join('\n') };
 						hasRetryableWritebackFailure = true;
 						updateSyncStep(0, 'error');
 					} else {
@@ -562,7 +582,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			} catch (error) {
 				hasRetryableWritebackFailure = true;
 				const message = `Failed to send local transactions: ${describeError(error)}`;
-				lastDiagnostics = { ...lastDiagnostics, lastError: message };
+				recordSyncError({ stage: 'send', message });
 				Notifier.warning(message);
 				updateSyncStep(0, 'error');
 			}
@@ -586,14 +606,19 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 					// result focused on the validated downloaded ledger.
 				}
 				updateSyncStep(9, 'completed');
-			} catch {
+			} catch (error) {
 				hasRetryableWritebackFailure = true;
+				const message = `Failed to reconcile local journal: ${describeError(error)}`;
+				recordSyncError({ stage: 'reconcile', message });
 				updateSyncStep(9, 'error');
-				Notifier.warning('Failed to reconcile local journal');
+				Notifier.warning(message);
 			}
 		}
 	} catch (error: any) {
 		console.error(error);
+		if ((lastDiagnostics?.syncErrors?.length ?? 0) === 0) {
+			recordSyncError({ stage: 'other', message: describeError(error) });
+		}
 		Notifier.error(error.message);
 		return false;
 	}
@@ -669,6 +694,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 		wroteFiles = true;
 		updateSyncStep(6, 'completed');
 	} catch (error) {
+		const message = describeError(error);
+		recordSyncError({ stage: 'pull', message });
 		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
 		updateSyncStep(6, 'error');
 		throw error;
@@ -680,6 +707,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 		switchedBook = true;
 		updateSyncStep(7, 'completed');
 	} catch (error) {
+		const message = describeError(error);
+		recordSyncError({ stage: 'other', message });
 		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
 		updateSyncStep(7, 'error');
 		throw error;
@@ -705,6 +734,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 		}
 		updateSyncStep(8, 'completed');
 	} catch (error) {
+		const message = describeError(error);
+		recordSyncError({ stage: 'parse', message });
 		if (switchedBook) {
 			await settings.set(SettingKeys.bookFilename, previousBookFilename);
 		}
