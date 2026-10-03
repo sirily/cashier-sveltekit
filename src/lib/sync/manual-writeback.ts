@@ -120,7 +120,8 @@ export async function prepareLocalTransactions(): Promise<PendingTransaction[]> 
  */
 export async function pushTransactions(
 	serverUrl: string,
-	transactions: PendingTransaction[]
+	transactions: PendingTransaction[],
+	apiToken = ''
 ): Promise<WritebackResponse> {
 	if (transactions.length === 0) {
 		return { synchronized: [], rejected: [] };
@@ -129,9 +130,12 @@ export async function pushTransactions(
 	const base = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
 	const url = base.endsWith('/api') ? `${base}/xact` : `${base}/api/xact`;
 
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+	if (apiToken.trim()) headers.Authorization = `Bearer ${apiToken.trim()}`;
+
 	const response = await fetch(url, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers,
 		body: JSON.stringify({
 			transactions: transactions.map((t) => t.rawText)
 		})

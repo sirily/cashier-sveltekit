@@ -26,6 +26,7 @@
 	const DEFAULT_BEANCOUNT_ROOT_FILE = 'main.bean';
 
 	let syncServerUrl = $state('');
+	let syncApiToken = $state('');
 	let syncBeancountRootFile = $state('');
 	let diagnostics = $state<SyncBeancount.BeancountSyncDiagnostics | null>(null);
 	let rotationClass = $state('');
@@ -214,6 +215,7 @@
 	async function loadSettings() {
 		const dataSource = (await settings.get<string>(SettingKeys.ledgerDataSource)) ?? '';
 		const storedSyncServerUrl = (await settings.get<string>(SettingKeys.syncServerUrl)) ?? ''; 
+		const storedSyncApiToken = (await settings.get<string>(SettingKeys.syncApiToken)) ?? '';
 		const storedRootFile = normalizeRootBookPath(
 			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? DEFAULT_BEANCOUNT_ROOT_FILE
 		);
@@ -230,6 +232,7 @@
 		// `/sync` is the active server configuration UI, so it reads and writes the
 		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
 		syncServerUrl = storedSyncServerUrl || activeStoredServer?.url || '';
+		syncApiToken = storedSyncApiToken;
 		syncBeancountRootFile = storedRootFile;
 		await settings.set(SettingKeys.syncBeancountRootFile, storedRootFile);
 
@@ -340,7 +343,7 @@
 		reloading = true;
 
 		try {
-			const sync = new SyncBeancount.CashierSyncBeancount(activeUrl);
+			const sync = new SyncBeancount.CashierSyncBeancount(activeUrl, syncApiToken);
 			await sync.reloadData();
 			Notifier.success('Data reloaded successfully!');
 		} catch (error: any) {
@@ -395,6 +398,11 @@
 
 	async function saveSyncServerUrl() {
 		await persistSyncServerUrl();
+	}
+
+	async function saveSyncApiToken() {
+		syncApiToken = syncApiToken.trim();
+		await settings.set(SettingKeys.syncApiToken, syncApiToken);
 	}
 
 	async function saveBeancountRootFile() {
@@ -454,6 +462,18 @@
 						onblur={saveSyncServerUrl}
 						class="input input-bordered w-full"
 						placeholder="https://cashier.example.com/api"
+					/>
+				</label>
+				<label class="form-control w-full">
+					<div class="label"><span class="label-text">API token</span></div>
+					<input
+						type="password"
+						bind:value={syncApiToken}
+						onchange={saveSyncApiToken}
+						onblur={saveSyncApiToken}
+						autocomplete="off"
+						class="input input-bordered w-full"
+						placeholder="Bearer token configured on Cashier Server"
 					/>
 				</label>
 				<label class="form-control w-full">
