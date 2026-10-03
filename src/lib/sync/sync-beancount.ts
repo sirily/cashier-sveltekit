@@ -277,12 +277,15 @@ async function restoreFiles(snapshot: Map<string, string | undefined>) {
  * The methods here represent the methods implemented by the server.
  * This is a proxy class for fetching Ledger data.
  */
+type CashierRequestOptions = RequestInit & { timeout?: number };
+
 class CashierSyncBeancount {
 	serverUrl: string;
+	apiToken: string;
 	queries: Queries;
 	ptaSystem: PtaSystems;
 
-	constructor(serverUrl: string) {
+	constructor(serverUrl: string, apiToken = '') {
 		if (!serverUrl) {
 			throw new Error('CashierSync URL not set.');
 		}
@@ -290,14 +293,22 @@ class CashierSyncBeancount {
 			serverUrl = serverUrl.substring(0, serverUrl.length - 1);
 		}
 		this.serverUrl = serverUrl;
+		this.apiToken = apiToken.trim();
 
 		this.ptaSystem = PtaSystems.beancount;
 		this.queries = getQueries(this.ptaSystem);
 	}
 
-	async get(path: string, options?: object) {
+	private requestOptions(options?: CashierRequestOptions): RequestInit {
+		const { timeout: _timeout, ...fetchOptions } = options ?? {};
+		const headers = new Headers(options?.headers);
+		if (this.apiToken) headers.set('Authorization', `Bearer ${this.apiToken}`);
+		return { ...fetchOptions, headers };
+	}
+
+	async get(path: string, options?: CashierRequestOptions) {
 		const url = new URL(`${this.serverUrl}${path}`);
-		const response = await fetch(url, options);
+		const response = await fetch(url, this.requestOptions(options));
 		return response;
 	}
 
@@ -310,9 +321,9 @@ class CashierSyncBeancount {
 	/**
 	 * Sends a ledger query to the Ledger server and returns the response.
 	 */
-	async send(query: string, options?: object) {
+	async send(query: string, options?: CashierRequestOptions) {
 		const url = this.createUrl(query);
-		const response = await fetch(url, options);
+		const response = await fetch(url, this.requestOptions(options));
 		return response;
 	}
 
@@ -397,7 +408,7 @@ class CashierSyncBeancount {
 	async readFiles(filePath: string): Promise<Map<string, string>> {
 		const url = new URL(`${this.serverUrl}/infrastructure`);
 		url.searchParams.append('file_path', filePath);
-		const response = await fetch(url);
+		const response = await fetch(url, this.requestOptions());
 		if (!response.ok) {
 			throw new Error(`Error reading infrastructure file: ${filePath}`);
 		}
@@ -503,9 +514,10 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 	// const activeUrl = getActiveServerUrlOrNotify();
 	const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
 	if (!activeUrl) return false;
+	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken)) ?? '';
 
 	// const _ptaSystem = (await settings.get(SettingKeys.ptaSystem)) as PtaSystems;
-	const sync = new CashierSyncBeancount(activeUrl);
+	const sync = new CashierSyncBeancount(activeUrl, apiToken);
 	let hasRetryableWritebackFailure = false;
 
 	try {
@@ -528,7 +540,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			recordSyncError({ stage: 'other', message });
 			updateSyncStep(3, 'error');
 			throw new Error(message);
-	}
+		}
 
 		if (syncOptions.syncAaValues) {
 			updateSyncStep(4, 'in-progress');
@@ -559,7 +571,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 			try {
 				const pending = await prepareLocalTransactions();
 				if (pending.length > 0) {
-					const response = await pushTransactions(activeUrl, pending);
+					const response = await pushTransactions(activeUrl, pending, apiToken);
 					const synced = response.synchronized.length;
 					if (synced > 0) {
 						Notifier.success(`Sent ${synced} transaction(s)`);

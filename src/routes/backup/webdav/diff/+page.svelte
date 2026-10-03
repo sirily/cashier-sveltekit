@@ -3,6 +3,7 @@
     import { page } from '$app/state';
     import Toolbar from '$lib/components/Toolbar.svelte';
     import { settings, SettingKeys } from '$lib/settings';
+    import { filterBackupSettings } from '$lib/services/backupSettings';
     import { readFile } from '$lib/utils/opfslib';
     import { WebDavClient } from '$lib/utils/webdav';
     import { diffLines } from 'diff';
@@ -36,11 +37,11 @@
 
         try {
             if (files.includes('settings')) {
-                const allSettings = await settings.getAll();
+                const allSettings = filterBackupSettings(await settings.getAll());
                 const localContent = JSON.stringify(allSettings, null, 2);
                 const res = await dav.get('settings.json');
                 if (res.ok) {
-                    const remoteContent = await res.text();
+                    const remoteContent = JSON.stringify(filterBackupSettings(JSON.parse(await res.text())), null, 2);
                     const lines = buildDiffLines(localContent, remoteContent);
                     result.push({ filename: 'settings.json', lines, identical: lines.every(l => l.type === 'context') });
                 } else {

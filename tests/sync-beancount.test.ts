@@ -242,6 +242,22 @@ describe('CashierSyncBeancount ledger file download', () => {
 		vi.clearAllMocks();
 	});
 
+	test('adds the configured bearer token to server requests', async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValue(new Response('"pong"', { status: 200 }));
+		const sync = new CashierSyncBeancount('https://cashier.example.test/api', 'secret-token');
+
+		await sync.healthCheck();
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [url, options] = fetchMock.mock.calls[0];
+		expect(url.toString()).toBe('https://cashier.example.test/api/ping');
+		expect(new Headers(options?.headers).get('Authorization')).toBe(
+			['Bearer', 'secret-token'].join(' ')
+		);
+	});
+
 	test('fetches nested includes once and handles include cycles', async () => {
 		const sync = new CashierSyncBeancount('https://cashier.example.test');
 		const readFiles = vi.spyOn(sync, 'readFiles').mockImplementation(async (path: string) => {
@@ -381,7 +397,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 				expect.objectContaining({
 					rawText: expect.stringMatching(/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/)
 				})
-			])
+			]),
+			''
 		);
 		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
 			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
@@ -412,7 +429,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 			name: 'accounts',
 			options: { syncAccounts: true },
 			arrange: () => {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockRejectedValueOnce(new Error('accounts unavailable'));
+				vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockRejectedValueOnce(
+					new Error('accounts unavailable')
+				);
 			},
 			message: 'accounts unavailable',
 			stage: 'accounts'
@@ -421,7 +440,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 			name: 'payees',
 			options: { syncPayees: true },
 			arrange: () => {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockRejectedValueOnce(new Error('payees unavailable'));
+				vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockRejectedValueOnce(
+					new Error('payees unavailable')
+				);
 			},
 			message: 'payees unavailable',
 			stage: 'payees'
@@ -437,7 +458,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 			name: 'account-current-values',
 			options: { syncAaValues: true },
 			arrange: () => {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readCurrentValues').mockRejectedValueOnce(new Error('values unavailable'));
+				vi.spyOn(CashierSyncBeancount.prototype, 'readCurrentValues').mockRejectedValueOnce(
+					new Error('values unavailable')
+				);
 			},
 			message: 'values unavailable',
 			stage: 'other'
@@ -449,23 +472,33 @@ describe('CashierSyncBeancount ledger file download', () => {
 			mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 			testCase.arrange();
 			await expect(synchronize(testCase.options)).resolves.toBe(false);
-			expect(getLastDiagnostics()?.syncErrors).toEqual([{ stage: testCase.stage, message: testCase.message }]);
+			expect(getLastDiagnostics()?.syncErrors).toEqual([
+				{ stage: testCase.stage, message: testCase.message }
+			]);
 		});
 	}
 
 	test('records pull, root-book-selection, and parse failures separately', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
-		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValueOnce(new Error('pull unavailable'));
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValueOnce(
+			new Error('pull unavailable')
+		);
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
-		expect(getLastDiagnostics()?.syncErrors).toEqual([{ stage: 'pull', message: 'pull unavailable' }]);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([
+			{ stage: 'pull', message: 'pull unavailable' }
+		]);
 
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValueOnce(
 			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
 		);
-		vi.spyOn(settings, 'set').mockImplementationOnce(async () => undefined).mockRejectedValueOnce(new Error('book selection unavailable'));
+		vi.spyOn(settings, 'set')
+			.mockImplementationOnce(async () => undefined)
+			.mockRejectedValueOnce(new Error('book selection unavailable'));
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
-		expect(getLastDiagnostics()?.syncErrors).toEqual([{ stage: 'other', message: 'book selection unavailable' }]);
+		expect(getLastDiagnostics()?.syncErrors).toEqual([
+			{ stage: 'other', message: 'book selection unavailable' }
+		]);
 
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValueOnce(
 			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
@@ -509,12 +542,17 @@ describe('CashierSyncBeancount ledger file download', () => {
 	test('records a reconciliation failure after an otherwise valid pull', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
-		mockState.opfsFiles.set('cashier.bean', '2026-06-01 * "Local"\n    cashier_id: "local-1"\n    Assets:Cash -1 USD\n    Equity:Opening-Balances 1 USD');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			'2026-06-01 * "Local"\n    cashier_id: "local-1"\n    Assets:Cash -1 USD\n    Equity:Opening-Balances 1 USD'
+		);
 		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: [], rejected: [] });
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValueOnce(
 			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
 		);
-		vi.spyOn(manualWriteback, 'reconcileLocalJournalFromPaths').mockRejectedValueOnce(new Error('reconcile unavailable'));
+		vi.spyOn(manualWriteback, 'reconcileLocalJournalFromPaths').mockRejectedValueOnce(
+			new Error('reconcile unavailable')
+		);
 
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([

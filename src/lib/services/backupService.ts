@@ -5,9 +5,20 @@
 
 import { ISODATEFORMAT, LONGTIMEFORMAT } from '$lib/constants';
 import db from '$lib/data/db';
-import type { ScheduledTransaction, Setting } from '$lib/data/model';
-import { settings } from '$lib/settings';
+import { Setting, type ScheduledTransaction } from '$lib/data/model';
+import { SettingKeys, settings } from '$lib/settings';
+import { filterBackupSettings, settingsForRestore } from '$lib/services/backupSettings';
 import moment from 'moment';
+
+export async function restoreSettings(entries: Setting[]) {
+	const existingApiToken = await settings.get<string>(SettingKeys.syncApiToken);
+	const localToken = existingApiToken
+		? new Setting(SettingKeys.syncApiToken, JSON.stringify(existingApiToken))
+		: undefined;
+	const restored = settingsForRestore(entries, localToken);
+	await db.settings.clear();
+	await db.settings.bulkAdd(restored);
+}
 
 interface Backup {
 	settings: Setting[];
@@ -40,7 +51,7 @@ export async function createBackupFile(filename: string) {
 export async function createBackup() {
 	// assemble the backup content:
 	// settings
-	const allSettings = await settings.getAll();
+	const allSettings = filterBackupSettings(await settings.getAll());
 	// scheduled transactions
 	const scx: ScheduledTransaction[] = await db.scheduled.toArray();
 
@@ -77,10 +88,7 @@ function downloadTextFile(content: string, fileName: string) {
  */
 export async function restoreBackup(content: string) {
 	const backup: Backup = JSON.parse(content);
-
-	// backup.settings
-	await db.settings.clear();
-	await db.settings.bulkAdd(backup.settings);
+	await restoreSettings(backup.settings);
 
 	// backup.scx
 	await db.scheduled.clear();

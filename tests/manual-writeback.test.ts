@@ -305,7 +305,7 @@ describe('pushTransactions', () => {
 			})
 		});
 
-		const result = await pushTransactions(SERVER_URL, pending);
+		const result = await pushTransactions(SERVER_URL, pending, 'secret-token');
 
 		expect(result).toEqual({ synchronized: ['uuid-001'], rejected: [] });
 		expect(mockState.fetch).toHaveBeenCalledTimes(1);
@@ -313,7 +313,10 @@ describe('pushTransactions', () => {
 			'https://cashier.example.test/api/xact',
 			expect.objectContaining({
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					Authorization: ['Bearer', 'secret-token'].join(' '),
+					'Content-Type': 'application/json'
+				},
 				body: JSON.stringify({
 					transactions: [pending[0].rawText]
 				})

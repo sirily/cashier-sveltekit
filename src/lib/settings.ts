@@ -60,6 +60,7 @@ export const SettingKeys = {
 	pCloudToken: 'pCloudToken',
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
+	syncApiToken: 'syncApiToken',
 	syncBeancountRootFile: 'syncBeancountRootFile',
 	// External data source system
 	ledgerDataSource: 'ledgerDataSource', // beancount, ledger, filesystem

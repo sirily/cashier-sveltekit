@@ -3,7 +3,8 @@
     import Toolbar from '$lib/components/Toolbar.svelte';
     import { settings, SettingKeys } from '$lib/settings';
     import { Setting } from '$lib/data/model';
-    import db from '$lib/data/db';
+    import { filterBackupSettings } from '$lib/services/backupSettings';
+    import { restoreSettings } from '$lib/services/backupService';
     import { readFile, saveFile } from '$lib/utils/opfslib';
     import Notifier from '$lib/utils/notifier';
     import { WebDavClient } from '$lib/utils/webdav';
@@ -65,7 +66,7 @@
         const dav = client();
         try {
             if (includeSettings) {
-                const allSettings = await settings.getAll();
+                const allSettings = filterBackupSettings(await settings.getAll());
                 const json = JSON.stringify(allSettings, null, 2);
                 const res = await dav.put('settings.json', json, 'application/json; charset=utf-8');
                 if (res.ok) Notifier.success('Settings uploaded');
@@ -102,8 +103,7 @@
                 const res = await dav.get('settings.json');
                 if (res.ok) {
                     const entries: Setting[] = JSON.parse(await res.text());
-                    await db.settings.clear();
-                    await db.settings.bulkPut(entries.map(e => new Setting(e.key, e.value)));
+                    await restoreSettings(entries);
                     Notifier.success('Settings restored');
                 } else {
                     Notifier.error(`Download failed for settings.json: ${res.status} ${res.statusText}`);

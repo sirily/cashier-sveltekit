@@ -3,6 +3,7 @@
     import { page } from '$app/state';
     import Toolbar from '$lib/components/Toolbar.svelte';
     import { settings, SettingKeys } from '$lib/settings';
+    import { filterBackupSettings } from '$lib/services/backupSettings';
     import { readFile } from '$lib/utils/opfslib';
     import { WebDavClient } from '$lib/utils/webdav';
     import { CheckIcon, CopyIcon } from '@lucide/svelte';
@@ -38,11 +39,11 @@
             if (files.includes('settings')) {
                 let content: string;
                 if (source === 'local') {
-                    const allSettings = await settings.getAll();
+                    const allSettings = filterBackupSettings(await settings.getAll());
                     content = JSON.stringify(allSettings, null, 2);
                 } else {
                     const res = await dav!.get('settings.json');
-                    content = res.ok ? await res.text() : `Error ${res.status}: ${res.statusText}`;
+                    content = res.ok ? JSON.stringify(filterBackupSettings(JSON.parse(await res.text())), null, 2) : `Error ${res.status}: ${res.statusText}`;
                 }
                 result.push({ filename: 'settings.json', content });
             }
