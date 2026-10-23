@@ -21,13 +21,9 @@ Thumbs.db
 
 # Tests
 test-results
-.aider*
 
 # Assistants
 vite.config.*.timestamp-*
-.codex
-.claude/settings.local.json
-.claude/worktrees/
 
 # SSL keys
 /**/localhost*.pem
