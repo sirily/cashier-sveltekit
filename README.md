@@ -36,13 +36,16 @@ Run the checks appropriate to the change and report anything not executed. See
 
 ## Releases and deployment
 
-Read the [release policy](docs/releasing.md) for branch names, versioning, test candidates,
-acceptance, publication, and rollback. Work branches merge into `releases/X.Y.Z`; only an
-accepted release goes into production `main`. Production publication must reuse the tested
-container image, not rebuild it.
+Read the [release policy](docs/releasing.md) for branches, versions, builds, and rollback.
+Each push to `releases/X.Y.Z` automatically builds an image tagged `X.Y.Z-rc.N`. Merging the
+release PR into `main` is approval: automation builds a new production image tagged `X.Y.Z`,
+creates Git tag `vX.Y.Z`, and updates `latest`. The owner selects the release version through
+the branch name; automation checks package metadata and assigns RC numbers and final tags.
 
-**Release automation is not implemented yet.** The policy describes the target process and
-its enforcement requirements, not capabilities already provided by the current workflow.
+**The current release automation still implements a superseded, more complex process.**
+It will be simplified separately to match this policy. There is no required test URL,
+separate approval workflow, or protected approval environment in the agreed process.
+Publication does not deploy the app.
 
 The static app is packaged in a Docker image served by Caddy. Backend deployment and routing
 are managed separately. The existing `npm run publish` and `npm run deploy` commands are

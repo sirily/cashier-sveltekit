@@ -1,191 +1,152 @@
 # Release policy
 
-This document defines branch names, versions, candidate acceptance, publication, and rollback
-for this repository. It is a repository process, not an application specification.
+## Process and implementation status
 
-## Automation status
+The agreed process is simple: each push to a release branch builds an RC container;
+merging that release's PR into `main` approves the release and triggers a new production build.
+There is no separate candidate-creation command, approval workflow, evidence receipt, or
+required test deployment. Deployment remains separate from building and publishing images.
 
-**The policy below is the target process; release automation is not implemented yet.**
-The current [Docker workflow](../.github/workflows/docker.yml) builds on pushes to `main` or
-`master`, `v*` tags, pull requests, and manual dispatch. Non-PR runs can publish images;
-default-branch builds update `latest`. It does not build release-branch pushes automatically,
-allocate candidate numbers, record candidate approval, or promote a tested image without
-rebuilding it. The repository protection settings have not been verified.
-
-Do not treat a current `latest` image or a successful existing workflow as proof of release
-acceptance. Implement and verify the automation and protections below before the first release
-under this policy. Until then, do not imitate that process with ad hoc agent-created release
-tags or use the legacy Netlify scripts as a substitute.
+**The automation currently in this work branch does not yet implement this policy.** It
+contains an earlier, superseded design with separate acceptance and image promotion. That
+code is deferred for a later revision: do not use its approval jobs or treat its existing
+tests as verification of the process below. This documentation update does not change CI.
+The workflows deployed on GitHub may still use the older build behavior until replacements
+are reviewed and merged.
 
 ## Branches
 
 | Purpose | Name | Base and destination |
 | --- | --- | --- |
-| Production history | `main` | Receives accepted release branches through reviewed PRs |
-| Release integration | `releases/X.Y.Z` | Created from freshly fetched `origin/main`; collects changes for that version |
-| Feature | `feat/short-description` | Created from its target release branch; PR back to that branch |
-| Fix | `fix/short-description` | Created from its target release branch; PR back to that branch |
-| Documentation | `docs/short-description` | Created from its target release branch; PR back to that branch |
-| Maintenance | `chore/short-description` | Created from its target release branch; PR back to that branch |
+| Production history | `main` | Receives release PRs |
+| Release integration | `releases/X.Y.Z` | Created from current `origin/main`; collects work for that version |
+| Feature | `feat/short-description` | Created from the target release branch; PR back to it |
+| Fix | `fix/short-description` | Created from the target release branch; PR back to it |
+| Documentation | `docs/short-description` | Created from the target release branch; PR back to it |
+| Maintenance | `chore/short-description` | Created from the target release branch; PR back to it |
+| Automation | `ci/short-description` | Created from the target release branch; PR back to it |
 
-Use `main`, not `master`, as the production branch for this fork. A release branch is a
-collection point for several short-lived branches, not a permanent development branch.
-Normally keep one active release branch. Existing work branches can be merged after reviewing
-their full diff against the target release; they do not need to be recreated merely to fit a name.
+Use `main` as this fork's production branch. Normally keep one active release branch; there
+is no permanent `develop`. Fetch the remote before creating a release branch, and do not set
+its upstream to `origin/main`. Existing work branches can be integrated after reviewing their
+full diff; recreating them just to fit a name is unnecessary.
 
-Fetch the remote before creating a release branch. Do not base a release on an unverified
-local `main` or set a release branch's upstream to `origin/main`. Creating, pushing, merging,
-and deleting branches are separate actions and require the owner's corresponding authorization.
+Use merge commits for work-branch integration and the release-to-`main` PR. Shared branch
+history must not be rewritten. Creating, merging, pushing, or deleting branches requires
+the owner's corresponding authorization. The release branch can be deleted after successful
+publication; Git tags and published versioned images remain.
 
-Use merge commits for work-branch integration and for the release-to-`main` PR so the collected
-changes and release boundary remain visible. Do not force-push shared release branches or
-rewrite history already used to build a candidate.
+## Version ownership
 
-## Versions and names
-
-The owner explicitly chooses `X.Y.Z`; neither an agent nor commit-message analysis chooses
-it automatically:
+The owner chooses `X.Y.Z` when opening a release, expressed by its branch name. Neither an
+agent nor automation guesses a version from commit messages:
 
 - **PATCH** (`1.1.1`): compatible fixes.
 - **MINOR** (`1.2.0`): compatible new behavior.
-- **MAJOR** (`2.0.0`): incompatible changes, including relevant API or persisted-data contracts.
+- **MAJOR** (`2.0.0`): incompatible changes to behavior, APIs, or persisted data.
 
-The release version must agree with `package.json` and the matching package-lock metadata
-before building a candidate. Prepare version changes in the release branch, not in the final
-promotion: changing files after acceptance requires another candidate. Do not change a
-package version merely when creating a branch.
+Automation reads the version from `releases/X.Y.Z` and verifies that it matches `package.json`
+and both root version entries in `package-lock.json`. A mismatch stops the build with a clear
+error; it does not silently update files or choose a different version. The agent can prepare
+those file changes when instructed, but does not assign RC numbers or create release tags
+manually.
 
-| Object | Example | Meaning |
+| Object | Example | Assignment |
 | --- | --- | --- |
-| Release branch | `releases/1.1.0` | Integration branch for one intended version |
-| Candidate Git tag | `v1.1.0-rc.1` | Immutable reference to one candidate source commit |
-| Final Git tag | `v1.1.0` | Immutable reference to the accepted release merge in `main` |
-| Test image | `ghcr.io/sirily/cashier-sveltekit:sha-<full-commit-sha>` | Image built from that exact release-branch commit |
-| Candidate image | `ghcr.io/sirily/cashier-sveltekit:1.1.0-rc.1` | Immutable alias of the selected test-image digest |
-| Final image | `ghcr.io/sirily/cashier-sveltekit:1.1.0` | Immutable alias of the accepted candidate digest |
+| Release branch | `releases/1.1.0` | Owner-selected release version |
+| RC container | `ghcr.io/sirily/cashier-sveltekit:1.1.0-rc.7` | Automatically numbered build from a release-branch push |
+| Final container | `ghcr.io/sirily/cashier-sveltekit:1.1.0` | Successful production build after merging the release PR |
+| Final Git tag | `v1.1.0` | Automatically created on the merged release commit |
+| Production alias | `latest` | Updated only after successful final publication |
 
-`latest` is a mutable convenience alias for the most recently accepted final release, never
-for a test build, candidate, or arbitrary `main` push. Deployments must pin an explicit version
-and preferably an image digest. No moving candidate or final-version tags are allowed.
-
-For multi-platform images, the recorded digest identifies the tested image index and its
-platform manifests, not a newly assembled or rebuilt index during promotion. An existing
-source-SHA image is reused, not silently replaced by a later rebuild of the same source.
+`rc` identifies a build of the intended release, not a separate approval procedure. RC
+numbers increase automatically within a version, are not reused after reservation, and are
+safe under parallel runs. An existing RC or final version tag must never be moved to different
+content. RC Git tags are not required; container metadata must retain the full source SHA
+and the CI run so a build is traceable.
 
 ## Release sequence
 
-### 1. Collect changes
+### 1. Collect changes and build RCs
 
-1. Choose the version and create `releases/X.Y.Z` from current `origin/main`.
-2. Merge reviewed work branches through PRs targeting that release branch, not `main`.
-3. Required checks run on PRs. Every new release-branch commit produces a uniquely identified
-   test image; building alone never deploys to production or updates `latest`.
-4. Reconcile any changes that reached `main` before preparing the next candidate.
+1. Create `releases/X.Y.Z` from freshly fetched `origin/main` and prepare matching package
+   version metadata as reviewed release content.
+2. Merge work branches through PRs into this release branch, not directly into `main`.
+3. Every push to `releases/*` automatically validates the version, runs required checks,
+   assigns the next `rc.N`, and builds and publishes the corresponding container.
+4. Failed checks or builds do not publish a successful RC or update production aliases.
+   A reserved number is not reused; a retried build must not overwrite an existing RC image.
+5. Any further push produces another RC automatically. No manual candidate-preparation
+   command, special freeze state, or additional approval is needed to continue development.
 
-### 2. Prepare a candidate
+Required checks cover linting, types, unit tests, a production build, and relevant browser
+tests. Run expensive checks in CI; do not claim they passed from documentation validation.
+RC images are available in GHCR. This repository does not create a test URL or deploy a test
+instance. The owner decides where and how to inspect a build; separate infrastructure is
+not a prerequisite imposed by this release process.
 
-1. A release workflow is explicitly requested for the chosen release-branch commit.
-2. Automation verifies the branch/version, required checks, and successful image publication.
-3. Automation allocates the next unused `rc.N`, creates the immutable candidate Git tag, and
-   assigns the candidate image tag to the existing image digest without rebuilding it.
-4. The candidate record captures the full source SHA, Git tree, version, image-index digest,
-   build/check runs, supported platforms, and relevant backend/deployment versions.
+### 2. Merge to approve
 
-Only a commit that has a successful completed test-image build is eligible. Candidate numbers
-increase monotonically within a version; cancelled or failed reservations are not reused.
-Allocation is serialized per version and fails on an existing tag rather than moving it.
-A `v*` tag event must not trigger a second build that replaces the selected candidate image.
+Open a PR from `releases/X.Y.Z` into `main`. The PR can remain open while work accumulates.
+Required checks must pass on the current proposed integration before merging.
 
-Once a candidate exists, freeze its release scope: only fixes needed for acceptance enter that
-release branch. New unrelated features go to later work. Any source change, including docs,
-version changes, or integration of newer `main`, produces a new build and a new candidate.
+**Merging this PR is the release approval.** There is no additional GitHub Environment
+approval, acceptance receipt, or required evidence URL. A separate `release/accepted` status
+is not part of this policy. New source changes require fresh checks, not a second manual
+acceptance procedure.
 
-### 3. Test and accept
+### 3. Build and publish the final release
 
-Test the candidate by its recorded digest in a deployment-shaped environment, with a separate
-PWA origin so its service worker and browser storage cannot replace production state. Use
-isolated fixtures, backend credentials, and writable transaction data; a test instance must
-not accidentally write to the production ledger.
+After the release PR is merged, automation:
 
-Required checks include formatting/linting, type checking, unit tests in non-watch mode,
-a production build, and relevant browser tests. Run expensive checks in CI rather than
-assuming they passed locally. Record failures and any explicitly accepted exceptions; an
-agent must not waive a required check unilaterally.
+1. Verifies that the `main` commit is the merge of a same-repository `releases/X.Y.Z` PR,
+   determines its version, and checks package metadata again.
+2. Runs the required checks and builds a **new production container from the merged code**.
+3. Publishes the successful image as `X.Y.Z`, then creates Git tag `vX.Y.Z` on the release
+   merge commit and updates `latest` to that final image. No final tag advertises a failed build.
+4. Records the source commit, CI run, and image digest with the release.
 
-For changes affecting finance behavior, acceptance covers the relevant specification scenarios:
-local capture, explicit Sync, completed-only sending, retained incomplete `!` entries,
-retries/conflicts, mixed batches, zero-error server-book parsing, confirmation-based overlay
-removal, and one visible operation after reconciliation. Include currency/valuation and
-account-history checks when affected. Preserve existing browser state during update tests.
+An ordinary `main` push that is not a release-PR merge must not create a release or update
+`latest`. Creating Git tags must not start another uncontrolled build. Final versions are
+unique: an already published version cannot be replaced with different content. Retries may
+complete the same interrupted publication but must not rebuild over an existing final image
+or move a final Git tag. Failed or stale runs cannot overwrite a newer production release.
 
-The owner approves a **specific candidate and digest**, not a moving branch or the phrase
-"latest build". Record acceptance with the test evidence. Changing or replacing the candidate
-invalidates that approval and requires a new candidate and acceptance.
+The final image is rebuilt, not promoted from an RC. Its digest can differ from the RC's;
+this is the agreed process, not a promise that production runs identical tested bytes.
+Publishing an image does not deploy it. Production deployment remains a separately authorized
+operation using an explicit version, preferably pinned by digest, rather than a floating
+`latest` reference.
 
-### 4. Merge and publish
+## Automation and repository protections
 
-1. Open the accepted release's PR into `main`. Its head must still be the approved candidate
-   commit, and required checks must pass.
-2. Release automation verifies that `main` has not diverged in a way that changes the accepted
-   content. Merge with a merge commit; the resulting Git tree must equal the candidate tree.
-   A merge conflict or any content difference stops final publication and requires another
-   candidate tested with the resolved content.
-3. After the verified merge and owner authorization, automation creates `vX.Y.Z` on the
-   release merge commit and assigns `X.Y.Z` to the **already tested image digest**. It does
-   not run a new application build.
-4. Publish release notes containing the candidate source SHA, final merge SHA, image digest,
-   accepted evidence, and compatibility/migration notes. The image's original source labels
-   can refer to the candidate SHA; the release record explains the final merge relationship.
-5. Only after final publication succeeds, update `latest` to the same digest. Deployment is
-   a separate authorized action in the deployment repository, not an automatic consequence
-   of merging documentation or publishing an image.
-6. After successful publication and confirmation that included changes are preserved, the
-   release branch can be deleted with owner authorization. Keep the Git tags and images.
+The implementation must enforce, rather than delegate to an agent's memory:
 
-A metadata-only promotion retry must reuse the same accepted source, final Git commit, and
-digest. If an expected tag already points to exactly that object, the retry can continue;
-a tag pointing elsewhere is a hard error, never an invitation to overwrite it. Partial
-publication must not update `latest` or deploy a different image.
+- Release-branch/version syntax and agreement with package metadata.
+- Automatic, concurrency-safe RC numbering and unique final versions.
+- Required PR checks; no unreviewed direct pushes or force-pushes to shared release/production branches.
+- Release-merge detection before final builds; no final publication from work branches, RCs,
+  arbitrary `main` commits, or untrusted PR code.
+- Separate publication permissions from untrusted PR checks; never expose registry write
+  credentials to fork code.
+- Protection against rewriting final Git tags and published versioned image tags.
+- Safe retries and serialized production updates so a late job cannot replace a newer `latest`.
 
-## Enforcement to implement
+Branch/tag permissions are GitHub settings, not something workflow files guarantee alone.
+They must be configured with the owner's authorization. Read-only inspection on 2026-10-23
+found that the active `main` ruleset allowed only squash merges and did not require checks;
+a second branch ruleset was disabled. Verify and adjust those settings before enabling
+this process. No separate protected approval environment is needed.
 
-GitHub Actions and repository rules must enforce the process; instructions to an agent are
-not a replacement for these controls:
-
-- Protect `main` and shared `releases/*` from direct unreviewed pushes, force-pushes, and deletion.
-  Limit the release-creation/cleanup exception to the authorized workflow or maintainer.
-- Require PR checks on the actual integration result. Recheck the release head and target at
-  final merge; a stale green check or an old approval is insufficient.
-- Protect final and candidate Git tags against update/deletion and restrict creation to the
-  release workflow, with only a documented recovery exception for the owner.
-- Give image/tag publication permissions only to the appropriate trusted workflow jobs.
-  Pull requests must not obtain production publication credentials.
-- Serialize candidate numbering and final publication per release, and serialize updates
-  to the production release pointer. A late job must not overwrite a newer accepted release.
-- Bind human approval to the immutable candidate record and verify it during final publication.
-  Configure an approval mechanism appropriate to repository capabilities; do not assume a
-  protected environment is already available or enabled.
-- Validate version syntax, branch/package-version agreement, source/tree identity, existing-tag
-  collisions, and registry digest equality. Never fall back to rebuilding on promotion failure.
-- Make push, candidate-tag, final-tag, and promotion triggers non-overlapping so creating a
-  tag cannot start an uncontrolled duplicate build or update `latest`.
-
-No specific workflow names or dispatch commands are promised until these jobs exist. The
-current workflow and branch protections must be changed and tested in a separate implementation.
+Workflow names, exact numbering storage, and retry commands belong to the upcoming simplified
+implementation. Do not reuse the superseded dispatch/acceptance commands in the current code.
 
 ## Hotfixes and rollback
 
-An urgent fix still starts from current production `main`, uses a patch release branch,
-and goes through candidate testing and explicit acceptance. An abbreviated acceptance needs
-an explicit owner decision with the risk recorded; it is not permission to bypass identity,
-data-preservation, or publication controls.
+An urgent fix follows the same process: create a patch release from current `main`, let
+pushes produce RCs, then merge its release PR to approve the final build. Integrate a released
+hotfix back into any other active release branch before its next final merge.
 
-If another release branch is active, merge the hotfix's production changes into it before
-its next candidate. An earlier candidate is no longer promotable when the resulting merge
-would change its tested tree.
-
-Rollback deploys a previously accepted immutable image digest. Do not move final Git tags,
-rewrite `main`, or clear browser storage to simulate rollback. Check IndexedDB/OPFS and
-backend compatibility first: restoring an image does not undo a data migration. Use an
-explicit recovery plan if newer data is not readable by the older app, and record the
-rollback in the deployment history.
+Rollback deploys an earlier immutable final image digest. It does not move Git tags, rewrite
+`main`, or clear browser storage. Check compatibility with existing IndexedDB, OPFS, and
+backend data first: restoring an older container does not undo a data migration.
