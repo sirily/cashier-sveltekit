@@ -10,7 +10,8 @@ async function openReadyJournal(page: Page) {
 	await page.goto('/');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 	await page.getByRole('link', { name: 'Journal' }).click();
-	await expect(page.getByRole('main')).toContainText('The device journal is empty');
+	await expect(page).toHaveURL(/\/journal$/);
+	await expect(page.locator('main')).toContainText('The device journal is empty');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 
 	return browserErrors;
@@ -54,8 +55,9 @@ test('edits an existing local transaction and survives journal reload', async ({
 	await expect(page.locator('body')).toContainText(editedNote);
 
 	await page.getByRole('link', { name: 'Journal' }).click();
-	await expect(page.locator('body')).toContainText(editedNote);
-	await expect(page.locator('body')).not.toContainText(originalNote);
+	await expect(page).toHaveURL(/\/journal$/);
+	await expect(page.getByRole('main')).toContainText(editedNote);
+	await expect(page.getByRole('main')).not.toContainText(originalNote);
 	await page.reload();
 	await expect(page.locator('body')).toContainText(editedNote);
 	await expect(page.locator('body')).not.toContainText(originalNote);

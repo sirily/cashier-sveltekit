@@ -79,7 +79,7 @@ The implementation of this policy must enforce, rather than delegate to an agent
 - Protection against rewriting final Git tags and published versioned image tags.
 - Safe retries and serialized production updates so a late job cannot replace a newer `latest`.
 
-Dependency auditing is an independent report, not a release approval gate. It includes development/build dependencies; known vulnerabilities appear as warnings with a downloadable report. Audit infrastructure failures remain failures and must not be presented as a clean scan. Existing Svelte rule groups configured as warnings remain visible; other lint errors block required checks. Mocked API browser tests verify client behavior, not the server's own validation or deduplication.
+Dependency auditing is an independent report, not a release approval gate. It includes development/build dependencies; known vulnerabilities appear as warnings with detailed findings in the CI logs. Audit infrastructure failures remain failures and must not be presented as a clean scan. Existing Svelte rule groups configured as warnings remain visible; other lint errors block required checks. Mocked API browser tests verify client behavior, not the server's own validation or deduplication.
 
 The workflows require the repository's `GITHUB_TOKEN` to have `contents: write` for Git tag creation and `packages: write` for GHCR publication. Branch protection and token settings are separate from workflow code. Required checks and permissions must be configured and verified by the owner. An optional retry can use the existing workflow run in GitHub's UI. The release script tests can be run with `node --test scripts/release-tests.mjs`.
 

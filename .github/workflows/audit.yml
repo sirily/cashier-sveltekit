@@ -33,13 +33,4 @@ jobs:
         run: node --test scripts/audit-report-tests.mjs
 
       - name: Audit locked dependencies
-        run: node scripts/audit-report.mjs "$RUNNER_TEMP/audit-report.json"
-
-      - name: Upload audit report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: dependency-audit-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/audit-report.json
-          if-no-files-found: ignore
-          retention-days: 30
+        run: node scripts/audit-report.mjs
