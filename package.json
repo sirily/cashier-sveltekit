@@ -12,11 +12,14 @@
 		"test:unit": "vitest",
 		"test:e2e": "playwright test",
 		"lint": "oxfmt --check && oxlint .",
+		"lint:svelte": "eslint \"src/**/*.svelte\"",
+		"check:specs": "openspec validate --all --strict --no-interactive",
 		"format": "oxfmt",
 		"deploy": "netlify deploy --prod",
 		"publish": "npm run deploy"
 	},
 	"devDependencies": {
+		"@fission-ai/openspec": "1.14.3",
 		"@floating-ui/dom": "^1.6.13",
 		"@lucide/svelte": "^1.0.0",
 		"@playwright/test": "^1.60.0",
@@ -42,6 +45,7 @@
 		"daisyui": "^5.5.8",
 		"dexie": "^4.0.10",
 		"esbuild-wasm": "^0.28.0",
+		"eslint": "9.39.5",
 		"eslint-plugin-svelte": "^3.1.0",
 		"hw-chartjs-plugin-colorschemes": "^0.6.5",
 		"jsdom": "^29.0.0",

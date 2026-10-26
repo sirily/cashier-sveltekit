@@ -24,6 +24,8 @@ Checks and builds:
 
 ```sh
 npm run lint
+npm run lint:svelte
+npm run check:specs
 npm run check
 npm run test:unit -- --run
 npm run test:e2e
@@ -32,6 +34,16 @@ npm run build
 
 Run the checks appropriate to the change and report anything not executed. See
 [AGENTS.md](AGENTS.md) for project conventions.
+
+CI also validates GitHub Actions workflows with Actionlint. Svelte template linting reports
+six existing rule groups as warnings; other recommended-rule violations fail the check.
+The browser suite covers local offline saving, editing, and synchronization with a mocked API;
+it does not replace integration tests against the Python server.
+
+Dependency auditing runs separately on PRs and weekly. It includes build/development
+dependencies, publishes severity counts and a downloadable JSON report, and reports known
+vulnerabilities as warnings. Registry or audit-command failures fail the audit job. Findings
+require review; the report is not a claim that all installed dependencies are safe.
 
 ## Releases and deployment
 
