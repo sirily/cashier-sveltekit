@@ -8,7 +8,6 @@ The app captures manual transactions locally, synchronizes with
 account history and analysis. Ledger files are stored in browser OPFS; application settings
 and reference data use IndexedDB.
 
-
 ## Development
 
 Use npm and the versions recorded in `package.json` and `package-lock.json`.
@@ -36,16 +35,10 @@ Run the checks appropriate to the change and report anything not executed. See
 
 ## Releases and deployment
 
-Read the [release policy](docs/releasing.md) for branches, versions, builds, and rollback.
-Each push to `releases/X.Y.Z` automatically builds an image tagged `X.Y.Z-rc.N`. Merging the
-release PR into `main` is approval: automation builds a new production image tagged `X.Y.Z`,
-creates Git tag `vX.Y.Z`, and updates `latest`. The owner selects the release version through
-the branch name; automation checks package metadata and assigns RC numbers and final tags.
-
-**The current release automation still implements a superseded, more complex process.**
-It will be simplified separately to match this policy. There is no required test URL,
-separate approval workflow, or protected approval environment in the agreed process.
-Publication does not deploy the app.
+The agreed [release policy](docs/releasing.md#release-rules) uses squash-only PRs for both
+work-branch integration into `releases/X.Y.Z` and release integration into `main`. The owner
+selects the version through the release branch name. Merging the release PR approves the release;
+its squash commit is the source for a fresh final image build. Publication does not deploy the app.
 
 The static app is packaged in a Docker image served by Caddy. Backend deployment and routing
 are managed separately. The existing `npm run publish` and `npm run deploy` commands are

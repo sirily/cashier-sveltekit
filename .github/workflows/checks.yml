@@ -1,0 +1,71 @@
+name: Checks
+
+on:
+  workflow_call:
+  pull_request:
+    branches:
+      - main
+      - 'releases/**'
+
+permissions:
+  contents: read
+
+# Cancel superseded PR checks without replacing queued checks for other image-build runs.
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+
+      - name: Test release automation
+        run: node --test scripts/release-tests.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm run test:unit -- --run
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Browser tests
+        run: npm run test:e2e
+
+      - name: Upload failed browser test reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-reports-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
