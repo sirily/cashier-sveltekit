@@ -14,9 +14,7 @@
 		"lint": "oxfmt --check && oxlint .",
 		"lint:svelte": "eslint \"src/**/*.svelte\"",
 		"check:specs": "openspec validate --all --strict --no-interactive",
-		"format": "oxfmt",
-		"deploy": "netlify deploy --prod",
-		"publish": "npm run deploy"
+		"format": "oxfmt"
 	},
 	"devDependencies": {
 		"@fission-ai/openspec": "1.14.3",
@@ -29,7 +27,7 @@
 		"@sveltejs/kit": "^2.62.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/forms": "^0.5.10",
-		"@tailwindcss/typography": "^0.5.16",
+		"@tailwindcss/typography": "^0.5.20",
 		"@tailwindcss/vite": "^4.1.18",
 		"@testing-library/svelte": "^5.2.6",
 		"@types/big.js": "^6.2.2",
@@ -51,9 +49,8 @@
 		"jsdom": "^29.0.0",
 		"ky": "^2.0.0",
 		"moment": "^2.30.1",
-		"netlify-cli": "^26.0.0",
 		"numeral": "^2.0.6",
-		"oxfmt": "^0.49.0",
+		"oxfmt": "^0.74.0",
 		"oxlint": "^1.61.0",
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.2",
@@ -61,7 +58,7 @@
 		"svelte-check": "^4.1.1",
 		"svelte-gestures": "^5.0.7",
 		"tailwindcss": "^4.1.18",
-		"toml": "^4.0.0",
+		"toml": "^5.0.1",
 		"tslib": "^2.8.1",
 		"typescript": "^5.0.0",
 		"vite": "^8.0.0",
@@ -71,13 +68,12 @@
 		"workbox-window": "^7.4.0"
 	},
 	"overrides": {
-		"@opentelemetry/core": "2.8.0",
-		"@opentelemetry/resources": "2.8.0",
-		"@opentelemetry/sdk-trace-base": "2.8.0",
-		"@opentelemetry/sdk-trace-node": "2.8.0",
 		"@sveltejs/kit": {
 			"cookie": "0.7.2"
 		},
-		"esbuild": "0.28.1"
+		"@tailwindcss/typography": {
+			"postcss-selector-parser": "6.1.5"
+		},
+		"esbuild": "0.28.2"
 	}
 }

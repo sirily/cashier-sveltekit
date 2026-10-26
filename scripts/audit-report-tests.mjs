@@ -27,28 +27,87 @@ test('summarizes a clean audit', () => {
 	assert.match(renderSummary(summary), /No known vulnerabilities/);
 });
 
-test('accepts npm audit status 1 with complete vulnerability metadata', () => {
+test('renders detailed direct and transitive findings for CI logs', () => {
 	const summary = summarizeAudit(
 		result({
 			status: 1,
 			metadata: { high: 1, moderate: 1 },
 			vulnerabilities: {
-				'vulnerable-direct': {
+				'direct-pkg': {
 					severity: 'high',
 					range: '<2',
 					isDirect: true,
-					via: [{ title: 'A|advisory\nwith details' }]
+					nodes: ['node_modules/direct-pkg'],
+					fixAvailable: { name: 'direct-pkg', version: '2.0.0', isSemVerMajor: true },
+					via: [
+						{
+							title: 'Unsafe advisory',
+							url: 'https://example.test/advisories/GHSA-1234',
+							source: 1243067,
+							range: '<2'
+						}
+					]
 				},
-				transitive: { severity: 'moderate', isDirect: false, via: ['parent'] }
+				transitive: {
+					severity: 'moderate',
+					range: '>=1 <3',
+					isDirect: false,
+					nodes: ['node_modules/a/node_modules/transitive'],
+					fixAvailable: false,
+					via: [{ title: 'CVE advisory' }]
+				}
 			}
 		})
 	);
-	assert.equal(summary.totals.high, 1);
-	assert.equal(summary.vulnerabilities.length, 2);
 	const rendered = renderSummary(summary);
-	assert.match(rendered, /\| vulnerable-direct \| high \| <2 \| A\\\|advisory with details \|/);
-	assert.match(rendered, /### Transitive dependencies/);
+	assert.match(rendered, /direct-pkg — high/);
+	assert.match(rendered, /GHSA: GHSA-1234/);
+	assert.doesNotMatch(rendered, /1243067/);
+	assert.match(rendered, /https:\/\/example\.test\/advisories\/GHSA-1234/);
+	assert.match(rendered, /Affected versions: <2/);
+	assert.match(rendered, /node_modules\/direct-pkg/);
+	assert.match(
+		rendered,
+		/Fix available: npm reports a fix: direct-pkg@2\.0\.0 \(major upgrade\); compatibility is not guaranteed/
+	);
+	assert.match(rendered, /transitive — moderate/);
+	assert.match(rendered, /Fix available: no fix reported/);
 	assert.match(rendered, /report-only and do not fail this job/);
+});
+
+test('preserves percent characters in advisory text and handles null fixes', () => {
+	const rendered = renderSummary(
+		summarizeAudit(
+			result({
+				metadata: { low: 1 },
+				vulnerabilities: {
+					pkg: {
+						severity: 'low',
+						isDirect: true,
+						fixAvailable: null,
+						via: [{ title: '100% safe', url: 'https://example.test/?value=100%25' }]
+					}
+				}
+			})
+		)
+	);
+	assert.match(rendered, /100% safe/);
+	assert.match(rendered, /value=100%25/);
+	assert.match(rendered, /Fix available: not specified/);
+});
+
+test('escapes workflow-command markers in advisory text', () => {
+	const rendered = renderSummary(
+		summarizeAudit(
+			result({
+				metadata: { low: 1 },
+				vulnerabilities: {
+					pkg: { severity: 'low', isDirect: true, via: [{ title: '::error::not a command' }] }
+				}
+			})
+		)
+	);
+	assert.doesNotMatch(rendered, /::error::/);
 });
 
 test('fails closed for command errors, unexpected exit status, invalid JSON, missing metadata, and count mismatch', () => {
@@ -56,6 +115,13 @@ test('fails closed for command errors, unexpected exit status, invalid JSON, mis
 	assert.throws(() => summarizeAudit(result({ status: 2 })), /exit status 2/);
 	assert.throws(() => summarizeAudit(result({ stdout: '{not json' })), /invalid JSON/);
 	assert.throws(() => summarizeAudit(result({ stdout: '{}' })), /missing metadata/);
+	assert.throws(
+		() =>
+			summarizeAudit(
+				result({ stdout: JSON.stringify({ metadata: { vulnerabilities: { high: -1 } } }) })
+			),
+		/invalid vulnerability counts/
+	);
 	assert.throws(
 		() => summarizeAudit(result({ status: 1, metadata: { high: 1 } })),
 		/do not match metadata counts/
