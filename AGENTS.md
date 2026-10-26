@@ -7,44 +7,44 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
 
 ### Documentation and requirements
 
-| Location | Contents |
-| --- | --- |
-| [README.md](README.md) | Project overview, setup, and development commands |
-| [openspec/specs/](openspec/specs/) | Published application behavior contracts |
-| [openspec/changes/](openspec/changes/) | Proposed changes and their planning artifacts |
-| [openspec/changes/archive/](openspec/changes/archive/) | Historical change records |
-| [docs/releasing.md](docs/releasing.md) | Release branches, versions, candidates, publication, rollback, and automation status |
-| [docs/design.md](docs/design.md) | Visual design and palette reference |
-| [cashier-theme-daisy.css](cashier-theme-daisy.css) | Theme tokens and their actual values |
-| [docs/completed-projects/](docs/completed-projects/) | Historical project documents |
+| Location                                               | Contents                                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| [README.md](README.md)                                 | Project overview, setup, and development commands                                    |
+| [openspec/specs/](openspec/specs/)                     | Published application behavior contracts                                             |
+| [openspec/changes/](openspec/changes/)                 | Proposed changes and their planning artifacts                                        |
+| [openspec/changes/archive/](openspec/changes/archive/) | Historical change records                                                            |
+| [docs/releasing.md](docs/releasing.md)                 | Release branches, versions, candidates, publication, rollback, and automation status |
+| [docs/design.md](docs/design.md)                       | Visual design and palette reference                                                  |
+| [cashier-theme-daisy.css](cashier-theme-daisy.css)     | Theme tokens and their actual values                                                 |
+| [docs/completed-projects/](docs/completed-projects/)   | Historical project documents                                                         |
 
 ### Application code
 
-| Location | Contents |
-| --- | --- |
-| [src/routes/](src/routes/) | SvelteKit pages and route-specific logic |
-| [src/lib/components/](src/lib/components/) | Shared UI components |
-| [src/lib/data/](src/lib/data/) | Data models and data access |
-| [src/lib/services/](src/lib/services/) | Business logic and ledger service interfaces |
-| [src/lib/storage/](src/lib/storage/) | OPFS and IndexedDB storage abstractions |
-| [src/lib/stores/](src/lib/stores/) | Reactive application state |
-| [src/lib/sync/](src/lib/sync/) | Synchronization logic |
-| [src/lib/rledger/](src/lib/rledger/) | Rust Ledger WASM integration |
-| [src/lib/workers/](src/lib/workers/) | Background workers, including full-book analysis |
-| [src/lib/utils/](src/lib/utils/) | Shared utilities |
+| Location                                             | Contents                                           |
+| ---------------------------------------------------- | -------------------------------------------------- |
+| [src/routes/](src/routes/)                           | SvelteKit pages and route-specific logic           |
+| [src/lib/components/](src/lib/components/)           | Shared UI components                               |
+| [src/lib/data/](src/lib/data/)                       | Data models and data access                        |
+| [src/lib/services/](src/lib/services/)               | Business logic and ledger service interfaces       |
+| [src/lib/storage/](src/lib/storage/)                 | OPFS and IndexedDB storage abstractions            |
+| [src/lib/stores/](src/lib/stores/)                   | Reactive application state                         |
+| [src/lib/sync/](src/lib/sync/)                       | Synchronization logic                              |
+| [src/lib/rledger/](src/lib/rledger/)                 | Rust Ledger WASM integration                       |
+| [src/lib/workers/](src/lib/workers/)                 | Background workers, including full-book analysis   |
+| [src/lib/utils/](src/lib/utils/)                     | Shared utilities                                   |
 | [src/lib/assetAllocation/](src/lib/assetAllocation/) | Asset allocation logic, validation, and API client |
-| [src/lib/webrtc/](src/lib/webrtc/) | WebRTC peer synchronization |
+| [src/lib/webrtc/](src/lib/webrtc/)                   | WebRTC peer synchronization                        |
 
 ### Tests, automation, and packaging
 
-| Location | Contents |
-| --- | --- |
-| [tests/](tests/) | Unit and browser tests |
-| [vitest.config.ts](vitest.config.ts), [playwright.config.ts](playwright.config.ts) | Test configuration |
-| [.github/workflows/](.github/workflows/) | CI workflows |
-| [Dockerfile](Dockerfile), [docker/](docker/) | Static app image and Caddy configuration |
-| [package.json](package.json), [package-lock.json](package-lock.json) | Commands and dependency versions |
-| [vite.config.ts](vite.config.ts), [svelte.config.js](svelte.config.js) | Application build configuration |
+| Location                                                                           | Contents                                 |
+| ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| [tests/](tests/)                                                                   | Unit and browser tests                   |
+| [vitest.config.ts](vitest.config.ts), [playwright.config.ts](playwright.config.ts) | Test configuration                       |
+| [.github/workflows/](.github/workflows/)                                           | CI workflows                             |
+| [Dockerfile](Dockerfile), [docker/](docker/)                                       | Static app image and Caddy configuration |
+| [package.json](package.json), [package-lock.json](package-lock.json)               | Commands and dependency versions         |
+| [vite.config.ts](vite.config.ts), [svelte.config.js](svelte.config.js)             | Application build configuration          |
 
 ## Working rules
 
@@ -88,7 +88,6 @@ Core workflows:
 - Keep local editing and full-book analysis responsibilities separate. Read the relevant
   OpenSpec contracts before changing synchronization, identity, reconciliation, or currency handling.
 
-
 ## Dev Server
 
 - Assume the local dev server is running at `http://localhost:5173/`. It is started and managed by the user.
@@ -119,6 +118,7 @@ Use Grep/Glob only for text/pattern searches (comments, strings, config values) 
 After writing or editing code, check LSP diagnostics before moving on. Fix any type errors or missing imports immediately.
 
 <!-- gitnexus:start -->
+
 # GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **cashier-sveltekit** (1816 symbols, 3803 relationships, 129 execution flows).
@@ -143,22 +143,22 @@ This project is indexed by GitNexus as **cashier-sveltekit** (1816 symbols, 3803
 
 ## Resources
 
-| Resource | Use for |
-| --- | --- |
-| `gitnexus://repo/cashier-sveltekit/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/cashier-sveltekit/clusters` | All functional areas |
-| `gitnexus://repo/cashier-sveltekit/processes` | All execution flows |
-| `gitnexus://repo/cashier-sveltekit/process/{name}` | Step-by-step execution trace |
+| Resource                                           | Use for                                  |
+| -------------------------------------------------- | ---------------------------------------- |
+| `gitnexus://repo/cashier-sveltekit/context`        | Codebase overview, check index freshness |
+| `gitnexus://repo/cashier-sveltekit/clusters`       | All functional areas                     |
+| `gitnexus://repo/cashier-sveltekit/processes`      | All execution flows                      |
+| `gitnexus://repo/cashier-sveltekit/process/{name}` | Step-by-step execution trace             |
 
 ## CLI
 
-| Task | Read this skill file |
-| --- | --- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
+| Task                                         | Read this skill file                               |
+| -------------------------------------------- | -------------------------------------------------- |
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md`       |
+| Blast radius / "What breaks if I change X?"  | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?"             | `.claude/skills/gitnexus-debugging/SKILL.md`       |
+| Rename / extract / split / refactor          | `.claude/skills/gitnexus-refactoring/SKILL.md`     |
+| Tools, resources, schema reference           | `.claude/skills/gitnexus-guide/SKILL.md`           |
+| Index, status, clean, wiki CLI commands      | `.claude/skills/gitnexus-cli/SKILL.md`             |
 
 <!-- gitnexus:end -->
