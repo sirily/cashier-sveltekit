@@ -8,7 +8,6 @@ The app captures manual transactions locally, synchronizes with
 account history and analysis. Ledger files are stored in browser OPFS; application settings
 and reference data use IndexedDB.
 
-
 ## Development
 
 Use npm and the versions recorded in `package.json` and `package-lock.json`.
@@ -25,6 +24,8 @@ Checks and builds:
 
 ```sh
 npm run lint
+npm run lint:svelte
+npm run check:specs
 npm run check
 npm run test:unit -- --run
 npm run test:e2e
@@ -34,15 +35,22 @@ npm run build
 Run the checks appropriate to the change and report anything not executed. See
 [AGENTS.md](AGENTS.md) for project conventions.
 
+CI also validates GitHub Actions workflows with Actionlint. Svelte template linting reports
+six existing rule groups as warnings; other recommended-rule violations fail the check.
+The browser suite covers local offline saving, editing, and synchronization with a mocked API;
+it does not replace integration tests against the Python server.
+
+Dependency auditing runs separately on PRs and weekly. It includes build/development
+dependencies, publishes severity counts and a downloadable JSON report, and reports known
+vulnerabilities as warnings. Registry or audit-command failures fail the audit job. Findings
+require review; the report is not a claim that all installed dependencies are safe.
+
 ## Releases and deployment
 
-Read the [release policy](docs/releasing.md) for branch names, versioning, test candidates,
-acceptance, publication, and rollback. Work branches merge into `releases/X.Y.Z`; only an
-accepted release goes into production `main`. Production publication must reuse the tested
-container image, not rebuild it.
-
-**Release automation is not implemented yet.** The policy describes the target process and
-its enforcement requirements, not capabilities already provided by the current workflow.
+The agreed [release policy](docs/releasing.md#release-rules) uses squash-only PRs for both
+work-branch integration into `releases/X.Y.Z` and release integration into `main`. The owner
+selects the version through the release branch name. Merging the release PR approves the release;
+its squash commit is the source for a fresh final image build. Publication does not deploy the app.
 
 The static app is packaged in a Docker image served by Caddy. Backend deployment and routing
 are managed separately. The existing `npm run publish` and `npm run deploy` commands are

@@ -14,12 +14,12 @@ The CSS definitions are authoritative; update this reference when changing them.
 The color names below are retained from the original palette notes. The token names and
 values match the current theme.
 
-| Theme role | CSS token | Value | Palette name |
-| --- | --- | --- | --- |
-| Primary | `--color-primary` | `#076461` | Blue Stone |
-| Secondary | `--color-secondary` | `#92140c` | Sangria |
-| Accent | `--color-accent` | `#ffd700` | Gold |
-| Neutral | `--color-neutral` | `#1d1f20` | Shark |
+| Theme role | CSS token           | Value     | Palette name |
+| ---------- | ------------------- | --------- | ------------ |
+| Primary    | `--color-primary`   | `#076461` | Blue Stone   |
+| Secondary  | `--color-secondary` | `#92140c` | Sangria      |
+| Accent     | `--color-accent`    | `#ffd700` | Gold         |
+| Neutral    | `--color-neutral`   | `#1d1f20` | Shark        |
 
 The old notes called Gold **Tertiary** and Shark **Surface**. In the implemented theme,
 Gold is the accent and Shark is the neutral color. Shark is not the `base-100` background.
@@ -27,27 +27,27 @@ The HTML browser-theme metadata also uses the primary color `#076461`.
 
 ## Backgrounds and text
 
-| Theme role | CSS token | Current value |
-| --- | --- | --- |
-| Base background | `--color-base-100` | `oklch(22.47% 0 0)` |
-| Second base background | `--color-base-200` | `oklch(18.15% 0 0)` |
-| Third base background | `--color-base-300` | `oklch(16% 0 0)` |
-| Base text | `--color-base-content` | `var(--color-accent-200)` |
-| Primary content | `--color-primary-content` | `var(--color-accent-400)` |
-| Accent content | `--color-accent-content` | `#000000` |
-| Neutral content | `--color-neutral-content` | `var(--color-accent-300)` |
+| Theme role             | CSS token                 | Current value             |
+| ---------------------- | ------------------------- | ------------------------- |
+| Base background        | `--color-base-100`        | `oklch(22.47% 0 0)`       |
+| Second base background | `--color-base-200`        | `oklch(18.15% 0 0)`       |
+| Third base background  | `--color-base-300`        | `oklch(16% 0 0)`          |
+| Base text              | `--color-base-content`    | `var(--color-accent-200)` |
+| Primary content        | `--color-primary-content` | `var(--color-accent-400)` |
+| Accent content         | `--color-accent-content`  | `#000000`                 |
+| Neutral content        | `--color-neutral-content` | `var(--color-accent-300)` |
 
 The theme also defines OKLCH shade scales from `50` to `950` for primary, secondary, and
 accent colors. Their exact values remain in the stylesheet rather than being duplicated here.
 
 ## Status colors
 
-| Role | Color token | Content token |
-| --- | --- | --- |
-| Info | `--color-neutral` | `--color-neutral-content` |
-| Success | `--color-primary-400` | `--color-primary-content` |
-| Warning | `--color-accent-400` | `--color-secondary` |
-| Error | `--color-secondary-400` | `--color-accent-300` |
+| Role    | Color token             | Content token             |
+| ------- | ----------------------- | ------------------------- |
+| Info    | `--color-neutral`       | `--color-neutral-content` |
+| Success | `--color-primary-400`   | `--color-primary-content` |
+| Warning | `--color-accent-400`    | `--color-secondary`       |
+| Error   | `--color-secondary-400` | `--color-accent-300`      |
 
 These are the token references declared in the theme, not independently verified contrast
 or accessibility guarantees.
