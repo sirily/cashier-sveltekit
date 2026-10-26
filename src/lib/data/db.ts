@@ -10,7 +10,7 @@ import {
 	// Posting,
 	ScheduledTransaction,
 	Setting
-} from '$lib/data/model';
+} from '#lib/data/model';
 
 // Define the schema
 

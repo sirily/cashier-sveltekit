@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { afterNavigate, goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { xact } from '$lib/data/mainStore';
-	import Notifier from '$lib/utils/notifier';
-	import { parseXact } from '$lib/utils/transactionParser';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { xact } from '#lib/data/mainStore';
+	import Notifier from '#lib/utils/notifier';
+	import { parseXact } from '#lib/utils/transactionParser';
 	import { ImportIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 

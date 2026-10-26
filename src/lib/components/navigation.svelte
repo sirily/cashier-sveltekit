@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { drawerState } from '$lib/data/mainStore';
+	import { drawerState } from '#lib/data/mainStore';
 	import { page } from '$app/state';
 	// Icons
 	import {

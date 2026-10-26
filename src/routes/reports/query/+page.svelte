@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Toolbar from "$lib/components/Toolbar.svelte";
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import Toolbar from "#lib/components/Toolbar.svelte";
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	let bql = $state('SELECT account, sum(number) as balance, currency ORDER BY account');
 

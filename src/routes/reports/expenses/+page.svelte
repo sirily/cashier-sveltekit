@@ -2,12 +2,12 @@
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { ChartBar, ChartPie } from '@lucide/svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import PeriodSelector, { type Period } from '$lib/components/PeriodSelector.svelte';
-	import ExpensesBarChart from '$lib/components/ExpensesBarChart.svelte';
-	import ExpensesDonutChart from '$lib/components/ExpensesDonutChart.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { SettingKeys, settings } from '$lib/settings';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import PeriodSelector, { type Period } from '#lib/components/PeriodSelector.svelte';
+	import ExpensesBarChart from '#lib/components/ExpensesBarChart.svelte';
+	import ExpensesDonutChart from '#lib/components/ExpensesDonutChart.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { SettingKeys, settings } from '#lib/settings';
 
 	type ChartType = 'bar' | 'donut';
 	let chartType = $state<ChartType>('bar');

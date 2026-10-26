@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { FolderOpenIcon, RefreshCcwIcon, ArrowLeftIcon, ArrowRightIcon, PlayIcon, MinusIcon } from '@lucide/svelte';
-	import { settings, SettingKeys } from '$lib/settings';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import { settings, SettingKeys } from '#lib/settings';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import {
 		loadPersistedHandle,
 		persistHandle,
 		requestReadPermission,
 		requestWritePermission
-	} from '$lib/utils/fsHandleStore';
-	import { getManifest, putManifestEntry, type ImportedFileMeta } from '$lib/utils/importManifest';
-	import * as OpfsLib from '$lib/utils/opfslib.js';
-	import { parseSpecs, collectFsFileHandles } from '$lib/utils/fsScan';
-	import { processWithConcurrencyLimit } from '$lib/utils/concurrency';
+	} from '#lib/utils/fsHandleStore';
+	import { getManifest, putManifestEntry, type ImportedFileMeta } from '#lib/utils/importManifest';
+	import * as OpfsLib from '#lib/utils/opfslib.js';
+	import { parseSpecs, collectFsFileHandles } from '#lib/utils/fsScan';
+	import { processWithConcurrencyLimit } from '#lib/utils/concurrency';
 
 	const HANDLE_KEY = 'importLedgerDirectoryHandle';
 	const CONCURRENCY = 4;

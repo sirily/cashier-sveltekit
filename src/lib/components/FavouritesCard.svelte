@@ -3,11 +3,11 @@
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import AccountRow from './AccountRow.svelte';
 	import { goto } from '$app/navigation';
-	import { Account, Money } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import Notifier from '$lib/utils/notifier';
-	import { SettingKeys, settings } from '$lib/settings';
+	import { Account, Money } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import Notifier from '#lib/utils/notifier';
+	import { SettingKeys, settings } from '#lib/settings';
 
 	Notifier.init();
 

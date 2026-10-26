@@ -10,7 +10,7 @@ and reference data use IndexedDB.
 
 ## Development
 
-Use npm and the versions recorded in `package.json` and `package-lock.json`.
+Use Node.js 22.17 or newer (Node.js 24.15 is the recommended CI version), npm, and the versions recorded in `package.json` and `package-lock.json`.
 
 ```sh
 npm ci
@@ -41,9 +41,9 @@ The browser suite covers local offline saving, editing, and synchronization with
 it does not replace integration tests against the Python server.
 
 Dependency auditing runs separately on PRs and weekly. It includes build/development
-dependencies, publishes severity counts and a downloadable JSON report, and reports known
-vulnerabilities as warnings. Registry or audit-command failures fail the audit job. Findings
-require review; the report is not a claim that all installed dependencies are safe.
+dependencies and reports severity counts and known vulnerabilities as warnings; detailed findings
+are available in the CI job logs. Registry or audit-command failures fail the audit job. Findings
+require review and do not establish that all installed dependencies are safe.
 
 ## Releases and deployment
 
@@ -53,8 +53,7 @@ selects the version through the release branch name. Merging the release PR appr
 its squash commit is the source for a fresh final image build. Publication does not deploy the app.
 
 The static app is packaged in a Docker image served by Caddy. Backend deployment and routing
-are managed separately. The existing `npm run publish` and `npm run deploy` commands are
-legacy Netlify commands, not the release procedure; do not use them as a shortcut to production.
+are managed separately.
 
 ## Documentation
 

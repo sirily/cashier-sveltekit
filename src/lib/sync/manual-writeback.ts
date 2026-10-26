@@ -6,8 +6,8 @@
  * 3. Reconcile: remove local entries whose cashier_id appears in the pulled ledger
  *    (and was not rejected in the current push batch).
  */
-import * as opfs from '$lib/utils/opfslib';
-import { CASHIER_XACT_FILE } from '$lib/constants';
+import * as opfs from '#lib/utils/opfslib';
+import { CASHIER_XACT_FILE } from '#lib/constants';
 
 export interface PendingTransaction {
 	rawText: string;

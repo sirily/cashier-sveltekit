@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Fab from '$lib/components/FAB.svelte';
-	import ScheduleEditor from '$lib/components/ScheduleEditor.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import XactEditor from '$lib/components/XactEditor.svelte';
-	import { saveScheduledTransaction } from '$lib/data/dbdal';
-	import { ScheduledXact, xact } from '$lib/data/mainStore';
-	import type { ScheduledTransaction } from '$lib/data/model';
-	import Notifier from '$lib/utils/notifier';
+	import Fab from '#lib/components/FAB.svelte';
+	import ScheduleEditor from '#lib/components/ScheduleEditor.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import XactEditor from '#lib/components/XactEditor.svelte';
+	import { saveScheduledTransaction } from '#lib/data/dbdal';
+	import { ScheduledXact, xact } from '#lib/data/mainStore';
+	import type { ScheduledTransaction } from '#lib/data/model';
+	import Notifier from '#lib/utils/notifier';
 
 	const id = page.params.id;
 

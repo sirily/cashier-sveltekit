@@ -1,19 +1,19 @@
 <script lang="ts">
-	import JournalCard from '$lib/components/JournalCard.svelte';
+	import JournalCard from '#lib/components/JournalCard.svelte';
 	import { ArrowDownUpIcon, PlusIcon, SettingsIcon } from '@lucide/svelte';
 	import Toolbar from '../lib/components/Toolbar.svelte';
 	import { goto } from '$app/navigation';
-	import { xact } from '$lib/data/mainStore';
-	import { Xact } from '$lib/data/model';
-	import FavouritesCard from '$lib/components/FavouritesCard.svelte';
-	import SyncCard from '$lib/components/SyncCard.svelte';
-	import ForecastCard from '$lib/components/ForecastCard.svelte';
-	import ScheduledXactsCard from '$lib/components/ScheduledXactsCard.svelte';
+	import { xact } from '#lib/data/mainStore';
+	import { Xact } from '#lib/data/model';
+	import FavouritesCard from '#lib/components/FavouritesCard.svelte';
+	import SyncCard from '#lib/components/SyncCard.svelte';
+	import ForecastCard from '#lib/components/ForecastCard.svelte';
+	import ScheduledXactsCard from '#lib/components/ScheduledXactsCard.svelte';
 	import { onMount, type Component } from 'svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { CardNames } from '$lib/settings';
-	import appService from '$lib/services/appService';
+	import Fab from '#lib/components/FAB.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { CardNames } from '#lib/settings';
+	import appService from '#lib/services/appService';
 
 	let cards: Array<Component> = $state([]);
 

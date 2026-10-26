@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { xact, selectionMetadata } from '$lib/data/mainStore';
+	import { xact, selectionMetadata } from '#lib/data/mainStore';
 	import { CalculatorIcon, DiffIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import type { EventHandler } from 'svelte/elements';
 	import { goto } from '$app/navigation';
-	import { SelectionModeMetadata } from '$lib/settings';
+	import { SelectionModeMetadata } from '#lib/settings';
 
 	type Props = {
 		index: number;

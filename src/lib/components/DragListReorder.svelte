@@ -127,9 +127,9 @@
 </script>
 
 <script lang="ts">
-	import DragItem from '$lib/components/DragItem.svelte';
-	import DragItemPlaceHolder from '$lib/components/DragItemPlaceHolder.svelte';
-	import DragContainer from '$lib/components/DragContainer.svelte';
+	import DragItem from '#lib/components/DragItem.svelte';
+	import DragItemPlaceHolder from '#lib/components/DragItemPlaceHolder.svelte';
+	import DragContainer from '#lib/components/DragContainer.svelte';
 
 	const todo_list = create_todo_list();
 

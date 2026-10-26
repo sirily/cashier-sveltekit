@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import type { StockSymbol } from '$lib/assetAllocation/AssetClass.js';
+	import type { StockSymbol } from '#lib/assetAllocation/AssetClass.js';
 	import {
 		SecurityAnalyser,
 		type SecurityAnalysis,
 		type QueryFn
-	} from '$lib/assetAllocation/securityAnalysis.js';
+	} from '#lib/assetAllocation/securityAnalysis.js';
 	import type { RawQueryResult, WasmQueryFn } from './+page.js';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { AaStocksStore } from '$lib/data/mainStore';
-	import * as Formatter from '$lib/utils/formatter.js';
-	import { processWithConcurrencyLimit } from '$lib/utils/concurrency.js';
-	import { getQueries } from '$lib/sync/sync-queries.js';
-	import { PtaSystems } from '$lib/enums.js';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { AaStocksStore } from '#lib/data/mainStore';
+	import * as Formatter from '#lib/utils/formatter.js';
+	import { processWithConcurrencyLimit } from '#lib/utils/concurrency.js';
+	import { getQueries } from '#lib/sync/sync-queries.js';
+	import { PtaSystems } from '#lib/enums.js';
 	import { Loader, X, Bug, ChevronDown, ChevronRight } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import moment from 'moment';
@@ -184,7 +184,7 @@
 		if (accountsOpen && !rawAccountsResult) {
 			const queryFn = data.wasmQuery as WasmQueryFn;
 			const currency = data.currency as string;
-			const rootAccount = await import('$lib/settings').then(({ settings, SettingKeys }) =>
+			const rootAccount = await import('#lib/settings').then(({ settings, SettingKeys }) =>
 				settings.get(SettingKeys.rootInvestmentAccount)
 			);
 			const accountsQuery = `SELECT account, str(value(sum(position), '${currency}')) as value,

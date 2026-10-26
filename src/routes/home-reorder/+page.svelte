@@ -1,11 +1,11 @@
 <script lang="ts">
-	import DragReorderList from '$lib/components/DragReorderList.svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { SettingKeys, settings } from '$lib/settings';
+	import DragReorderList from '#lib/components/DragReorderList.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { SettingKeys, settings } from '#lib/settings';
 	import { CheckIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import appService from '$lib/services/appService';
+	import appService from '#lib/services/appService';
 
 	interface Item {
 		id: string;

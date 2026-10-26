@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import SquareButton from '$lib/components/SquareButton.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import CashierDAL, { saveScheduledTransaction } from '$lib/data/dbdal';
-	import { ScheduledXact, xact } from '$lib/data/mainStore';
-	import type { ScheduledTransaction, Xact } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import Notifier from '$lib/utils/notifier';
-	import { calculateNextIteration } from '$lib/scheduledTransactions';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import SquareButton from '#lib/components/SquareButton.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import CashierDAL, { saveScheduledTransaction } from '#lib/data/dbdal';
+	import { ScheduledXact, xact } from '#lib/data/mainStore';
+	import type { ScheduledTransaction, Xact } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import Notifier from '#lib/utils/notifier';
+	import { calculateNextIteration } from '#lib/scheduledTransactions';
 	import {
 		ChevronsRightIcon,
 		SquarePenIcon,
@@ -17,7 +17,7 @@
 		TrashIcon
 	} from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import db from '$lib/data/db';
+	import db from '#lib/data/db';
 
 	Notifier.init();
 

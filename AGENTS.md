@@ -37,14 +37,15 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
 
 ### Tests, automation, and packaging
 
-| Location                                                                           | Contents                                 |
-| ---------------------------------------------------------------------------------- | ---------------------------------------- |
-| [tests/](tests/)                                                                   | Unit and browser tests                   |
-| [vitest.config.ts](vitest.config.ts), [playwright.config.ts](playwright.config.ts) | Test configuration                       |
-| [.github/workflows/](.github/workflows/)                                           | CI workflows                             |
-| [Dockerfile](Dockerfile), [docker/](docker/)                                       | Static app image and Caddy configuration |
-| [package.json](package.json), [package-lock.json](package-lock.json)               | Commands and dependency versions         |
-| [vite.config.ts](vite.config.ts), [svelte.config.js](svelte.config.js)             | Application build configuration          |
+| Location                                                                                                             | Contents                                 |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| [tests/](tests/)                                                                                                     | Unit and browser tests                   |
+| [vite.config.ts](vite.config.ts), [vitest.config.ts](vitest.config.ts), [playwright.config.ts](playwright.config.ts) | Build and test configuration             |
+| [.github/workflows/](.github/workflows/)                                                                             | CI workflows                             |
+| [Dockerfile](Dockerfile), [docker/](docker/)                                                                         | Static app image and Caddy configuration |
+| [package.json](package.json), [package-lock.json](package-lock.json)                                                 | Commands and dependency versions         |
+| [src/service-worker.ts](src/service-worker.ts)                                                                       | Native SvelteKit service worker          |
+| [src/lib/services/pwaUpdate.svelte.ts](src/lib/services/pwaUpdate.svelte.ts)                                         | PWA update lifecycle                     |
 
 ## Working rules
 
@@ -69,12 +70,12 @@ Core workflows:
 
 ## Architecture
 
-- The app is a PWA with a single page application (SPA) architecture, using SvelteKit and DaisyUI frameworks.
+- The app is a PWA with a single page application (SPA) architecture, using SvelteKit and DaisyUI frameworks. SvelteKit configuration lives in `vite.config.ts`; `#lib` is a package-import alias declared in `package.json`.
 - Uses **Svelte 5** with runes syntax (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 store or `$:` reactive patterns.
 - Uses **TailwindCSS v4** and **DaisyUI v5** — class names and config differ from v3/v4 respectively.
 - The production build is static and is packaged as a Docker image served by Caddy.
   Backend and deployment configuration belong to their separate repositories. Follow
-  [docs/releasing.md](docs/releasing.md) for the release and deployment process.
+  [docs/releasing.md](docs/releasing.md) for release and publication policy.
 - The ledger files are stored in OPFS, in Beancount format. The app data is in IndexedDb (via **Dexie**).
 - The configuration information is in Settings table in IndexedDb.
 - The app uses File System API to access the ledger files on the device.

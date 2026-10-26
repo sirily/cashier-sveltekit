@@ -2,12 +2,12 @@
 	import { CalendarClockIcon } from '@lucide/svelte';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { onMount } from 'svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
 	import { goto } from '$app/navigation';
-	import db from '$lib/data/db';
-	import { CloudBackupService } from '$lib/services/cloudBackupService';
-	import { BackupType } from '$lib/enums';
+	import db from '#lib/data/db';
+	import { CloudBackupService } from '#lib/services/cloudBackupService';
+	import { BackupType } from '#lib/enums';
 
 	Notifier.init();
 	let backupSvc: CloudBackupService;

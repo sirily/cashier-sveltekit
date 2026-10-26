@@ -2,11 +2,11 @@
 	import { CalendarClockIcon, CalendarDaysIcon } from '@lucide/svelte';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
-	import type { Money, ScheduledTransaction, Xact } from '$lib/data/model';
+	import type { Money, ScheduledTransaction, Xact } from '#lib/data/model';
 	import { onMount } from 'svelte';
-	import db from '$lib/data/db';
-	import { XactAugmenter } from '$lib/utils/xactAugmenter';
-	import { formatAmount, getAmountColour, getDateColour, getReadableDate } from '$lib/utils/formatter';
+	import db from '#lib/data/db';
+	import { XactAugmenter } from '#lib/utils/xactAugmenter';
+	import { formatAmount, getAmountColour, getDateColour, getReadableDate } from '#lib/utils/formatter';
 
 	let scxs: ScheduledTransaction[] = $state([]);
 	let amounts: Money[] = $state([]);

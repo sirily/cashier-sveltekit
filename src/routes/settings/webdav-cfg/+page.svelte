@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import Notifier from '$lib/utils/notifier';
-	import { settings, SettingKeys } from '$lib/settings';
-	import { WebDavClient, type WebDavEntry } from '$lib/utils/webdav';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import Notifier from '#lib/utils/notifier';
+	import { settings, SettingKeys } from '#lib/settings';
+	import { WebDavClient, type WebDavEntry } from '#lib/utils/webdav';
 	import { ChevronRight, ChevronUp } from '@lucide/svelte';
 
 	let url = '';

@@ -2,12 +2,12 @@
 	import { onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import MultiCurrencyBalance from '$lib/components/MultiCurrencyBalance.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { SettingKeys, settings } from '$lib/settings';
-	import { formatAmount } from '$lib/utils/formatter';
-	import PillToggle from '$lib/components/PillToggle.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import MultiCurrencyBalance from '#lib/components/MultiCurrencyBalance.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { SettingKeys, settings } from '#lib/settings';
+	import { formatAmount } from '#lib/utils/formatter';
+	import PillToggle from '#lib/components/PillToggle.svelte';
 
 	interface AssetNode {
 		name: string;

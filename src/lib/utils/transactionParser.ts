@@ -2,7 +2,7 @@
  * Xact parser
  * Used for calculation of the empty postings
  */
-import { Posting, Xact } from '$lib/data/model';
+import { Posting, Xact } from '#lib/data/model';
 
 export class TransactionParser {
 	/**

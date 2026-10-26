@@ -2,18 +2,18 @@
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import appService from '$lib/services/appService';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import appService from '#lib/services/appService';
 	import { goto, replaceState } from '$app/navigation';
-	import { DefaultCurrencyStore, PendingSettingsStore } from '$lib/data/mainStore.js';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
+	import { DefaultCurrencyStore, PendingSettingsStore } from '#lib/data/mainStore.js';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import { BoxIcon, Check, FileBraces, NetworkIcon, RotateCcw } from '@lucide/svelte';
-	import Fab from '$lib/components/FAB.svelte';
+	import Fab from '#lib/components/FAB.svelte';
 	import { page } from '$app/state';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { USER_BOOK_FILENAME } from '$lib/constants';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { USER_BOOK_FILENAME } from '#lib/constants';
 
 	Notifier.init();
 

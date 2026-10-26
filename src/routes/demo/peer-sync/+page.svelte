@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { onMount, onDestroy } from 'svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import { PeerConnectionManager } from '$lib/webrtc/PeerConnectionManager';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import { PeerConnectionManager } from '#lib/webrtc/PeerConnectionManager';
 
 	// UI State
 	let myPeerId: string = '';

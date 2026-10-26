@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import type { UnifiedXact } from './+page.js';
-	import * as Formatter from '$lib/utils/formatter';
+	import * as Formatter from '#lib/utils/formatter';
 	import { ScaleIcon } from '@lucide/svelte';
-	import { xact, xactSpan } from '$lib/data/mainStore';
+	import { xact, xactSpan } from '#lib/data/mainStore';
 
 	const PAGE_SIZE = 30;
 	let visibleCount = $state(PAGE_SIZE);

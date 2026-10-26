@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import SquareButton from '$lib/components/SquareButton.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { ScheduledXact, xact, xactSpan } from '$lib/data/mainStore';
-	import { ScheduledTransaction, Xact } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { xactToBeancountText } from '$lib/utils/xactUtils';
-	import Notifier from '$lib/utils/notifier';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import SquareButton from '#lib/components/SquareButton.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { ScheduledXact, xact, xactSpan } from '#lib/data/mainStore';
+	import { ScheduledTransaction, Xact } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import Notifier from '#lib/utils/notifier';
 	import {
 		CalendarClockIcon,
 		CopyIcon,

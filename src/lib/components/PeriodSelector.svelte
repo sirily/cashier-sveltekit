@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
 	import moment from 'moment';
-	import { ISODATEFORMAT } from '$lib/constants';
+	import { ISODATEFORMAT } from '#lib/constants';
 
 	export interface Period {
 		label: string;

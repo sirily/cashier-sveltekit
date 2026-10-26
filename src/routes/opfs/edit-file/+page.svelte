@@ -2,10 +2,10 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { ArrowDownToLineIcon, SaveIcon, XIcon } from '@lucide/svelte';
-	import * as OpfsLib from '$lib/utils/opfslib.js';
-	import Notifier from '$lib/utils/notifier';
+	import * as OpfsLib from '#lib/utils/opfslib.js';
+	import Notifier from '#lib/utils/notifier';
 
 	Notifier.init();
 

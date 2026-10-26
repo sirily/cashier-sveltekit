@@ -9,7 +9,7 @@ const mockState = vi.hoisted(() => {
 
 vi.stubGlobal('fetch', mockState.fetch);
 
-vi.mock('$lib/utils/opfslib', () => ({
+vi.mock('#lib/utils/opfslib', () => ({
 	readFile: vi.fn(async (path: string) => mockState.opfsFiles.get(path)),
 	saveFile: vi.fn(async (path: string, content: string) => {
 		mockState.opfsFiles.set(path, content);
@@ -34,7 +34,7 @@ vi.mock('$lib/utils/opfslib', () => ({
 	})
 }));
 
-vi.mock('$lib/constants', () => ({
+vi.mock('#lib/constants', () => ({
 	CASHIER_XACT_FILE: 'cashier.bean'
 }));
 
@@ -43,8 +43,8 @@ import {
 	pushTransactions,
 	reconcileLocalJournal,
 	reconcileLocalJournalFromPaths
-} from '$lib/sync/manual-writeback';
-import type { PendingTransaction } from '$lib/sync/manual-writeback';
+} from '#lib/sync/manual-writeback';
+import type { PendingTransaction } from '#lib/sync/manual-writeback';
 
 let uuidSeqIndex = 0;
 
@@ -148,7 +148,7 @@ describe('prepareLocalTransactions', () => {
 			'2026-06-01 * "Supermarket" "Groceries"\n    cashier_id: "existing-uuid"\n    Expenses:Food  12.50 USD\n    Assets:Cash';
 		mockState.opfsFiles.set('cashier.bean', content);
 
-		const saveSpy = vi.spyOn(await import('$lib/utils/opfslib'), 'saveFile');
+		const saveSpy = vi.spyOn(await import('#lib/utils/opfslib'), 'saveFile');
 
 		await prepareLocalTransactions();
 		// saveFile should NOT have been called since content didn't change

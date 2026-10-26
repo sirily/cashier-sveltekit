@@ -2,10 +2,10 @@
     Account Transactions
 */
 
-import { Account, Money, type Xact } from '$lib/data/model.js';
-import ledgerService from '$lib/services/ledgerService.js';
-import fullLedgerService from '$lib/services/ledgerWorkerClient';
-import type { DirectiveSpan } from '$lib/rledger/sourceEditor';
+import { Account, Money, type Xact } from '#lib/data/model.js';
+import ledgerService from '#lib/services/ledgerService.js';
+import fullLedgerService from '#lib/services/ledgerWorkerClient';
+import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 
 export type UnifiedXact = {
 	date: string;

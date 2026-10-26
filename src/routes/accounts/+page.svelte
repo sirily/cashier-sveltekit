@@ -1,13 +1,13 @@
 <script lang="ts">
-	import SearchToolbar from '$lib/components/SearchToolbar.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { selectionMetadata } from '$lib/data/mainStore';
-	import { ListSearch } from '$lib/utils/ListSearch';
+	import SearchToolbar from '#lib/components/SearchToolbar.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { selectionMetadata } from '#lib/data/mainStore';
+	import { ListSearch } from '#lib/utils/ListSearch';
 	import { onMount } from 'svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import type { Account } from '$lib/data/model';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import type { Account } from '#lib/data/model';
 	import { goto } from '$app/navigation';
-	import CashierDAL from '$lib/data/dbdal';
+	import CashierDAL from '#lib/data/dbdal';
 
 	let searchTerm = $state('');
 	let isInSelectionMode = $derived($selectionMetadata !== undefined);

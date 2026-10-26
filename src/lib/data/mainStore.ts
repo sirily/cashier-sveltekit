@@ -3,9 +3,9 @@
  */
 import { writable, type Writable } from 'svelte/store';
 import { ScheduledTransaction, Xact } from './model';
-import type { SelectionModeMetadata } from '$lib/settings';
-import type { AssetClass, StockCache } from '$lib/assetAllocation/AssetClass';
-import type { DirectiveSpan } from '$lib/rledger/sourceEditor';
+import type { SelectionModeMetadata } from '#lib/settings';
+import type { AssetClass, StockCache } from '#lib/assetAllocation/AssetClass';
+import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 
 interface MainStore {
 	name: string;

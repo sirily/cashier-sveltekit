@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { AssetAllocationEngine } from '$lib/assetAllocation/AssetAllocation.js';
-	import { buildChildrenIndex } from '$lib/assetAllocation/assetAllocationUtils.js';
-	import { validate } from '$lib/assetAllocation/assetAllocationValidation.js';
-	import { AssetClass } from '$lib/assetAllocation/AssetClass.js';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import AssetClassRow from '$lib/components/AssetClassRow.svelte';
-	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '$lib/data/mainStore.js';
-	import Notifier from '$lib/utils/notifier.js';
+	import { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation.js';
+	import { buildChildrenIndex } from '#lib/assetAllocation/assetAllocationUtils.js';
+	import { validate } from '#lib/assetAllocation/assetAllocationValidation.js';
+	import { AssetClass } from '#lib/assetAllocation/AssetClass.js';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import AssetClassRow from '#lib/components/AssetClassRow.svelte';
+	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
+	import Notifier from '#lib/utils/notifier.js';
 	import { RefreshCwIcon, FileDownIcon, ScaleIcon } from '@lucide/svelte';
 
 	Notifier.init();

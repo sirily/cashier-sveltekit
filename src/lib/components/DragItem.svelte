@@ -10,7 +10,7 @@
 	 */
 	const { duration = 400, index, set_drag_element, todo_list, type } = $props();
 
-	import Dragable from '$lib/components/Dragable.svelte';
+	import Dragable from '#lib/components/Dragable.svelte';
 
 	const is_dragging = $derived(
 		todo_list.$is_dragging && todo_list.$start_index === index && todo_list.$drag_type === type

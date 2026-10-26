@@ -21,15 +21,15 @@
 	// office.Composite6
 	// @ts-ignore
 	import { Composite6 } from 'hw-chartjs-plugin-colorschemes/src/colorschemes/colorschemes.office';
-	import { getShortAccountName } from '$lib/services/accountsService';
-	import db from '$lib/data/db';
-	import { type ScheduledTransaction, type Xact } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import { getShortAccountName } from '#lib/services/accountsService';
+	import db from '#lib/data/db';
+	import { type ScheduledTransaction, type Xact } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import moment from 'moment';
-	import { XactAugmenter } from '$lib/utils/xactAugmenter';
-	import { ISODATEFORMAT } from '$lib/constants';
-	import Notifier from '$lib/utils/notifier';
+	import { XactAugmenter } from '#lib/utils/xactAugmenter';
+	import { ISODATEFORMAT } from '#lib/constants';
+	import Notifier from '#lib/utils/notifier';
 
 	interface Props {
 		daysCount: number;

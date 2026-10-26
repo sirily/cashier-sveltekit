@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { selectionMetadata } from '$lib/data/mainStore';
-	import { Account, Money } from '$lib/data/model';
-	import { SelectionType } from '$lib/enums';
-	import appService from '$lib/services/appService';
-	import { SelectionModeMetadata, SettingKeys, settings } from '$lib/settings';
-	import AccountRow from '$lib/components/AccountRow.svelte';
-	import Notifier from '$lib/utils/notifier';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { selectionMetadata } from '#lib/data/mainStore';
+	import { Account, Money } from '#lib/data/model';
+	import { SelectionType } from '#lib/enums';
+	import appService from '#lib/services/appService';
+	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
+	import AccountRow from '#lib/components/AccountRow.svelte';
+	import Notifier from '#lib/utils/notifier';
 	import { ArrowUpDownIcon, PlusCircleIcon, PlusIcon, Trash2Icon, TrashIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	Notifier.init();
 

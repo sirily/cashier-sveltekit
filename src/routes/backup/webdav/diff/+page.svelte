@@ -1,11 +1,11 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { page } from '$app/state';
-    import Toolbar from '$lib/components/Toolbar.svelte';
-    import { settings, SettingKeys } from '$lib/settings';
-    import { filterBackupSettings } from '$lib/services/backupSettings';
-    import { readFile } from '$lib/utils/opfslib';
-    import { WebDavClient } from '$lib/utils/webdav';
+    import Toolbar from '#lib/components/Toolbar.svelte';
+    import { settings, SettingKeys } from '#lib/settings';
+    import { filterBackupSettings } from '#lib/services/backupSettings';
+    import { readFile } from '#lib/utils/opfslib';
+    import { WebDavClient } from '#lib/utils/webdav';
     import { diffLines } from 'diff';
 
     type DiffLine = { type: 'added' | 'removed' | 'context'; content: string };

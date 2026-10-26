@@ -1,13 +1,13 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import Toolbar from '$lib/components/Toolbar.svelte';
-    import { settings, SettingKeys } from '$lib/settings';
-    import { Setting } from '$lib/data/model';
-    import { filterBackupSettings } from '$lib/services/backupSettings';
-    import { restoreSettings } from '$lib/services/backupService';
-    import { readFile, saveFile } from '$lib/utils/opfslib';
-    import Notifier from '$lib/utils/notifier';
-    import { WebDavClient } from '$lib/utils/webdav';
+    import Toolbar from '#lib/components/Toolbar.svelte';
+    import { settings, SettingKeys } from '#lib/settings';
+    import { Setting } from '#lib/data/model';
+    import { filterBackupSettings } from '#lib/services/backupSettings';
+    import { restoreSettings } from '#lib/services/backupService';
+    import { readFile, saveFile } from '#lib/utils/opfslib';
+    import Notifier from '#lib/utils/notifier';
+    import { WebDavClient } from '#lib/utils/webdav';
     import { SettingsIcon, RefreshCwIcon, GitCompareArrowsIcon, EyeIcon } from '@lucide/svelte';
     import { goto } from '$app/navigation';
 

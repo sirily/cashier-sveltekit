@@ -2,14 +2,14 @@
 	import { FileUpIcon, ScrollIcon, TriangleAlertIcon } from '@lucide/svelte';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
-	import { Money, Posting, Xact } from '$lib/data/model';
-	import { XactAugmenter } from '$lib/utils/xactAugmenter';
-	import Notifier from '$lib/utils/notifier';
-	import { formatAmount, getReadableDate, getXactAmountColour } from '$lib/utils/formatter';
-	import { ensureInitialized, createParsedLedger } from '$lib/services/rustledger';
-	import { readFile } from '$lib/utils/opfslib';
-	import { CASHIER_XACT_FILE } from '$lib/constants';
-	import ledgerService from '$lib/services/ledgerService';
+	import { Money, Posting, Xact } from '#lib/data/model';
+	import { XactAugmenter } from '#lib/utils/xactAugmenter';
+	import Notifier from '#lib/utils/notifier';
+	import { formatAmount, getReadableDate, getXactAmountColour } from '#lib/utils/formatter';
+	import { ensureInitialized, createParsedLedger } from '#lib/services/rustledger';
+	import { readFile } from '#lib/utils/opfslib';
+	import { CASHIER_XACT_FILE } from '#lib/constants';
+	import ledgerService from '#lib/services/ledgerService';
 
 	Notifier.init();
 

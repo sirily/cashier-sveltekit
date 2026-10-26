@@ -3,43 +3,29 @@
 	import '../app.css';
 	// libs
 	import { useSwipe, type SwipeCustomEvent } from 'svelte-gestures';
-	// import Navigation from '$lib/components/navigation.svelte';
+	// import Navigation from '#lib/components/navigation.svelte';
 	// PWA
-	import { pwaInfo } from 'virtual:pwa-info';
-	import { pwaAssetsHead } from 'virtual:pwa-assets/head';
+
 	import { onMount } from 'svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { drawerState } from '$lib/data/mainStore';
-	import NavigationV3 from '$lib/components/navigation.svelte';
-	import Notifier from '$lib/utils/notifier';
-	import { ensureInitialized } from '$lib/data/initializer';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { drawerState } from '#lib/data/mainStore';
+	import NavigationV3 from '#lib/components/navigation.svelte';
+	import Notifier from '#lib/utils/notifier';
+	import ReloadPrompt from '#lib/components/ReloadPrompt.svelte';
+	import { ensureInitialized } from '#lib/data/initializer';
 
 	let { children } = $props();
 
 	onMount(async () => {
+		void import('#lib/services/pwaUpdate.svelte')
+			.then(({ initPwa }) => initPwa())
+			.catch((error) => console.error('PWA initialization failed:', error));
+
 		// Initialize the Ledger service.
 		const initialized = await initializeApp();
 		if (!initialized) {
 			Notifier.error('Failed to initialize the engine.');
 			return;
-		}
-
-		if (pwaInfo) {
-			const { useRegisterSW } = await import('virtual:pwa-register/svelte');
-			useRegisterSW({
-				immediate: true,
-				onRegistered(r: any) {
-					// uncomment following code if you want check for updates
-					// r && setInterval(() => {
-					//    console.log('Checking for sw update')
-					//    r.update()
-					// }, 20000 /* 20s for testing purposes */)
-					console.log(`SW Registered: ${r}`);
-				},
-				onRegisterError(error: any) {
-					console.log('SW registration error', error);
-				}
-			});
 		}
 	});
 
@@ -79,9 +65,6 @@
 
 	<!-- PWA -->
 	<base href="/" />
-	{#each pwaAssetsHead.links as link (link)}
-		<link {...link} />
-	{/each}
 </svelte:head>
 
 <div class="drawer">
@@ -119,6 +102,4 @@
 	</div>
 </div>
 
-{#await import('$lib/components/ReloadPrompt.svelte') then { default: ReloadPrompt }}
-	<ReloadPrompt />
-{/await}
+<ReloadPrompt />

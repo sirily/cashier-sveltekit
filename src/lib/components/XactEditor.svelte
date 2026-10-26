@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { selectionMetadata, xact } from '$lib/data/mainStore';
+	import { selectionMetadata, xact } from '#lib/data/mainStore';
 	import { onMount } from 'svelte';
 	import PostingEditor from './PostingEditor.svelte';
 	import { goto } from '$app/navigation';
-	import Notifier from '$lib/utils/notifier';
-	import appService from '$lib/services/appService';
-	import { getAccountBalance, loadAccount } from '$lib/services/accountsService';
-	import { SelectionModeMetadata, SettingKeys, settings } from '$lib/settings';
-	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '$lib/utils/xactUtils';
-	import { Posting, type Xact } from '$lib/data/model';
+	import Notifier from '#lib/utils/notifier';
+	import appService from '#lib/services/appService';
+	import { getAccountBalance, loadAccount } from '#lib/services/accountsService';
+	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
+	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '#lib/utils/xactUtils';
+	import { Posting, type Xact } from '#lib/data/model';
 	import {
 		ArrowUpDownIcon,
 		SigmaIcon,

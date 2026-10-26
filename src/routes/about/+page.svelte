@@ -1,26 +1,29 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { useRegisterSW } from 'virtual:pwa-register/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import {
+		checkForUpdate,
+		getInstalledBuildTimestamp,
+		needRefresh,
+		updateApp,
+		type UpdateCheckResult
+	} from '#lib/services/pwaUpdate.svelte';
 	import { RefreshCw } from '@lucide/svelte';
 
-	let checking = false;
-	let updateChecked = false;
-	let registration: ServiceWorkerRegistration | undefined;
+	let checking = $state(false);
+	let updateResult = $state<UpdateCheckResult | undefined>(undefined);
+	let installedBuild = $state<string | undefined>(undefined);
 
-	const { needRefresh, updateServiceWorker } = useRegisterSW({
-		onRegistered(r) {
-			registration = r;
-		}
+	$effect(() => {
+		void getInstalledBuildTimestamp().then((timestamp) => (installedBuild = timestamp));
 	});
 
 	async function checkForUpdates() {
 		checking = true;
-		updateChecked = false;
+		updateResult = undefined;
 		try {
-			await registration?.update();
+			updateResult = await checkForUpdate();
 		} finally {
 			checking = false;
-			updateChecked = true;
 		}
 	}
 </script>
@@ -32,14 +35,15 @@
 		<h1 class="text-5xl font-bold">Cashier Svelte</h1>
 		<p>
 			Cashier Svelte is a version of
-			<a class="link link-primary" href="https://cashier.alensiljak.eu.org">Cashier</a>,
-			built with Svelte.
+			<a class="link link-primary" href="https://cashier.alensiljak.eu.org">Cashier</a>, built with
+			Svelte.
 		</p>
 
 		<p>
 			Cashier is a pocket helper for Plain-Text Accounting (PTA) systems, like Ledger CLI, Hledger,
 			or Beancount. More on PTA at
-			<a class="link link-primary" href="https://plaintextaccounting.org/">Plain Text Accounting</a>.
+			<a class="link link-primary" href="https://plaintextaccounting.org/">Plain Text Accounting</a
+			>.
 		</p>
 
 		<p>
@@ -50,8 +54,8 @@
 		</p>
 
 		<p>
-			Cashier can also read your whole Beancount ledger. Use Ledger Import function to copy
-			and regularly update your ledger data. Eventually export the Journal transactions created on your
+			Cashier can also read your whole Beancount ledger. Use Ledger Import function to copy and
+			regularly update your ledger data. Eventually export the Journal transactions created on your
 			device and store them into your ledger files.
 		</p>
 
@@ -63,20 +67,27 @@
 
 		<h3 class="text-3xl font-semibold">Version</h3>
 		<p>
-			Build: <code>{__BUILD_TIMESTAMP__}</code>
+			Build: <code>{installedBuild ?? __BUILD_TIMESTAMP__}</code>
 		</p>
 		<p>
-			<button class="link link-primary inline-flex items-center gap-1" onclick={checkForUpdates} disabled={checking}>
+			<button
+				class="link link-primary inline-flex items-center gap-1"
+				onclick={checkForUpdates}
+				disabled={checking}
+			>
 				<RefreshCw size={14} class={checking ? 'animate-spin' : ''} />
 				{checking ? 'Checking…' : 'Check for updates'}
 			</button>
 		</p>
-		{#if updateChecked && !$needRefresh}
+		{#if updateResult === 'latest' && !needRefresh.value}
 			<p>You are on the latest version.</p>
-		{/if}
-		{#if $needRefresh}
+		{:else if updateResult === 'available' || needRefresh.value}
 			<p>A new version is available.</p>
-			<button class="btn btn-sm btn-primary" onclick={() => updateServiceWorker(true)}>Update</button>
+			<button class="btn btn-sm btn-primary" onclick={updateApp}>Update</button>
+		{:else if updateResult === 'unavailable'}
+			<p>Update checking is unavailable.</p>
+		{:else if updateResult === 'error'}
+			<p>Could not check for updates.</p>
 		{/if}
 
 		<h3 class="text-3xl font-semibold">Experiments</h3>

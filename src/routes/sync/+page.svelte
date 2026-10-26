@@ -1,16 +1,16 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import * as SyncBeancount from '$lib/sync/sync-beancount';
-	import { LedgerDataSource } from '$lib/enums';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import * as SyncBeancount from '#lib/sync/sync-beancount';
+	import { LedgerDataSource } from '#lib/enums';
 	import { goto } from '$app/navigation';
-	import * as cashierFsSync from '$lib/sync/sync-fs';
-	import ledgerService from '$lib/services/ledgerService';
-	import { syncProgress } from '$lib/stores/syncProgressStore';
+	import * as cashierFsSync from '#lib/sync/sync-fs';
+	import ledgerService from '#lib/services/ledgerService';
+	import { syncProgress } from '#lib/stores/syncProgressStore';
 
 	Notifier.init();
 	const PENDING_SYNC_SOURCE_STORAGE_KEY = 'cashier.pendingSyncDataSource';

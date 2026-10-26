@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import db from '$lib/data/db';
-	import type { ScheduledTransaction } from '$lib/data/model';
-	import appService from '$lib/services/appService';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import db from '#lib/data/db';
+	import type { ScheduledTransaction } from '#lib/data/model';
+	import appService from '#lib/services/appService';
 	import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 

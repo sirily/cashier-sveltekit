@@ -1,11 +1,11 @@
 <script lang="ts">
 	// For complex expressions with parentheses, we'll use a more sophisticated approach
-	import Fab from '$lib/components/FAB.svelte';
+	import Fab from '#lib/components/FAB.svelte';
 	import { Check } from '@lucide/svelte';
-	import { selectionMetadata, xact } from '$lib/data/mainStore';
+	import { selectionMetadata, xact } from '#lib/data/mainStore';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import Notifier from '$lib/utils/notifier';
+	import Notifier from '#lib/utils/notifier';
 
 	let isInSelectionMode = $state(false);
 	let displayValue = $state('0');

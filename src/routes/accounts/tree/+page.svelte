@@ -2,10 +2,10 @@
 	import { onMount } from 'svelte';
 	import { ChevronDown, ChevronRight } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import MultiCurrencyBalance from '$lib/components/MultiCurrencyBalance.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import appService from '$lib/services/appService';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import MultiCurrencyBalance from '#lib/components/MultiCurrencyBalance.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import appService from '#lib/services/appService';
 
 	interface TreeNode {
 		name: string;

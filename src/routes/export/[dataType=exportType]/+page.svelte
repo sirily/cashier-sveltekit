@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import appService from '$lib/services/appService';
-	import { getFilenameForBackup } from '$lib/services/cloudBackupService';
-	import Notifier from '$lib/utils/notifier';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import appService from '#lib/services/appService';
+	import { getFilenameForBackup } from '#lib/services/cloudBackupService';
+	import Notifier from '#lib/utils/notifier';
 	import { ArrowDownNarrowWideIcon, CopyIcon, FileDownIcon, Share2Icon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import { CASHIER_XACT_FILE } from '$lib/constants';
+	import { CASHIER_XACT_FILE } from '#lib/constants';
 
 	Notifier.init();
 

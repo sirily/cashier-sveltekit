@@ -1,25 +1,25 @@
 <script lang="ts">
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { Check, ShieldCheck } from '@lucide/svelte';
-	import { xact, xactSpan } from '$lib/data/mainStore';
+	import { xact, xactSpan } from '#lib/data/mainStore';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import { afterNavigate, goto } from '$app/navigation';
-	import Notifier from '$lib/utils/notifier';
-	import { SettingKeys, settings } from '$lib/settings';
-	import appService from '$lib/services/appService';
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { xactToBeancountText } from '$lib/utils/xactUtils';
-	import { base } from '$app/paths';
-	import TransactionEditor from '$lib/components/XactEditor.svelte';
-	import type { Xact } from '$lib/data/model';
+	import Notifier from '#lib/utils/notifier';
+	import { SettingKeys, settings } from '#lib/settings';
+	import appService from '#lib/services/appService';
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import { resolve } from '$app/paths';
+	import TransactionEditor from '#lib/components/XactEditor.svelte';
+	import type { Xact } from '#lib/data/model';
 
 	Notifier.init();
 
-	let previousPage: string = base;
+	let previousPage: string = resolve('/');
 
 	interface ValidationIssue {
 		kind: 'error' | 'warning';

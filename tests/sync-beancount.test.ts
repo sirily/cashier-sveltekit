@@ -26,11 +26,11 @@ const mockState = vi.hoisted(() => {
 	};
 });
 
-vi.mock('$lib/utils/notifier', () => ({
+vi.mock('#lib/utils/notifier', () => ({
 	default: mockState.notifier
 }));
 
-vi.mock('$lib/settings', () => ({
+vi.mock('#lib/settings', () => ({
 	SettingKeys: {
 		syncServerUrl: 'syncServerUrl',
 		syncBeancountRootFile: 'syncBeancountRootFile',
@@ -48,7 +48,7 @@ vi.mock('$lib/settings', () => ({
 	}
 }));
 
-vi.mock('$lib/utils/opfslib', () => ({
+vi.mock('#lib/utils/opfslib', () => ({
 	readFile: vi.fn(async (path: string) => mockState.opfsFiles.get(path)),
 	saveFile: vi.fn(async (path: string, content: string) => {
 		mockState.opfsFiles.set(path, content);
@@ -67,7 +67,7 @@ vi.mock('$lib/utils/opfslib', () => ({
 	})
 }));
 
-vi.mock('$lib/services/ledgerWorkerClient', () => ({
+vi.mock('#lib/services/ledgerWorkerClient', () => ({
 	default: {
 		deleteCache: mockState.deleteCache,
 		invalidate: mockState.invalidate,
@@ -75,7 +75,7 @@ vi.mock('$lib/services/ledgerWorkerClient', () => ({
 	}
 }));
 
-vi.mock('$lib/services/rustledger', () => ({
+vi.mock('#lib/services/rustledger', () => ({
 	ensureInitialized: vi.fn(async () => {}),
 	createLedger: vi.fn((files: Record<string, string>, entryPoint: string) => {
 		mockState.createdLedgers.push({ files, entryPoint });
@@ -86,7 +86,7 @@ vi.mock('$lib/services/rustledger', () => ({
 	})
 }));
 
-vi.mock('$lib/sync/sync-common', () => ({
+vi.mock('#lib/sync/sync-common', () => ({
 	syncAccounts: mockState.syncAccounts,
 	syncPayees: mockState.syncPayees,
 	syncCurrentValues: vi.fn(async () => {
@@ -94,9 +94,9 @@ vi.mock('$lib/sync/sync-common', () => ({
 	})
 }));
 
-vi.mock('$lib/sync/manual-writeback', async () => {
-	const actual = await vi.importActual<typeof import('$lib/sync/manual-writeback')>(
-		'$lib/sync/manual-writeback'
+vi.mock('#lib/sync/manual-writeback', async () => {
+	const actual = await vi.importActual<typeof import('#lib/sync/manual-writeback')>(
+		'#lib/sync/manual-writeback'
 	);
 	return {
 		...actual,
@@ -104,17 +104,17 @@ vi.mock('$lib/sync/manual-writeback', async () => {
 	};
 });
 
-import * as opfs from '$lib/utils/opfslib';
-import * as manualWriteback from '$lib/sync/manual-writeback';
-import { SettingKeys, settings } from '$lib/settings';
+import * as opfs from '#lib/utils/opfslib';
+import * as manualWriteback from '#lib/sync/manual-writeback';
+import { SettingKeys, settings } from '#lib/settings';
 import { get } from 'svelte/store';
-import { syncProgress } from '$lib/stores/syncProgressStore';
+import { syncProgress } from '#lib/stores/syncProgressStore';
 import {
 	CashierSyncBeancount,
 	__test__,
 	getLastDiagnostics,
 	synchronize
-} from '$lib/sync/sync-beancount';
+} from '#lib/sync/sync-beancount';
 
 describe('Beancount sync path helpers', () => {
 	test('normalizes infrastructure paths and rejects traversal above root', () => {

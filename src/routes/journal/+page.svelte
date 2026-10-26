@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { Xact } from '$lib/data/model';
-	import { xact, xactSpan } from '$lib/data/mainStore';
-	import ledgerService from '$lib/services/ledgerService';
-	import type { DirectiveSpan } from '$lib/rledger/sourceEditor';
-	import Notifier from '$lib/utils/notifier';
+	import Fab from '#lib/components/FAB.svelte';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { Xact } from '#lib/data/model';
+	import { xact, xactSpan } from '#lib/data/mainStore';
+	import ledgerService from '#lib/services/ledgerService';
+	import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
+	import Notifier from '#lib/utils/notifier';
 	import { FileDownIcon, ImportIcon, PlusIcon, TrashIcon } from '@lucide/svelte';
-	import appService from '$lib/services/appService';
+	import appService from '#lib/services/appService';
 
 	Notifier.init();
 
