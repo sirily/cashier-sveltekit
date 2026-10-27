@@ -184,7 +184,7 @@
 			<table class="table table-sm table-zebra w-full">
 				<thead>
 					<tr>
-						{#each columns as col (col)}
+						{#each columns as col, i (i)}
 							<th>{col}</th>
 						{/each}
 					</tr>
@@ -192,7 +192,7 @@
 				<tbody>
 					{#each rows as row, rowIndex (rowIndex)}
 						<tr>
-							{#each columns as _col, i (_col)}
+							{#each columns as _col, i (i)}
 								<td class="font-mono text-xs whitespace-pre-wrap">{formatCell(row[i])}</td>
 							{/each}
 						</tr>

@@ -133,8 +133,15 @@ function planFinal(env = process.env, runner = run, readVersion = packageVersion
 		env
 	);
 }
-function missingManifest(error) {
-	return /manifest unknown|no such manifest|name unknown|404 Not Found/i.test(error.message);
+function missingManifest(error, ref) {
+	const message = error.message
+		.trim()
+		.replace(/^docker buildx failed:\s*/, '')
+		.replace(/^ERROR:\s*/, '');
+	return (
+		/^(?:manifest unknown|no such manifest|name unknown)$/i.test(message) ||
+		message === `${ref}: not found`
+	);
 }
 function inspect(image, tag, runner = run) {
 	const ref = `${image}:${tag}`;
@@ -142,7 +149,7 @@ function inspect(image, tag, runner = run) {
 	try {
 		first = runner('docker', ['buildx', 'imagetools', 'inspect', ref]);
 	} catch (error) {
-		if (missingManifest(error)) return null;
+		if (missingManifest(error, ref)) return null;
 		throw error;
 	}
 	const digest = first.match(/^Digest:\s*(sha256:[a-f0-9]{64})/m)?.[1];
