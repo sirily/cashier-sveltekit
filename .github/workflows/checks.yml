@@ -58,32 +58,44 @@ jobs:
         run: node --test scripts/*-tests.mjs
 
       - name: Install dependencies
+        id: install
+        if: ${{ !cancelled() }}
         run: npm ci
 
       - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run lint
 
       - name: Svelte template lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run lint:svelte
 
       - name: Validate OpenSpec
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check:specs
         env:
           OPENSPEC_TELEMETRY: '0'
 
       - name: Type check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run check
 
       - name: Unit tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:unit -- --run
 
       - name: Production build
-        run: npm run build
+        id: build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:build
 
       - name: Install Chromium
+        id: chromium
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npx playwright install chromium --with-deps
 
       - name: Browser tests
+        if: ${{ !cancelled() && steps.chromium.outcome == 'success' }}
         run: npm run test:e2e
 
       - name: Upload failed browser test reports
@@ -96,3 +108,7 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+  dependency-audit:
+    name: Dependency audit
+    uses: ./.github/workflows/audit.yml

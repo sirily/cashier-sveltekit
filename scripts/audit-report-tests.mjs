@@ -1,5 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { renderSummary, runAudit, summarizeAudit } from './audit-report.mjs';
 
 function result({
@@ -72,7 +77,7 @@ test('renders detailed direct and transitive findings for CI logs', () => {
 	);
 	assert.match(rendered, /transitive — moderate/);
 	assert.match(rendered, /Fix available: no fix reported/);
-	assert.match(rendered, /report-only and do not fail this job/);
+	assert.match(rendered, /Findings fail this job/);
 });
 
 test('preserves percent characters in advisory text and handles null fixes', () => {
@@ -127,6 +132,58 @@ test('fails closed for command errors, unexpected exit status, invalid JSON, mis
 		/do not match metadata counts/
 	);
 });
+
+test('the CLI fails with details for findings of every severity', () => {
+	const findings = Object.fromEntries(
+		['critical', 'high', 'moderate', 'low', 'info'].map((severity) => [
+			severity,
+			{ severity, isDirect: true, via: [{ title: `${severity} advisory` }] }
+		])
+	);
+	const execution = runCli({
+		status: 1,
+		metadata: Object.fromEntries(Object.keys(findings).map((key) => [key, 1])),
+		vulnerabilities: findings
+	});
+	assert.equal(execution.status, 1);
+	for (const severity of Object.keys(findings))
+		assert.match(execution.stdout, new RegExp(`${severity} — ${severity}`));
+	assert.match(execution.stdout, /::error::/);
+});
+
+test('the CLI fails when npm exits 1 despite zero metadata findings', () => {
+	const execution = runCli({ status: 1 });
+	assert.equal(execution.status, 1);
+	assert.match(execution.stdout, /::error::/);
+});
+
+test('the CLI succeeds on a consistent clean audit', () => {
+	const execution = runCli({ status: 0 });
+	assert.equal(execution.status, 0);
+	assert.doesNotMatch(execution.stdout, /::error::/);
+});
+
+function runCli({ status, metadata = {}, vulnerabilities = {} }) {
+	const directory = mkdtempSync(join(tmpdir(), 'audit-cli-'));
+	try {
+		const bin = join(directory, 'bin');
+		mkdirSync(bin);
+		const output = JSON.stringify({ metadata: { vulnerabilities: metadata }, vulnerabilities });
+		const fakeNpm = join(bin, 'npm');
+		writeFileSync(fakeNpm, `#!/bin/sh\nprintf '%s\\n' '${output}'\nexit ${status}\n`);
+		chmodSync(fakeNpm, 0o755);
+		return spawnSync(
+			process.execPath,
+			[fileURLToPath(new URL('./audit-report.mjs', import.meta.url))],
+			{
+				encoding: 'utf8',
+				env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` }
+			}
+		);
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
+}
 
 test('invokes npm audit using the lockfile only and the public registry', () => {
 	let call;

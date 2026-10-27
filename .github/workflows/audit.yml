@@ -1,10 +1,7 @@
 name: Dependency audit
 
 on:
-  pull_request:
-    branches:
-      - main
-      - 'releases/**'
+  workflow_call:
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:
@@ -14,7 +11,7 @@ permissions:
 
 jobs:
   audit:
-    name: Dependency audit (report-only)
+    name: Dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

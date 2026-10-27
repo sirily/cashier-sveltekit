@@ -24,15 +24,6 @@ export default [
 	...svelte.configs['flat/recommended'],
 	{
 		files: ['src/**/*.svelte'],
-		// Existing findings pending cleanup; keep them visible without blocking adoption.
-		rules: {
-			'svelte/no-navigation-without-resolve': 'warn',
-			'svelte/require-each-key': 'warn',
-			'svelte/prefer-svelte-reactivity': 'warn',
-			'svelte/no-dom-manipulating': 'warn',
-			'svelte/no-dupe-style-properties': 'warn',
-			'svelte/no-unused-svelte-ignore': 'warn'
-		},
 		plugins: {
 			'@typescript-eslint': tseslintPlugin
 		},

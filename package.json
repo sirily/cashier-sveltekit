@@ -14,13 +14,14 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
+		"check:build": "node scripts/check-build.mjs",
 		"preview": "vite preview",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:unit": "vitest",
 		"test:e2e": "playwright test",
-		"lint": "oxfmt --check && oxlint .",
-		"lint:svelte": "eslint \"src/**/*.svelte\"",
+		"lint": "oxfmt --check && oxlint --deny-warnings .",
+		"lint:svelte": "eslint \"src/**/*.svelte\" --max-warnings=0",
 		"check:specs": "openspec validate --all --strict --no-interactive",
 		"format": "oxfmt"
 	},

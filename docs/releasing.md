@@ -51,7 +51,7 @@ The release process verifies that the version in `releases/X.Y.Z` matches `packa
 4. A retry of the same run uses the same tag and must reuse an existing validated image rather than move it. Start a new run for a new RC number.
 5. Any further push produces another RC. No manual candidate-preparation command, special freeze state, or additional approval is needed to continue development.
 
-Required checks cover workflow syntax (Actionlint), formatting and JS/TS linting, Svelte template linting, strict OpenSpec validation, types, unit tests, a production build, and relevant browser tests. Run expensive checks in CI; do not claim they passed from documentation validation. RC images are available in GHCR. This release process does not require a test URL or test deployment. The owner decides where and how to inspect a build.
+Required checks cover workflow syntax (Actionlint), formatting and JS/TS linting, Svelte template linting, strict OpenSpec validation, types, unit tests, a production build, dependency auditing, and relevant browser tests. Independent checks run when prerequisites succeed; each failed check remains a blocking failure while later checks continue. Lint warnings, Svelte-check warnings, build warnings, and unexpected unit-test `console.warn` or `console.error` calls are failures. The build warning gate uses Vite's logger and `console.warn`, preserving diagnostic output. Run expensive checks in CI; do not claim they passed from documentation validation. RC images are available in GHCR. This release process does not require a test URL or test deployment. The owner decides where and how to inspect a build.
 
 #### 2. Merge to approve
 
@@ -79,7 +79,7 @@ The implementation of this policy must enforce, rather than delegate to an agent
 - Protection against rewriting final Git tags and published versioned image tags.
 - Safe retries and serialized production updates so a late job cannot replace a newer `latest`.
 
-Dependency auditing is an independent report, not a release approval gate. It includes development/build dependencies; known vulnerabilities appear as warnings with detailed findings in the CI logs. Audit infrastructure failures remain failures and must not be presented as a clean scan. Existing Svelte rule groups configured as warnings remain visible; other lint errors block required checks. Mocked API browser tests verify client behavior, not the server's own validation or deduplication.
+Dependency auditing includes development/build dependencies; findings of any severity fail the audit job and are detailed in the CI logs. Audit infrastructure failures also fail and must not be presented as a clean scan. Mocked API browser tests verify client behavior, not the server's own validation or deduplication.
 
 The workflows require the repository's `GITHUB_TOKEN` to have `contents: write` for Git tag creation and `packages: write` for GHCR publication. Branch protection and token settings are separate from workflow code. Required checks and permissions must be configured and verified by the owner. An optional retry can use the existing workflow run in GitHub's UI. The release script tests can be run with `node --test scripts/release-tests.mjs`.
 
