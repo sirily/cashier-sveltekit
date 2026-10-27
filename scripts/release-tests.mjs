@@ -261,12 +261,14 @@ test('image inspection fetches and validates immutable digest metadata', () => {
 });
 test('image status distinguishes missing manifests from authorization failures', () => {
 	const input = { image, tag: version, sha: commit, version, repo };
-	assert.deepEqual(
-		checkImage(input, () => {
-			throw Error('manifest unknown');
-		}),
-		{ exists: false }
-	);
+	for (const message of ['manifest unknown', 'no such manifest', 'name unknown']) {
+		assert.deepEqual(
+			checkImage(input, () => {
+				throw Error(message);
+			}),
+			{ exists: false }
+		);
+	}
 	assert.throws(
 		() =>
 			checkImage(input, () => {
@@ -274,6 +276,116 @@ test('image status distinguishes missing manifests from authorization failures',
 			}),
 		/unauthorized/
 	);
+});
+test('image inspection recognizes the exact Buildx CI missing-image error', () => {
+	const calls = [];
+	assert.deepEqual(
+		checkImage(
+			{
+				image: 'ghcr.io/sirily/cashier-sveltekit',
+				tag: '1.1.0-rc.85',
+				sha: commit,
+				version: '1.1.0-rc.85',
+				repo: 'sirily/cashier-sveltekit'
+			},
+			(command, args) => {
+				calls.push([command, args]);
+				throw Error(
+					'docker buildx failed: ERROR: ghcr.io/sirily/cashier-sveltekit:1.1.0-rc.85: not found'
+				);
+			}
+		),
+		{ exists: false }
+	);
+	assert.deepEqual(calls, [
+		['docker', ['buildx', 'imagetools', 'inspect', 'ghcr.io/sirily/cashier-sveltekit:1.1.0-rc.85']]
+	]);
+});
+for (const tag of [`${version}-rc.85`, version]) {
+	test(`image status reports exists=false for a missing new image ${tag}`, () => {
+		const { runner, calls } = makeRunner();
+		const result = withOutput(() =>
+			assert.deepEqual(
+				imageStatus({ ...baseEnv, RELEASE_TAG: tag }, (command, args) => {
+					if (command === 'docker') {
+						assert.deepEqual(args, ['buildx', 'imagetools', 'inspect', `${image}:${tag}`]);
+						throw Error(`docker buildx failed: ERROR: ${image}:${tag}: not found`);
+					}
+					return runner(command, args);
+				}),
+				{ exists: false }
+			)
+		);
+		assert.equal(result, 'exists=false\n');
+		assert.ok(calls.every(([command]) => command === 'gh'));
+	});
+}
+test('Buildx missing final image still blocks an existing final Git tag', () => {
+	const { runner } = makeRunner({ tags: [version] });
+	assert.equal(
+		withOutput(() =>
+			assert.throws(
+				() =>
+					imageStatus(baseEnv, (command, args) => {
+						if (command === 'docker')
+							throw Error(`docker buildx failed: ERROR: ${image}:${version}: not found`);
+						return runner(command, args);
+					}),
+				/Final image .* is missing for an existing Git tag/
+			)
+		),
+		''
+	);
+});
+test('image inspection does not suppress auth, network, or unrelated not-found errors', () => {
+	const ref = `${image}:${version}`;
+	for (const message of [
+		'unauthorized',
+		'404 Not Found',
+		'docker buildx failed: ERROR: token endpoint: 404 Not Found',
+		`docker buildx failed: ERROR: ${ref}: unauthorized`,
+		`docker buildx failed: ERROR: ${ref}: 403 Forbidden`,
+		`docker buildx failed: ERROR: ${ref}: 404 Not Found`,
+		`docker buildx failed: ERROR: ${ref}: failed to authorize: token not found`,
+		`docker buildx failed: ERROR: ${ref}: dial tcp: lookup ghcr.io: no such host`,
+		`docker buildx failed: ERROR: ${ref}: net/http: TLS handshake timeout`,
+		`docker buildx failed: ERROR: ghcr.io/other/repository:${version}: not found`,
+		`docker buildx failed: ERROR: ${image}:${version}-rc.85: not found`,
+		`docker buildx failed: ERROR: ${image.replaceAll('.', 'x')}:${version}: not found`,
+		'docker buildx failed: ERROR: not found',
+		'docker buildx failed: ERROR: manifest unknown: unauthorized',
+		`docker buildx failed: ERROR: ${ref}: not found\n403 Forbidden`
+	]) {
+		const error = Error(message);
+		assert.throws(
+			() =>
+				checkImage({ image, tag: version, sha: commit, version, repo }, () => {
+					throw error;
+				}),
+			(thrown) => thrown === error,
+			message
+		);
+	}
+});
+test('Buildx not-found errors during raw digest inspection fail closed', () => {
+	for (const ref of [`${image}:${version}`, `${image}@${digest}`]) {
+		const error = Error(`docker buildx failed: ERROR: ${ref}: not found`);
+		const calls = [];
+		assert.throws(
+			() =>
+				checkImage({ image, tag: version, sha: commit, version, repo }, (command, args) => {
+					calls.push([command, args]);
+					if (args.includes('--raw')) throw error;
+					return `Digest: ${digest}`;
+				}),
+			(thrown) => thrown === error
+		);
+		assert.equal(calls.length, 2);
+		assert.deepEqual(calls[1], [
+			'docker',
+			['buildx', 'imagetools', 'inspect', '--raw', `${image}@${digest}`]
+		]);
+	}
 });
 test('image metadata collision and missing platforms fail closed', () => {
 	const input = { image, tag: version, sha: commit, version, repo };

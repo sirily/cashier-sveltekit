@@ -36,6 +36,7 @@
 			type="button"
 			class={`text-right ${getAmountColour(primaryQuantity)} cursor-pointer`}
 			onclick={toggle}
+			onkeydown={(e) => e.stopPropagation()}
 		>
 			{formatAmount(primaryQuantity)}&nbsp;{primaryCurrency}<span class="text-base-content/40">
 				…</span

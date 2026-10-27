@@ -38,7 +38,9 @@ async function seedBook(page: Page) {
 				ledgerDataSource: 'beancount',
 				userBookFilename: 'main.bean',
 				currency: 'USD',
-				ledgerCacheEnabled: false
+				ledgerCacheEnabled: false,
+				favouriteAccounts: ['Assets:Cash'],
+				accountGroups: [{ title: 'Cash accounts', accounts: ['Assets:Cash'] }]
 			})) {
 				transaction.objectStore('settings').put({ key, value: JSON.stringify(value) });
 			}
@@ -102,6 +104,69 @@ test('transaction search retains separate rows for identical display labels and 
 	await expect(rows.filter({ hasText: '11 USD' })).toContainText('Shop');
 	await expect(errors).toEqual([]);
 });
+
+test('BQL results preserve duplicate column names and update subsequent results', async ({
+	page
+}) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	await seedBook(page);
+	await page.goto('/reports/query');
+
+	const query = page.getByPlaceholder('Enter BQL query...');
+	const run = page.getByRole('button', { name: 'Query', exact: true });
+	const table = page.locator('table');
+	await query.fill("SELECT number, currency WHERE account = 'Expenses:Food' ORDER BY number");
+	await run.click();
+	await expect(table.locator('th')).toHaveText(['number', 'currency']);
+	await expect(table.locator('tbody tr')).toHaveCount(4);
+
+	await query.fill(
+		"SELECT number AS amount, currency AS amount WHERE account = 'Expenses:Food' AND number = 10"
+	);
+	await run.click();
+	await expect(table.locator('th')).toHaveText(['amount', 'amount']);
+	await expect(table.locator('tbody tr')).toHaveCount(1);
+	await expect(table.locator('tbody td')).toHaveText(['10', 'USD']);
+
+	await query.fill(
+		"SELECT currency AS amount, number AS amount, account AS amount WHERE account = 'Expenses:Food' AND number = 13"
+	);
+	await run.click();
+	await expect(table.locator('th')).toHaveText(['amount', 'amount', 'amount']);
+	await expect(table.locator('tbody tr')).toHaveCount(1);
+	await expect(table.locator('tbody td')).toHaveText(['USD', '13', 'Expenses:Food']);
+	await expect(errors).toEqual([]);
+});
+
+for (const route of ['/favourites', '/accounts/groups']) {
+	test(`account balance keyboard controls do not navigate on ${route}`, async ({ page }) => {
+		const errors: string[] = [];
+		page.on('pageerror', (error) => errors.push(error.message));
+		await seedBook(page);
+		await page.goto(route);
+
+		const row = page.locator('[role="button"]').filter({ hasText: 'Cash' });
+		const balance = row.getByRole('button', { name: /USD.*…/ });
+		await expect(balance).toBeVisible();
+		await expect(row).not.toContainText('EUR');
+		await balance.focus();
+		await page.keyboard.press('Enter');
+		await expect(page).toHaveURL(route);
+		await expect(row).toContainText('EUR');
+		await page.keyboard.press('Space');
+		await expect(row).not.toContainText('EUR');
+		await expect(page).toHaveURL(route);
+		await balance.click();
+		await expect(row).toContainText('EUR');
+		await expect(page).toHaveURL(route);
+
+		await row.focus();
+		await page.keyboard.press('Enter');
+		await expect(page).toHaveURL(/\/accounts\/account-xacts\//);
+		await expect(errors).toEqual([]);
+	});
+}
 
 test('asset currency controls stay sibling buttons and expand balances without navigating', async ({
 	page
