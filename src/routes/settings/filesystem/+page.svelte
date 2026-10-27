@@ -6,15 +6,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import {
-		RefreshCcwIcon,
-		FolderOpenIcon,
-		FileIcon,
-		FolderIcon,
-		BookOpenIcon,
-		XIcon,
-		TriangleAlertIcon
-	} from '@lucide/svelte';
+	import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
+import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import FileIcon from '@lucide/svelte/icons/file';
+import FolderIcon from '@lucide/svelte/icons/folder';
+import BookOpenIcon from '@lucide/svelte/icons/book-open';
+import XIcon from '@lucide/svelte/icons/x';
+import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import Notifier from '#lib/utils/notifier';
 	import { settings, SettingKeys } from '#lib/settings';
 	import Fab from '#lib/components/FAB.svelte';

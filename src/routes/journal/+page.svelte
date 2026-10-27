@@ -11,7 +11,10 @@
 	import ledgerService from '#lib/services/ledgerService';
 	import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 	import Notifier from '#lib/utils/notifier';
-	import { FileDownIcon, ImportIcon, PlusIcon, TrashIcon } from '@lucide/svelte';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
+import ImportIcon from '@lucide/svelte/icons/import';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import appService from '#lib/services/appService';
 
 	Notifier.init();

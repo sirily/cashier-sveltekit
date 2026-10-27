@@ -5,7 +5,10 @@
 	import appService from '#lib/services/appService';
 	import { getFilenameForBackup } from '#lib/services/cloudBackupService';
 	import Notifier from '#lib/utils/notifier';
-	import { ArrowDownNarrowWideIcon, CopyIcon, FileDownIcon, Share2Icon } from '@lucide/svelte';
+	import ArrowDownNarrowWideIcon from '@lucide/svelte/icons/arrow-down-narrow-wide';
+import CopyIcon from '@lucide/svelte/icons/copy';
+import FileDownIcon from '@lucide/svelte/icons/file-down';
+import Share2Icon from '@lucide/svelte/icons/share-2';
 	import { onMount } from 'svelte';
 	import { CASHIER_XACT_FILE } from '#lib/constants';
 

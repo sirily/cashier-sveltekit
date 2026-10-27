@@ -4,7 +4,8 @@
 	import Notifier from '#lib/utils/notifier';
 	import { settings, SettingKeys } from '#lib/settings';
 	import { WebDavClient, type WebDavEntry } from '#lib/utils/webdav';
-	import { ChevronRight, ChevronUp } from '@lucide/svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+import ChevronUp from '@lucide/svelte/icons/chevron-up';
 
 	let url = '';
 	let username = '';

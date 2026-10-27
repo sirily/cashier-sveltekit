@@ -9,7 +9,9 @@
 	import AssetClassRow from '#lib/components/AssetClassRow.svelte';
 	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
 	import Notifier from '#lib/utils/notifier.js';
-	import { RefreshCwIcon, FileDownIcon, ScaleIcon } from '@lucide/svelte';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+import FileDownIcon from '@lucide/svelte/icons/file-down';
+import ScaleIcon from '@lucide/svelte/icons/scale';
 
 	Notifier.init();
 

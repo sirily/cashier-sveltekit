@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { CalendarClockIcon, CalendarDaysIcon } from '@lucide/svelte';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';

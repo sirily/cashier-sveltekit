@@ -11,12 +11,10 @@
 	import appService from '#lib/services/appService';
 	import Notifier from '#lib/utils/notifier';
 	import { calculateNextIteration } from '#lib/scheduledTransactions';
-	import {
-		ChevronsRightIcon,
-		SquarePenIcon,
-		ScrollIcon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import ChevronsRightIcon from '@lucide/svelte/icons/chevrons-right';
+import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+import ScrollIcon from '@lucide/svelte/icons/scroll';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 	import db from '#lib/data/db';
 

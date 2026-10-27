@@ -4,7 +4,9 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { ArrowDownToLineIcon, SaveIcon, XIcon } from '@lucide/svelte';
+	import ArrowDownToLineIcon from '@lucide/svelte/icons/arrow-down-to-line';
+import SaveIcon from '@lucide/svelte/icons/save';
+import XIcon from '@lucide/svelte/icons/x';
 	import * as OpfsLib from '#lib/utils/opfslib.js';
 	import Notifier from '#lib/utils/notifier';
 

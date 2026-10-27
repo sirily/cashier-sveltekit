@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 		import { SvelteSet } from 'svelte/reactivity';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { FolderOpenIcon, RefreshCcwIcon } from '@lucide/svelte';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 	import { settings, SettingKeys } from '#lib/settings';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import {

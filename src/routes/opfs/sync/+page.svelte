@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { FolderOpenIcon, RefreshCcwIcon, ArrowLeftIcon, ArrowRightIcon, PlayIcon, MinusIcon } from '@lucide/svelte';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
+import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+import PlayIcon from '@lucide/svelte/icons/play';
+import MinusIcon from '@lucide/svelte/icons/minus';
 	import { settings, SettingKeys } from '#lib/settings';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CalendarClockIcon } from '@lucide/svelte';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { onMount } from 'svelte';
 	import { SettingKeys, settings } from '#lib/settings';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// For complex expressions with parentheses, we'll use a more sophisticated approach
 	import Fab from '#lib/components/FAB.svelte';
-	import { Check } from '@lucide/svelte';
+	import Check from '@lucide/svelte/icons/check';
 	import { selectionMetadata, xact } from '#lib/data/mainStore';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';

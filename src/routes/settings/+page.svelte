@@ -10,7 +10,11 @@
 	import { goto, replaceState } from '$app/navigation';
 	import { DefaultCurrencyStore, PendingSettingsStore } from '#lib/data/mainStore.js';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
-	import { BoxIcon, Check, FileBraces, NetworkIcon, RotateCcw } from '@lucide/svelte';
+	import BoxIcon from '@lucide/svelte/icons/box';
+import Check from '@lucide/svelte/icons/check';
+import FileBraces from '@lucide/svelte/icons/file-braces';
+import NetworkIcon from '@lucide/svelte/icons/network';
+import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Fab from '#lib/components/FAB.svelte';
 	import { page } from '$app/state';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';

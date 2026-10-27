@@ -13,7 +13,11 @@
 	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
 	import AccountRow from '#lib/components/AccountRow.svelte';
 	import Notifier from '#lib/utils/notifier';
-	import { ArrowUpDownIcon, PlusCircleIcon, PlusIcon, Trash2Icon, TrashIcon } from '@lucide/svelte';
+	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+import PlusCircleIcon from '@lucide/svelte/icons/plus-circle';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 

@@ -10,8 +10,14 @@ function createLogger() {
 	const messages = [];
 	return {
 		messages,
-		warn: (...args) => messages.push(['warn', ...args]),
-		warnOnce: (...args) => messages.push(['warnOnce', ...args]),
+		warn: (...args) => {
+			messages.push(['warn', ...args]);
+			console.warn(...args);
+		},
+		warnOnce: (...args) => {
+			messages.push(['warnOnce', ...args]);
+			console.warn(...args);
+		},
 		error: (...args) => messages.push(['error', ...args])
 	};
 }
@@ -53,7 +59,7 @@ test('reports Vite warnings and returns failure after the build completes', asyn
 	assert.match(outputMessages[0][1], /2 warnings/);
 });
 
-test('counts console warnings and restores console after the build', async () => {
+test('does not recount logger warnings forwarded to console and counts direct console warnings', async () => {
 	const logger = createLogger();
 	const outputMessages = [];
 	const output = {
@@ -61,12 +67,67 @@ test('counts console warnings and restores console after the build', async () =>
 		error: (...args) => outputMessages.push(['error', ...args])
 	};
 	const originalWarn = output.warn;
-	const exitCode = await checkBuild(async () => output.warn('adapter fallback'), logger, output);
+	const originalConsoleWarn = console.warn;
+	const originalLoggerWarn = logger.warn;
+	const originalLoggerWarnOnce = logger.warnOnce;
+	console.warn = output.warn;
+	let exitCode;
+	try {
+		exitCode = await checkBuild(
+			async (buildLogger) => {
+				buildLogger.warn('plugin warning');
+				buildLogger.warnOnce('adapter warning');
+				output.warn('direct console warning');
+			},
+			logger,
+			output
+		);
+	} finally {
+		console.warn = originalConsoleWarn;
+	}
 
 	assert.equal(exitCode, 1);
-	assert.deepEqual(outputMessages[0], ['warn', 'adapter fallback']);
+	assert.deepEqual(logger.messages.slice(0, 2), [
+		['warn', 'plugin warning'],
+		['warnOnce', 'adapter warning']
+	]);
+	assert.deepEqual(outputMessages.slice(0, 3), [
+		['warn', 'plugin warning'],
+		['warn', 'adapter warning'],
+		['warn', 'direct console warning']
+	]);
+	assert.match(outputMessages[3][1], /3 warnings/);
 	assert.equal(output.warn, originalWarn);
-	assert.equal(logger.warn.name, 'warn');
+	assert.equal(logger.warn, originalLoggerWarn);
+	assert.equal(logger.warnOnce, originalLoggerWarnOnce);
+});
+
+test('counts a warnOnce that forwards through logger.warn only once', async () => {
+	const logger = createLogger();
+	logger.warnOnce = (...args) => logger.warn(...args);
+	const outputMessages = [];
+	const output = {
+		warn: (...args) => outputMessages.push(['warn', ...args]),
+		error: (...args) => outputMessages.push(['error', ...args])
+	};
+	const originalConsoleWarn = console.warn;
+	console.warn = output.warn;
+	let exitCode;
+	try {
+		exitCode = await checkBuild(
+			async (buildLogger) => buildLogger.warnOnce('forwarded warning'),
+			logger,
+			output
+		);
+	} finally {
+		console.warn = originalConsoleWarn;
+	}
+
+	assert.equal(exitCode, 1);
+	assert.deepEqual(outputMessages, [
+		['warn', 'forwarded warning'],
+		['error', 'Build completed with 1 warning.']
+	]);
 });
 
 test('the CLI fails for warnings during builder initialization', () => {

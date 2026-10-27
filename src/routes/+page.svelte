@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import JournalCard from '#lib/components/JournalCard.svelte';
-	import { ArrowDownUpIcon, PlusIcon, SettingsIcon } from '@lucide/svelte';
+	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Toolbar from '../lib/components/Toolbar.svelte';
 	import { goto } from '$app/navigation';
 	import { xact } from '#lib/data/mainStore';

@@ -6,7 +6,7 @@
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import type { UnifiedXact } from './+page.js';
 	import * as Formatter from '#lib/utils/formatter';
-	import { ScaleIcon } from '@lucide/svelte';
+	import ScaleIcon from '@lucide/svelte/icons/scale';
 	import { xact, xactSpan } from '#lib/data/mainStore';
 
 	const PAGE_SIZE = 30;

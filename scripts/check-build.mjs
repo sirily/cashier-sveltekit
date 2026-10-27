@@ -2,24 +2,35 @@ import { pathToFileURL } from 'node:url';
 
 export async function checkBuild(build, logger, output = console) {
 	let warnings = 0;
+	let forwardingDepth = 0;
 	const originalWarn = logger.warn;
 	const originalWarnOnce = logger.warnOnce;
-	logger.warn = (...args) => {
-		warnings += 1;
-		originalWarn.apply(logger, args);
-	};
-	logger.warnOnce = (...args) => {
-		warnings += 1;
-		originalWarnOnce.apply(logger, args);
-	};
-
 	const consoleWarn = output.warn;
-	output.warn = (...args) => {
-		warnings += 1;
-		consoleWarn.apply(output, args);
-	};
 
 	try {
+		logger.warn = (...args) => {
+			if (forwardingDepth === 0) warnings += 1;
+			forwardingDepth += 1;
+			try {
+				originalWarn.apply(logger, args);
+			} finally {
+				forwardingDepth -= 1;
+			}
+		};
+		logger.warnOnce = (...args) => {
+			if (forwardingDepth === 0) warnings += 1;
+			forwardingDepth += 1;
+			try {
+				originalWarnOnce.apply(logger, args);
+			} finally {
+				forwardingDepth -= 1;
+			}
+		};
+		output.warn = (...args) => {
+			if (forwardingDepth === 0) warnings += 1;
+			consoleWarn.apply(output, args);
+		};
+
 		await build(logger);
 	} finally {
 		output.warn = consoleWarn;

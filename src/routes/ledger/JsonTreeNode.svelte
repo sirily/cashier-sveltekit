@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { ChevronRight, ChevronDown } from '@lucide/svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Self from './JsonTreeNode.svelte';
 
 	type Props = {

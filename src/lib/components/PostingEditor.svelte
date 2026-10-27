@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { xact, selectionMetadata } from '#lib/data/mainStore';
-	import { CalculatorIcon, DiffIcon } from '@lucide/svelte';
+	import CalculatorIcon from '@lucide/svelte/icons/calculator';
+import DiffIcon from '@lucide/svelte/icons/diff';
 	import { onMount } from 'svelte';
 	import type { EventHandler } from 'svelte/elements';
 	import { goto } from '$app/navigation';

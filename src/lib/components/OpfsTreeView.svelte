@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { RefreshCw } from '@lucide/svelte';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import OpfsTreeNode from './OpfsTreeNode.svelte';
 	import type { OpfsTreeNode as TreeNodeType } from '#lib/data/opfsTypes';
 

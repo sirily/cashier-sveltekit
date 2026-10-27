@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { BookTextIcon } from '@lucide/svelte';
+	import BookTextIcon from '@lucide/svelte/icons/book-text';
 
 	function openBook() {
 		window.open('https://alensiljak.github.io/cashier-book/', '_blank');

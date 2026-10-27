@@ -2,7 +2,9 @@
 	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import OpfsFilePicker from '#lib/components/OpfsFilePicker.svelte';
-	import { FilePlusIcon, UploadIcon, Trash2Icon } from '@lucide/svelte';
+	import FilePlusIcon from '@lucide/svelte/icons/file-plus';
+import UploadIcon from '@lucide/svelte/icons/upload';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import * as OpfsLib from '#lib/utils/opfslib.js';

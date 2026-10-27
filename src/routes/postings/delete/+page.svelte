@@ -3,7 +3,8 @@
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { xact } from '#lib/data/mainStore';
-	import { CheckIcon, TrashIcon } from '@lucide/svelte';
+	import CheckIcon from '@lucide/svelte/icons/check';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import {Posting, Xact} from '#lib/data/model'

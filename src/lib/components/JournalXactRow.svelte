@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Xact } from '#lib/data/model';
 	import { getAmountColour } from '#lib/utils/formatter';
-	import { TriangleAlertIcon } from '@lucide/svelte';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	interface Props {
 		xact: Xact;

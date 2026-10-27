@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { FolderIcon, FolderOpenIcon, FileIcon, TrashIcon, RefreshCcwIcon } from '@lucide/svelte';
+	import FolderIcon from '@lucide/svelte/icons/folder';
+import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import FileIcon from '@lucide/svelte/icons/file';
+import TrashIcon from '@lucide/svelte/icons/trash';
+import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 	import * as OpfsLib from '#lib/utils/opfslib.js';
 	import type { FileTreeEntry } from '#lib/utils/opfslib.js';
 	import { getManifest } from '#lib/utils/importManifest';

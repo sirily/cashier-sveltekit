@@ -10,7 +10,10 @@
     import { readFile, saveFile } from '#lib/utils/opfslib';
     import Notifier from '#lib/utils/notifier';
     import { WebDavClient } from '#lib/utils/webdav';
-    import { SettingsIcon, RefreshCwIcon, GitCompareArrowsIcon, EyeIcon } from '@lucide/svelte';
+    import SettingsIcon from '@lucide/svelte/icons/settings';
+import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+import GitCompareArrowsIcon from '@lucide/svelte/icons/git-compare-arrows';
+import EyeIcon from '@lucide/svelte/icons/eye';
     import { goto } from '$app/navigation';
 
     let includeSettings = $state(false);

@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { FileUpIcon, ScrollIcon, TriangleAlertIcon } from '@lucide/svelte';
+	import FileUpIcon from '@lucide/svelte/icons/file-up';
+import ScrollIcon from '@lucide/svelte/icons/scroll';
+import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';

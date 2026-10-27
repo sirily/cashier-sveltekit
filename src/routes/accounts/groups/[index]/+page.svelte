@@ -11,13 +11,11 @@
 	import { SelectionModeMetadata, SettingKeys, settings, type AccountGroup } from '#lib/settings';
 	import Notifier from '#lib/utils/notifier';
 	import DragReorderList from '#lib/components/DragReorderList.svelte';
-	import {
-		CheckIcon,
-		PencilIcon,
-		PlusIcon,
-		Trash2Icon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import CheckIcon from '@lucide/svelte/icons/check';
+import PencilIcon from '@lucide/svelte/icons/pencil';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();

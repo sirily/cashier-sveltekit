@@ -11,13 +11,11 @@
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { xactToBeancountText } from '#lib/utils/xactUtils';
 	import Notifier from '#lib/utils/notifier';
-	import {
-		CalendarClockIcon,
-		CopyIcon,
-		ClipboardIcon,
-		SquarePenIcon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+import CopyIcon from '@lucide/svelte/icons/copy';
+import ClipboardIcon from '@lucide/svelte/icons/clipboard';
+import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();

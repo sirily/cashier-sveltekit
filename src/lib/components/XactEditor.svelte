@@ -11,19 +11,17 @@
 	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
 	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '#lib/utils/xactUtils';
 	import { Posting, type Xact } from '#lib/data/model';
-	import {
-		ArrowUpDownIcon,
-		SigmaIcon,
-		TrashIcon,
-		UserIcon,
-		CalendarIcon,
-		FileTextIcon,
-		CirclePlusIcon,
-		TriangleAlertIcon,
-		CircleCheckIcon,
-		ChevronLeftIcon,
-		ChevronRightIcon
-	} from '@lucide/svelte';
+	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+import SigmaIcon from '@lucide/svelte/icons/sigma';
+import TrashIcon from '@lucide/svelte/icons/trash';
+import UserIcon from '@lucide/svelte/icons/user';
+import CalendarIcon from '@lucide/svelte/icons/calendar';
+import FileTextIcon from '@lucide/svelte/icons/file-text';
+import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
+import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Big } from 'big.js';
 	import moment from 'moment';
 

@@ -5,7 +5,7 @@
 	import { xact } from '#lib/data/mainStore';
 	import Notifier from '#lib/utils/notifier';
 	import { parseXact } from '#lib/utils/transactionParser';
-	import { ImportIcon } from '@lucide/svelte';
+	import ImportIcon from '@lucide/svelte/icons/import';
 	import { onMount } from 'svelte';
 
 	Notifier.init();

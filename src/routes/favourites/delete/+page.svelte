@@ -3,7 +3,9 @@
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { SettingKeys, settings } from '#lib/settings';
 	import Notifier from '#lib/utils/notifier';
-	import { CheckIcon, DeleteIcon, TrashIcon } from '@lucide/svelte';
+	import CheckIcon from '@lucide/svelte/icons/check';
+import DeleteIcon from '@lucide/svelte/icons/delete';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();

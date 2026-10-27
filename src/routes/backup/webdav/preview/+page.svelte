@@ -6,7 +6,8 @@
     import { filterBackupSettings } from '#lib/services/backupSettings';
     import { readFile } from '#lib/utils/opfslib';
     import { WebDavClient } from '#lib/utils/webdav';
-    import { CheckIcon, CopyIcon } from '@lucide/svelte';
+    import CheckIcon from '@lucide/svelte/icons/check';
+import CopyIcon from '@lucide/svelte/icons/copy';
 
     type PreviewSection = { filename: string; content: string };
 

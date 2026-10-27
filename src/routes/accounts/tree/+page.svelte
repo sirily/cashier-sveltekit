@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
-	import { ChevronDown, ChevronRight } from '@lucide/svelte';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ChartLineIcon, Settings2Icon } from '@lucide/svelte';
+	import ChartLineIcon from '@lucide/svelte/icons/chart-line';
+import Settings2Icon from '@lucide/svelte/icons/settings-2';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { Constants, SettingKeys, settings } from '#lib/settings';
 	import { onMount } from 'svelte';

@@ -12,7 +12,10 @@
 	import { ListSearch } from '#lib/utils/ListSearch';
 	import Notifier from '#lib/utils/notifier';
 	import { XactAugmenter } from '#lib/utils/xactAugmenter';
-	import { CalendarIcon, PackageIcon, PackageOpenIcon, PlusIcon } from '@lucide/svelte';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+import PackageIcon from '@lucide/svelte/icons/package';
+import PackageOpenIcon from '@lucide/svelte/icons/package-open';
+import PlusIcon from '@lucide/svelte/icons/plus';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 

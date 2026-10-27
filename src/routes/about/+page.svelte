@@ -8,7 +8,7 @@
 		updateApp,
 		type UpdateCheckResult
 	} from '#lib/services/pwaUpdate.svelte';
-	import { RefreshCw } from '@lucide/svelte';
+	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 
 	let checking = $state(false);
 	let updateResult = $state<UpdateCheckResult | undefined>(undefined);

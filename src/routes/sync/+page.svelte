@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
+	import BoxIcon from '@lucide/svelte/icons/box';
+import RefreshCcw from '@lucide/svelte/icons/refresh-ccw';
 	import { onMount } from 'svelte';
 	import { SettingKeys, settings } from '#lib/settings';
 	import Notifier from '#lib/utils/notifier';

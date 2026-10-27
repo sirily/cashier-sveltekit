@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Settings2Icon } from '@lucide/svelte';
+	import Settings2Icon from '@lucide/svelte/icons/settings-2';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import AccountRow from './AccountRow.svelte';
 	import { goto } from '$app/navigation';

@@ -13,7 +13,11 @@
 	import { processWithConcurrencyLimit } from '#lib/utils/concurrency.js';
 	import { getQueries } from '#lib/sync/sync-queries.js';
 	import { PtaSystems } from '#lib/enums.js';
-	import { Loader, X, Bug, ChevronDown, ChevronRight } from '@lucide/svelte';
+	import Loader from '@lucide/svelte/icons/loader';
+import X from '@lucide/svelte/icons/x';
+import Bug from '@lucide/svelte/icons/bug';
+import ChevronDown from '@lucide/svelte/icons/chevron-down';
+import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { onMount } from 'svelte';
 	import moment from 'moment';
 

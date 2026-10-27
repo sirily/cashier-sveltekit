@@ -5,7 +5,8 @@
 	import db from '#lib/data/db';
 	import type { ScheduledTransaction } from '#lib/data/model';
 	import appService from '#lib/services/appService';
-	import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/svelte';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { onMount } from 'svelte';
 		import { SvelteDate, SvelteSet } from 'svelte/reactivity';
 
