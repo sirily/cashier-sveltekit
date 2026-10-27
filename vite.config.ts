@@ -7,9 +7,6 @@ import path from 'node:path';
 import { defineConfig } from 'vite';
 import type { UserConfig } from 'vite';
 
-// Keep Kit's client version stable: build timestamps would invalidate every route bundle.
-// The service worker itself is content-checked and still carries the real build timestamp.
-const APP_VERSION = 'static';
 const BUILD_TIMESTAMP = new Date().toISOString();
 
 function staticRevisions(): Record<string, string> {
@@ -78,7 +75,6 @@ const config: UserConfig = defineConfig({
 		tailwindcss(),
 		sveltekit({
 			adapter: adapter({ fallback: 'index.html' }),
-			version: { name: APP_VERSION },
 			serviceWorker: { register: false },
 			prerender: { entries: ['*'] }
 		}),

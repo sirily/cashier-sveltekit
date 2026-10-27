@@ -1,6 +1,7 @@
 import type { Workbox } from 'workbox-window';
 
 export type UpdateCheckResult = 'available' | 'latest' | 'unavailable' | 'error';
+type PwaInitResult = 'ready' | 'unavailable' | 'error';
 
 export async function getInstalledBuildTimestamp(): Promise<string | undefined> {
 	await initPwa();
@@ -31,31 +32,52 @@ export const offlineReady = $state({ value: false });
 
 let registration: ServiceWorkerRegistration | undefined;
 let workbox: Workbox | undefined;
-let initPromise: Promise<void> | undefined;
+let initPromise: Promise<PwaInitResult> | undefined;
+let workboxListenersInstalled = false;
 
-export function initPwa(): Promise<void> {
-	initPromise ??= (async () => {
-		if (import.meta.env.DEV || typeof navigator === 'undefined' || !('serviceWorker' in navigator))
-			return;
+export function initPwa(): Promise<PwaInitResult> {
+	if (!initPromise) {
+		const attempt = Promise.resolve().then(async (): Promise<PwaInitResult> => {
+			if (
+				import.meta.env.DEV ||
+				typeof navigator === 'undefined' ||
+				!('serviceWorker' in navigator)
+			)
+				return 'unavailable';
 
-		const { Workbox } = await import('workbox-window');
-		const wb = new Workbox('/sw.js');
-		workbox = wb;
-		wb.addEventListener('waiting', () => (needRefresh.value = true));
-		wb.addEventListener('activated', (event) => {
-			if (!event.isUpdate) offlineReady.value = true;
+			try {
+				if (!workbox) {
+					const { Workbox } = await import('workbox-window');
+					workbox = new Workbox('/sw.js');
+				}
+				if (!workboxListenersInstalled) {
+					workbox.addEventListener('waiting', () => (needRefresh.value = true));
+					workbox.addEventListener('activated', (event) => {
+						if (!event.isUpdate) offlineReady.value = true;
+					});
+					workboxListenersInstalled = true;
+				}
+				registration = await workbox.register();
+				return 'ready';
+			} catch (error) {
+				console.error('Service worker initialization failed:', error);
+				if (!workbox) registration = undefined;
+				return 'error';
+			}
 		});
-		try {
-			registration = await wb.register();
-		} catch (error) {
-			console.error('Service worker registration failed:', error);
-		}
-	})();
+		const handled = attempt.then((result) => {
+			if (result === 'error' && initPromise === handled) initPromise = undefined;
+			return result;
+		});
+		initPromise = handled;
+	}
 	return initPromise;
 }
 
 export async function checkForUpdate(): Promise<UpdateCheckResult> {
-	await initPwa();
+	const initResult = await initPwa();
+	if (initResult === 'error') return 'error';
+	if (initResult === 'unavailable') return 'unavailable';
 	if (!registration) return 'unavailable';
 	if (needRefresh.value) return 'available';
 
@@ -86,7 +108,7 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
 }
 
 export async function updateApp(): Promise<void> {
-	await initPwa();
+	if ((await initPwa()) !== 'ready') return;
 	if (!workbox || typeof navigator === 'undefined') return;
 	let reloaded = false;
 	let fallbackTimer: ReturnType<typeof setTimeout>;
