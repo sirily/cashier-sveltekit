@@ -1,16 +1,18 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import BoxIcon from '@lucide/svelte/icons/box';
+import RefreshCcw from '@lucide/svelte/icons/refresh-ccw';
 	import { onMount } from 'svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import * as SyncBeancount from '$lib/sync/sync-beancount';
-	import { LedgerDataSource } from '$lib/enums';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import * as SyncBeancount from '#lib/sync/sync-beancount';
+	import { LedgerDataSource } from '#lib/enums';
 	import { goto } from '$app/navigation';
-	import * as cashierFsSync from '$lib/sync/sync-fs';
-	import ledgerService from '$lib/services/ledgerService';
-	import { syncProgress } from '$lib/stores/syncProgressStore';
+	import * as cashierFsSync from '#lib/sync/sync-fs';
+	import ledgerService from '#lib/services/ledgerService';
+	import { syncProgress } from '#lib/stores/syncProgressStore';
 
 	Notifier.init();
 	const PENDING_SYNC_SOURCE_STORAGE_KEY = 'cashier.pendingSyncDataSource';
@@ -250,7 +252,7 @@
 
 	async function onOpfsClick() {
 		// navigate to OPFS page
-		await goto('/opfs');
+		await goto(resolve('/opfs'));
 	}
 
 	async function onSyncClicked() {
@@ -662,7 +664,7 @@
 			<div>
 				<h2 class="font-semibold">Synchronization has errors</h2>
 				<ul class="mt-2 list-disc space-y-1 pl-5">
-					{#each diagnostics.syncErrors as error}
+					{#each diagnostics.syncErrors as error, i (`${error.stage}:${error.message}:${i}`)}
 						<li>
 							<span class="font-medium">{error.stage}:</span> {error.message}
 						</li>
@@ -691,7 +693,7 @@
 					{#if diagnostics.parseErrors?.length}
 						<div>Parse error details</div>
 						<div class="space-y-1 break-words">
-							{#each diagnostics.parseErrors as error}
+							{#each diagnostics.parseErrors as error, i (`${error}:${i}`)}
 								<div>{error}</div>
 							{/each}
 						</div>

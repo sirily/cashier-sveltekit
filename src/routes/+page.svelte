@@ -1,19 +1,22 @@
 <script lang="ts">
-	import JournalCard from '$lib/components/JournalCard.svelte';
-	import { ArrowDownUpIcon, PlusIcon, SettingsIcon } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import JournalCard from '#lib/components/JournalCard.svelte';
+	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Toolbar from '../lib/components/Toolbar.svelte';
 	import { goto } from '$app/navigation';
-	import { xact } from '$lib/data/mainStore';
-	import { Xact } from '$lib/data/model';
-	import FavouritesCard from '$lib/components/FavouritesCard.svelte';
-	import SyncCard from '$lib/components/SyncCard.svelte';
-	import ForecastCard from '$lib/components/ForecastCard.svelte';
-	import ScheduledXactsCard from '$lib/components/ScheduledXactsCard.svelte';
+	import { xact } from '#lib/data/mainStore';
+	import { Xact } from '#lib/data/model';
+	import FavouritesCard from '#lib/components/FavouritesCard.svelte';
+	import SyncCard from '#lib/components/SyncCard.svelte';
+	import ForecastCard from '#lib/components/ForecastCard.svelte';
+	import ScheduledXactsCard from '#lib/components/ScheduledXactsCard.svelte';
 	import { onMount, type Component } from 'svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { CardNames } from '$lib/settings';
-	import appService from '$lib/services/appService';
+	import Fab from '#lib/components/FAB.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { CardNames } from '#lib/settings';
+	import appService from '#lib/services/appService';
 
 	let cards: Array<Component> = $state([]);
 
@@ -55,15 +58,15 @@
 		const tx = Xact.create();
 		xact.set(tx);
 
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 </script>
 
 <article class="flex h-screen flex-col">
 	<Toolbar>
 		{#snippet menuItems()}
-			<ToolbarMenuItem text="Home Settings" Icon={SettingsIcon} targetNav="/home-settings" />
-			<ToolbarMenuItem text="Reorder Cards" targetNav="/home-reorder" Icon={ArrowDownUpIcon} />
+			<ToolbarMenuItem text="Home Settings" Icon={SettingsIcon} targetNav={resolve('/home-settings')} />
+			<ToolbarMenuItem text="Reorder Cards" targetNav={resolve('/home-reorder')} Icon={ArrowDownUpIcon} />
 		{/snippet}
 	</Toolbar>
 

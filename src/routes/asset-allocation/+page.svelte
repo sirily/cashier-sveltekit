@@ -1,15 +1,17 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { AssetAllocationEngine } from '$lib/assetAllocation/AssetAllocation.js';
-	import { buildChildrenIndex } from '$lib/assetAllocation/assetAllocationUtils.js';
-	import { validate } from '$lib/assetAllocation/assetAllocationValidation.js';
-	import { AssetClass } from '$lib/assetAllocation/AssetClass.js';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import AssetClassRow from '$lib/components/AssetClassRow.svelte';
-	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '$lib/data/mainStore.js';
-	import Notifier from '$lib/utils/notifier.js';
-	import { RefreshCwIcon, FileDownIcon, ScaleIcon } from '@lucide/svelte';
+	import { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation.js';
+	import { buildChildrenIndex } from '#lib/assetAllocation/assetAllocationUtils.js';
+	import { validate } from '#lib/assetAllocation/assetAllocationValidation.js';
+	import { AssetClass } from '#lib/assetAllocation/AssetClass.js';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import AssetClassRow from '#lib/components/AssetClassRow.svelte';
+	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
+	import Notifier from '#lib/utils/notifier.js';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+import FileDownIcon from '@lucide/svelte/icons/file-down';
+import ScaleIcon from '@lucide/svelte/icons/scale';
 
 	Notifier.init();
 
@@ -146,7 +148,7 @@
 			</thead>
 			<tbody>
 				{#if _allocation && _allocation.length > 0}
-					{#each _allocation.filter((item) => item.depth === 0) as rootItem}
+					{#each _allocation.filter((item) => item.depth === 0) as rootItem (rootItem.fullname)}
 						<AssetClassRow
 							assetClass={rootItem}
 							children={getChildren(rootItem.fullname)}

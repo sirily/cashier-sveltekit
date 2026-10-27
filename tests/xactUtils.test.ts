@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { Posting, Xact } from '$lib/data/model';
-import { applyAutoIncompleteFlag, xactToBeancountText } from '$lib/utils/xactUtils';
+import { Posting, Xact } from '#lib/data/model';
+import { applyAutoIncompleteFlag, xactToBeancountText } from '#lib/utils/xactUtils';
 
 function posting(account: string, amount?: number, currency = 'USD') {
 	const p = new Posting();

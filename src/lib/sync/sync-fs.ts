@@ -4,13 +4,13 @@
  * parses them with Rust Ledger WASM, and runs queries.
  */
 
-import { settings, SettingKeys } from '$lib/settings';
+import { settings, SettingKeys } from '#lib/settings';
 // import moment from 'moment';
-// import { ISODATEFORMAT } from '$lib/constants';
-import * as syncCommon from '$lib/sync/sync-common';
-// import { OPFSBackend } from '$lib/storage';
-import { syncProgress } from '$lib/stores/syncProgressStore';
-// import type { AccountFileEntry } from '$lib/data/opfsTypes';
+// import { ISODATEFORMAT } from '#lib/constants';
+import * as syncCommon from '#lib/sync/sync-common';
+// import { OPFSBackend } from '#lib/storage';
+import { syncProgress } from '#lib/stores/syncProgressStore';
+// import type { AccountFileEntry } from '#lib/data/opfsTypes';
 
 // IndexedDB persistence for directory handle
 const IDB_NAME = 'cashier-fs-handles';

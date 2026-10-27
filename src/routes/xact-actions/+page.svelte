@@ -1,22 +1,21 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import SquareButton from '$lib/components/SquareButton.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { ScheduledXact, xact, xactSpan } from '$lib/data/mainStore';
-	import { ScheduledTransaction, Xact } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { xactToBeancountText } from '$lib/utils/xactUtils';
-	import Notifier from '$lib/utils/notifier';
-	import {
-		CalendarClockIcon,
-		CopyIcon,
-		ClipboardIcon,
-		SquarePenIcon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import SquareButton from '#lib/components/SquareButton.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { ScheduledXact, xact, xactSpan } from '#lib/data/mainStore';
+	import { ScheduledTransaction, Xact } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import Notifier from '#lib/utils/notifier';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+import CopyIcon from '@lucide/svelte/icons/copy';
+import ClipboardIcon from '@lucide/svelte/icons/clipboard';
+import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();
@@ -24,7 +23,7 @@
 	let isDeleteConfirmationOpen = $state(false);
 
 	if (!$xact) {
-		goto('/');
+		goto(resolve('/'));
 	}
 
 	onMount(async () => {
@@ -98,11 +97,11 @@
 		xact.set(newXact);
 		xactSpan.set(undefined);
 
-		goto('/tx', { replaceState: true });
+		goto(resolve('/tx'), { replaceState: true });
 	}
 
 	async function onEditClicked() {
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 
 	async function onScheduleClick() {
@@ -113,7 +112,7 @@
 			$xact.id = undefined;
 		}
 
-		goto('/scx-editor');
+		goto(resolve('/scx-editor/[[id]]', { id: undefined }));
 	}
 </script>
 

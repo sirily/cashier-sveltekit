@@ -105,7 +105,7 @@ export function renderSummary(summary) {
 	lines.push(
 		'',
 		total
-			? '> Findings are report-only and do not fail this job. Full details are shown here in the CI logs.'
+			? '> Findings fail this job. Full details are shown here in the CI logs.'
 			: '> No known vulnerabilities were reported.'
 	);
 	return lines.join('\n');
@@ -120,16 +120,19 @@ export function runAudit(runner = spawnSync) {
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
 	try {
-		const summary = summarizeAudit(runAudit());
+		const auditResult = runAudit();
+		const summary = summarizeAudit(auditResult);
 		const rendered = renderSummary(summary);
 		console.log(rendered);
 		if (process.env.GITHUB_STEP_SUMMARY)
 			appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${rendered}\n`);
 		const total = Object.values(summary.totals).reduce((sum, count) => sum + count, 0);
-		if (total)
+		if (total || auditResult.status === 1) {
 			console.log(
-				`::warning::${safeText(`npm audit reported ${total} known vulnerabilities; see details above.`).replaceAll('%', '%25')}`
+				`::error::${safeText(`npm audit reported ${total} known vulnerabilities; see details above.`).replaceAll('%', '%25')}`
 			);
+			process.exitCode = 1;
+		}
 	} catch (error) {
 		console.error(error.message);
 		process.exitCode = 1;

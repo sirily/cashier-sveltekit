@@ -21,6 +21,7 @@ Thumbs.db
 
 # Tests
 test-results
+/.playwright-mcp/
 
 # Assistants
 vite.config.*.timestamp-*

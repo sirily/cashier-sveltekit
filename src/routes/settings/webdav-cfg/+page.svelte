@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import Notifier from '$lib/utils/notifier';
-	import { settings, SettingKeys } from '$lib/settings';
-	import { WebDavClient, type WebDavEntry } from '$lib/utils/webdav';
-	import { ChevronRight, ChevronUp } from '@lucide/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import Notifier from '#lib/utils/notifier';
+	import { settings, SettingKeys } from '#lib/settings';
+	import { WebDavClient, type WebDavEntry } from '#lib/utils/webdav';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+import ChevronUp from '@lucide/svelte/icons/chevron-up';
 
 	let url = '';
 	let username = '';
@@ -196,7 +197,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each remoteFiles as f}
+									{#each remoteFiles as f (`${f.isDirectory}:${f.name}`)}
 										<tr>
 											<td class="font-mono text-xs">{f.isDirectory ? '📁 ' : ''}{f.name}</td>
 											<td class="text-right text-xs tabular-nums">{f.size != null ? f.size.toLocaleString() + ' B' : '—'}</td>

@@ -1,12 +1,14 @@
 <script lang="ts">
-	import { Settings2Icon } from '@lucide/svelte';
+	import Settings2Icon from '@lucide/svelte/icons/settings-2';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import AccountRow from './AccountRow.svelte';
 	import { goto } from '$app/navigation';
-	import { Account, Money } from '$lib/data/model';
-	import type { AccountGroup } from '$lib/settings';
-	import appService from '$lib/services/appService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import { resolve } from '$app/paths';
+	import { SvelteMap } from 'svelte/reactivity';
+	import { Account, Money } from '#lib/data/model';
+	import type { AccountGroup } from '#lib/settings';
+	import appService from '#lib/services/appService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	type Props = {
 		group: AccountGroup;
@@ -59,7 +61,7 @@
 
 			const accountIdx = queryResult.columns.indexOf('account');
 			const balanceIdx = queryResult.columns.indexOf('balance');
-			const balanceMap = new Map<string, Account>();
+			const balanceMap = new SvelteMap<string, Account>();
 
 			for (const row of queryResult.rows as any[][]) {
 				const name: string = row[accountIdx];
@@ -126,7 +128,7 @@
 
 	function onSettingsClick(e: Event) {
 		e.stopPropagation();
-		goto('/accounts/groups/' + index);
+		goto(resolve('/accounts/groups/[index]', { index: String(index) }));
 	}
 </script>
 
@@ -138,7 +140,9 @@
 	{#snippet menu()}
 		<button
 			type="button"
-			class="btn btn-ghost btn-circle btn-sm {group.color ? 'text-base-content/70' : 'text-primary-content'}"
+			class="btn btn-ghost btn-circle btn-sm {group.color
+				? 'text-base-content/70'
+				: 'text-primary-content'}"
 			onclick={onSettingsClick}
 			aria-label="Group settings"
 		>

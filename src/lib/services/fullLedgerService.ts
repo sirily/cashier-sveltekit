@@ -16,8 +16,8 @@ import {
 	getAccountsFromTransactions,
 	version as wasmVersion
 } from './rustledger';
-import { listFileTree } from '$lib/utils/opfslib';
-import { OPFSBackend } from '$lib/storage';
+import { listFileTree } from '#lib/utils/opfslib';
+import { OPFSBackend } from '#lib/storage';
 import type {
 	Ledger,
 	QueryResult,
@@ -25,15 +25,15 @@ import type {
 	Directive,
 	ParsedLedger
 } from '@rustledger/wasm';
-import { SettingKeys, settings } from '$lib/settings';
-import { Account, Xact, Posting } from '$lib/data/model';
-import * as opfslib from '$lib/utils/opfslib';
+import { SettingKeys, settings } from '#lib/settings';
+import { Account, Xact, Posting } from '#lib/data/model';
+import * as opfslib from '#lib/utils/opfslib';
 import {
 	mapDirectiveSpans,
 	replaceDirectiveBySpan,
 	type DirectiveSpan
-} from '$lib/rledger/sourceEditor';
-import { CASHIER_XACT_FILE } from '$lib/constants';
+} from '#lib/rledger/sourceEditor';
+import { CASHIER_XACT_FILE } from '#lib/constants';
 
 class FullLedgerService {
 	private ledger: Ledger | null = null;

@@ -1,13 +1,17 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { tick } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
-	import { ChartBar, ChartPie } from '@lucide/svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import PeriodSelector, { type Period } from '$lib/components/PeriodSelector.svelte';
-	import ExpensesBarChart from '$lib/components/ExpensesBarChart.svelte';
-	import ExpensesDonutChart from '$lib/components/ExpensesDonutChart.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { SettingKeys, settings } from '$lib/settings';
+
+	import ChartBar from '@lucide/svelte/icons/chart-bar';
+import ChartPie from '@lucide/svelte/icons/chart-pie';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import PeriodSelector, { type Period } from '#lib/components/PeriodSelector.svelte';
+	import ExpensesBarChart from '#lib/components/ExpensesBarChart.svelte';
+	import ExpensesDonutChart from '#lib/components/ExpensesDonutChart.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { SettingKeys, settings } from '#lib/settings';
 
 	type ChartType = 'bar' | 'donut';
 	let chartType = $state<ChartType>('bar');
@@ -26,7 +30,7 @@
 			dateFrom: currentPeriod.dateFrom,
 			dateTo: currentPeriod.dateTo
 		});
-		goto(`/reports/tx-search?${params}`);
+		goto(resolve(`/reports/tx-search?${params.toString()}`));
 	}
 
 	async function loadExpenses(period: Period) {
@@ -62,7 +66,7 @@
 			}
 
 			// Aggregate amounts per account
-			const totals = new Map<string, number>();
+			const totals = new SvelteMap<string, number>();
 			for (const row of rows as any[]) {
 				const account = String(row[accountIdx] ?? '');
 				const amount = parseFloat(String(row[numberIdx] ?? '0')) || 0;

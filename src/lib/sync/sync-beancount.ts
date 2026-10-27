@@ -2,24 +2,24 @@
  * Sync source: Cashier Server (network).
  * Fetches data from the CashierSync server over HTTP.
  */
-import { settings, SettingKeys } from '$lib/settings';
+import { settings, SettingKeys } from '#lib/settings';
 import moment from 'moment';
-import { CASHIER_XACT_FILE, ISODATEFORMAT } from '$lib/constants';
-import * as opfs from '$lib/utils/opfslib';
-import fullLedgerService from '$lib/services/ledgerWorkerClient';
-import { createLedger, ensureInitialized } from '$lib/services/rustledger';
+import { CASHIER_XACT_FILE, ISODATEFORMAT } from '#lib/constants';
+import * as opfs from '#lib/utils/opfslib';
+import fullLedgerService from '#lib/services/ledgerWorkerClient';
+import { createLedger, ensureInitialized } from '#lib/services/rustledger';
 import { getQueries } from './sync-queries';
 import type { Queries } from './sync-queries';
-import Notifier from '$lib/utils/notifier';
-import * as SyncCommon from '$lib/sync/sync-common';
-import type { SyncSteps } from '$lib/sync/sync-common';
-import { initializeSyncProgress, updateSyncStep } from '$lib/stores/syncProgressStore';
-import { PtaSystems } from '$lib/enums';
+import Notifier from '#lib/utils/notifier';
+import * as SyncCommon from '#lib/sync/sync-common';
+import type { SyncSteps } from '#lib/sync/sync-common';
+import { initializeSyncProgress, updateSyncStep } from '#lib/stores/syncProgressStore';
+import { PtaSystems } from '#lib/enums';
 import {
 	prepareLocalTransactions,
 	pushTransactions,
 	reconcileLocalJournalFromPaths
-} from '$lib/sync/manual-writeback';
+} from '#lib/sync/manual-writeback';
 
 Notifier.init();
 

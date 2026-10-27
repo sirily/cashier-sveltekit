@@ -7,14 +7,14 @@ import {
 	version as wasmVersion
 } from './rustledger';
 import type { Directive, BeancountError, ParsedLedger } from '@rustledger/wasm';
-import { Account, Xact, Posting } from '$lib/data/model';
-import * as opfslib from '$lib/utils/opfslib';
+import { Account, Xact, Posting } from '#lib/data/model';
+import * as opfslib from '#lib/utils/opfslib';
 import {
 	mapDirectiveSpans,
 	replaceDirectiveBySpan,
 	type DirectiveSpan
-} from '$lib/rledger/sourceEditor';
-import { CASHIER_XACT_FILE } from '$lib/constants';
+} from '#lib/rledger/sourceEditor';
+import { CASHIER_XACT_FILE } from '#lib/constants';
 
 interface QueryError {
 	message: string;

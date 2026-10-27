@@ -1,18 +1,21 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import Fab from '$lib/components/FAB.svelte';
-	import SearchToolbar from '$lib/components/SearchToolbar.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { ScheduledXact, xact } from '$lib/data/mainStore';
-	import { ScheduledTransaction, Xact, type Money } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import { getDateColour, getMoneyColour } from '$lib/utils/formatter';
-	import { ListSearch } from '$lib/utils/ListSearch';
-	import Notifier from '$lib/utils/notifier';
-	import { XactAugmenter } from '$lib/utils/xactAugmenter';
-	import { CalendarIcon, PackageIcon, PackageOpenIcon, PlusIcon } from '@lucide/svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import SearchToolbar from '#lib/components/SearchToolbar.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { ScheduledXact, xact } from '#lib/data/mainStore';
+	import { ScheduledTransaction, Xact, type Money } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import { getDateColour, getMoneyColour } from '#lib/utils/formatter';
+	import { ListSearch } from '#lib/utils/ListSearch';
+	import Notifier from '#lib/utils/notifier';
+	import { XactAugmenter } from '#lib/utils/xactAugmenter';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+import PackageIcon from '@lucide/svelte/icons/package';
+import PackageOpenIcon from '@lucide/svelte/icons/package-open';
+import PlusIcon from '@lucide/svelte/icons/plus';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
@@ -49,14 +52,14 @@
 		ScheduledXact.set(scx);
 		xact.set(x);
 
-		await goto('/scx-editor/null');
+		await goto(resolve('/scx-editor/[[id]]', { id: 'null' }));
 	}
 
 	async function onItemClicked(id: number) {
 	    // load Scheduled Transaction into state.
 	    await appService.loadScheduledXact(id);
 		// show details page
-		await goto(resolve(`/scx-actions/${id}`));
+		await goto(resolve('/scx-actions/[id]', { id: String(id) }));
 	}
 
 	async function onSearch(value: string) {
@@ -76,9 +79,9 @@
 <article class="flex h-screen flex-col">
 	<Toolbar title="Scheduled Transactions">
 		{#snippet menuItems()}
-			<ToolbarMenuItem Icon={PackageIcon} text="Backup" targetNav="/export/scheduled" />
-			<ToolbarMenuItem Icon={PackageOpenIcon} text="Restore" targetNav="/restore/scheduled" />
-			<ToolbarMenuItem Icon={CalendarIcon} text="Calendar" targetNav="/scheduled-xacts/calendar" />
+			<ToolbarMenuItem Icon={PackageIcon} text="Backup" targetNav={resolve('/export/[dataType=exportType]', { dataType: 'scheduled' })} />
+			<ToolbarMenuItem Icon={PackageOpenIcon} text="Restore" targetNav={resolve('/restore/[itemType]', { itemType: 'scheduled' })} />
+			<ToolbarMenuItem Icon={CalendarIcon} text="Calendar" targetNav={resolve('/scheduled-xacts/calendar')} />
 		{/snippet}
 	</Toolbar>
 	<!-- search toolbar -->

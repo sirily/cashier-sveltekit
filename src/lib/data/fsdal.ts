@@ -3,9 +3,9 @@
  * All data is loaded from the filesystem and provided by BQL queries from Rust Ledger WASM.
  */
 
-// import localLedgerService from "$lib/services/localLedgerService";
-import ledgerService from '$lib/services/ledgerService';
-import Notifier from '$lib/utils/notifier';
+// import localLedgerService from "#lib/services/localLedgerService";
+import ledgerService from '#lib/services/ledgerService';
+import Notifier from '#lib/utils/notifier';
 import type { DAL } from './dal';
 import db from './db';
 import { Account, Payee } from './model';

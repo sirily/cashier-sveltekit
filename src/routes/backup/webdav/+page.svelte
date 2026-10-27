@@ -1,14 +1,19 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+		import { SvelteURLSearchParams } from 'svelte/reactivity';
     import { onMount } from 'svelte';
-    import Toolbar from '$lib/components/Toolbar.svelte';
-    import { settings, SettingKeys } from '$lib/settings';
-    import { Setting } from '$lib/data/model';
-    import { filterBackupSettings } from '$lib/services/backupSettings';
-    import { restoreSettings } from '$lib/services/backupService';
-    import { readFile, saveFile } from '$lib/utils/opfslib';
-    import Notifier from '$lib/utils/notifier';
-    import { WebDavClient } from '$lib/utils/webdav';
-    import { SettingsIcon, RefreshCwIcon, GitCompareArrowsIcon, EyeIcon } from '@lucide/svelte';
+    import Toolbar from '#lib/components/Toolbar.svelte';
+    import { settings, SettingKeys } from '#lib/settings';
+    import { Setting } from '#lib/data/model';
+    import { filterBackupSettings } from '#lib/services/backupSettings';
+    import { restoreSettings } from '#lib/services/backupService';
+    import { readFile, saveFile } from '#lib/utils/opfslib';
+    import Notifier from '#lib/utils/notifier';
+    import { WebDavClient } from '#lib/utils/webdav';
+    import SettingsIcon from '@lucide/svelte/icons/settings';
+import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+import GitCompareArrowsIcon from '@lucide/svelte/icons/git-compare-arrows';
+import EyeIcon from '@lucide/svelte/icons/eye';
     import { goto } from '$app/navigation';
 
     let includeSettings = $state(false);
@@ -54,7 +59,7 @@
     }
 
     function fileParams(): URLSearchParams {
-        const p = new URLSearchParams();
+        const p = new SvelteURLSearchParams();
         if (includeSettings) p.append('f', 'settings');
         if (includeCashierBean) p.append('f', 'bean');
         return p;
@@ -130,11 +135,11 @@
     }
 
     function openDiff() {
-        goto(`/backup/webdav/diff?${fileParams()}`);
+        goto(resolve(`/backup/webdav/diff?${fileParams()}`));
     }
 
     function openPreview(source: 'local' | 'remote') {
-        goto(`/backup/webdav/preview?source=${source}&${fileParams()}`);
+        goto(resolve(`/backup/webdav/preview?${new SvelteURLSearchParams([['source', source], ...fileParams().entries()])}`));
     }
 
     const selectedLabels = $derived([
@@ -145,7 +150,7 @@
 
 {#snippet menuItems()}
     <li>
-        <a href="/settings/webdav-cfg">
+        <a href={resolve("/settings/webdav-cfg")}>
             <SettingsIcon size={16} />
             WebDAV Config
         </a>
@@ -157,7 +162,7 @@
 <main class="p-4 flex flex-col gap-6">
     {#if !webdavUrl}
     <section>
-        <p>Make sure that you <a href="/settings/webdav-cfg" class="link link-primary">configure</a> your WebDAV connection before backup operations.</p>
+        <p>Make sure that you <a href={resolve("/settings/webdav-cfg")} class="link link-primary">configure</a> your WebDAV connection before backup operations.</p>
     </section>
     {/if}
     <section class="my-4">

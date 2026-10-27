@@ -1,8 +1,10 @@
 <script lang="ts">
-	import OpfsFilePicker from '$lib/components/OpfsFilePicker.svelte';
-	import FAB from '$lib/components/FAB.svelte';
-	import { Check } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import OpfsFilePicker from '#lib/components/OpfsFilePicker.svelte';
+	import FAB from '#lib/components/FAB.svelte';
+	import Check from '@lucide/svelte/icons/check';
 	import { page } from '$app/state';
+
 	import { goto } from '$app/navigation';
 
 	let selectedFile = $state<string | null>(null);
@@ -14,7 +16,7 @@
 	function onFabClick() {
 		if (returnSetting) {
 			if (selectedFile) {
-				goto(`/settings?settingKey=${encodeURIComponent(returnSetting)}&settingValue=${encodeURIComponent(selectedFile)}`);
+				goto(resolve(`/settings?${new URLSearchParams({ settingKey: returnSetting, settingValue: selectedFile })}`));
 			}
 			return;
 		}

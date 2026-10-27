@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SvelteMap, SvelteURLSearchParams } from 'svelte/reactivity';
 	import { tick } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import AccordionSection from '$lib/components/AccordionSection.svelte';
-	import IncomeExpenseChart from '$lib/components/IncomeExpenseChart.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { SettingKeys, settings } from '$lib/settings';
+	import { resolve } from '$app/paths';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import AccordionSection from '#lib/components/AccordionSection.svelte';
+	import IncomeExpenseChart from '#lib/components/IncomeExpenseChart.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { SettingKeys, settings } from '#lib/settings';
 
 	interface DayEntry {
 		date: string;
@@ -96,17 +98,17 @@
 		return `${amount.toFixed(2)}${displayCurrency ? ` ${displayCurrency}` : ''}`;
 	}
 
-	function txSearchUrl(accountPattern: string, monthKey?: string, singleDate?: string): string {
-		const params = new URLSearchParams({ account: accountPattern });
-		if (singleDate) {
-			params.set('dateFrom', singleDate);
-			params.set('dateTo', singleDate);
-		} else if (monthKey) {
-			params.set('dateFrom', monthKey + '-01');
-			params.set('dateTo', lastDayOfMonth(monthKey));
+	function txSearchUrl(accountPattern: string, monthKey?: string, singleDate?: string): URLSearchParams {
+			const params = new SvelteURLSearchParams({ account: accountPattern });
+			if (singleDate) {
+				params.set('dateFrom', singleDate);
+				params.set('dateTo', singleDate);
+			} else if (monthKey) {
+				params.set('dateFrom', monthKey + '-01');
+				params.set('dateTo', lastDayOfMonth(monthKey));
+			}
+			return params;
 		}
-		return `/reports/tx-search?${params}`;
-	}
 
 	async function loadData() {
 		isLoading = true;
@@ -145,8 +147,8 @@
 				return;
 			}
 
-			const incomeMap = new Map<string, Map<string, number>>();
-			const expenseMap = new Map<string, Map<string, number>>();
+			const incomeMap = new SvelteMap<string, Map<string, number>>();
+			const expenseMap = new SvelteMap<string, Map<string, number>>();
 			for (const { key } of monthList) {
 				incomeMap.set(key, new Map());
 				expenseMap.set(key, new Map());
@@ -223,7 +225,7 @@
 			disabled={isLoading}
 		>
 			<option value="last12">Last 12 months</option>
-			{#each availableYears as year}
+			{#each availableYears as year (year)}
 				<option value={String(year)}>{year}</option>
 			{/each}
 		</select>
@@ -255,7 +257,7 @@
 						onToggle={() => (incomeExpanded = !incomeExpanded)}
 					>
 						<div class="flex flex-col divide-y divide-base-200">
-							{#each incomeMonths as month}
+							{#each incomeMonths as month (month.key)}
 								<details class="group">
 									<summary
 										class="flex cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden"
@@ -285,13 +287,13 @@
 									</summary>
 									<div class="mb-2 ml-4 flex flex-col">
 										<a
-											href={txSearchUrl('^Income', month.key)}
+											href={resolve(`/reports/tx-search?${txSearchUrl('^Income', month.key)}`)}
 											class="px-2 py-1 text-xs text-primary hover:underline"
 											>All transactions — {month.label}</a
 										>
-										{#each month.days as day}
+										{#each month.days as day (day.date)}
 											<a
-												href={txSearchUrl('^Income', undefined, day.date)}
+												href={resolve(`/reports/tx-search?${txSearchUrl('^Income', undefined, day.date)}`)}
 												class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
 											>
 												<span class="text-base-content/70">{day.label}</span>
@@ -312,7 +314,7 @@
 						onToggle={() => (expensesExpanded = !expensesExpanded)}
 					>
 						<div class="flex flex-col divide-y divide-base-200">
-							{#each expenseMonths as month}
+							{#each expenseMonths as month (month.key)}
 								<details class="group">
 									<summary
 										class="flex cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden"
@@ -342,13 +344,13 @@
 									</summary>
 									<div class="mb-2 ml-4 flex flex-col">
 										<a
-											href={txSearchUrl('^Expenses', month.key)}
+											href={resolve(`/reports/tx-search?${txSearchUrl('^Expenses', month.key)}`)}
 											class="px-2 py-1 text-xs text-primary hover:underline"
 											>All transactions — {month.label}</a
 										>
-										{#each month.days as day}
+										{#each month.days as day (day.date)}
 											<a
-												href={txSearchUrl('^Expenses', undefined, day.date)}
+												href={resolve(`/reports/tx-search?${txSearchUrl('^Expenses', undefined, day.date)}`)}
 												class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
 											>
 												<span class="text-base-content/70">{day.label}</span>

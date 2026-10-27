@@ -1,8 +1,9 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import * as BackupService from '$lib/services/backupService';
-	import Notifier from '$lib/utils/notifier';
-	import { FileDownIcon, Share2Icon } from '@lucide/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import * as BackupService from '#lib/services/backupService';
+	import Notifier from '#lib/utils/notifier';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
+import Share2Icon from '@lucide/svelte/icons/share-2';
 	import { onMount } from 'svelte';
 	// import type { FileChangeDetails } from '@zag-js/file-upload';
 

@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { AssetClass } from '$lib/assetAllocation/AssetClass.js';
-	import { getOffsetColor, getRowColor } from '$lib/assetAllocation/assetAllocationUtils.js';
-	import { NUMBER_FORMAT } from '$lib/constants.js';
+	import { AssetClass } from '#lib/assetAllocation/AssetClass.js';
+	import { getOffsetColor, getRowColor } from '#lib/assetAllocation/assetAllocationUtils.js';
+	import { NUMBER_FORMAT } from '#lib/constants.js';
 	import numeral from 'numeral';
-	import { ChevronDown, ChevronRight } from '@lucide/svelte';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import AssetClassRow from './AssetClassRow.svelte';
+	import { resolve } from '$app/paths';
 
-	// eslint-disable-next-line no-unassigned-vars
-export let assetClass: AssetClass;
+	export let assetClass: AssetClass;
 	export let children: AssetClass[] = [];
 	export let depth: number = 0;
 	export let collapsedState: Record<string, boolean> = {};
@@ -61,13 +62,16 @@ export let assetClass: AssetClass;
 			{/if}
 			{#if depth > 0}
 				<div class="flex">
-					{#each Array(depth).fill(0) as _, i}
+					{#each Array(depth).fill(0) as _, i (i)}
 						<div class="border-base-300 mr-1 h-full w-2 border-l"></div>
 					{/each}
 				</div>
 			{/if}
 			<span class="truncate">
-				<a class="underline" href={`/assetclass-detail/${assetClass.fullname}`}>
+				<a
+					class="underline"
+					href={resolve('/assetclass-detail/[name]', { name: assetClass.fullname })}
+				>
 					{assetClass.name}
 				</a>
 			</span>
@@ -95,7 +99,7 @@ export let assetClass: AssetClass;
 
 <!-- Recursively render children -->
 {#if children.length > 0 && !collapsedState[assetClass.fullname]}
-	{#each children as child}
+	{#each children as child (child.fullname)}
 		<AssetClassRow
 			assetClass={child}
 			children={getChildren(child.fullname)}

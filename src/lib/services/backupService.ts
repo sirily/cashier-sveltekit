@@ -3,11 +3,11 @@
 	Backup and restore custom data using a JSON file.
 */
 
-import { ISODATEFORMAT, LONGTIMEFORMAT } from '$lib/constants';
-import db from '$lib/data/db';
-import { Setting, type ScheduledTransaction } from '$lib/data/model';
-import { SettingKeys, settings } from '$lib/settings';
-import { filterBackupSettings, settingsForRestore } from '$lib/services/backupSettings';
+import { ISODATEFORMAT, LONGTIMEFORMAT } from '#lib/constants';
+import db from '#lib/data/db';
+import { Setting, type ScheduledTransaction } from '#lib/data/model';
+import { SettingKeys, settings } from '#lib/settings';
+import { filterBackupSettings, settingsForRestore } from '#lib/services/backupSettings';
 import moment from 'moment';
 
 export async function restoreSettings(entries: Setting[]) {

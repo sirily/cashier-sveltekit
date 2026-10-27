@@ -1,15 +1,16 @@
 <!-- The card for Scheduled Transactions backup -->
 <script lang="ts">
-	import BackupScxCard from '$lib/components/BackupScxCard.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { NetworkIcon } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import BackupScxCard from '#lib/components/BackupScxCard.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import NetworkIcon from '@lucide/svelte/icons/network';
 </script>
 
 <article>
 	<Toolbar title="Cloud Backup">
 		{#snippet menuItems()}
-			<ToolbarMenuItem text="WebDAV Config" Icon={NetworkIcon} targetNav="/settings/webdav-cfg" />
+			<ToolbarMenuItem text="WebDAV Config" Icon={NetworkIcon} targetNav={resolve('/settings/webdav-cfg')} />
 		{/snippet}
 	</Toolbar>
 	<section class="p-1">

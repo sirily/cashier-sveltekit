@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Toolbar from "$lib/components/Toolbar.svelte";
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import Toolbar from "#lib/components/Toolbar.svelte";
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	let bql = $state('SELECT account, sum(number) as balance, currency ORDER BY account');
 
@@ -169,7 +169,7 @@
 {#snippet errorBlock(errors: QueryError[])}
 	{#if errors.length > 0}
 		<div class="border border-error rounded-lg bg-error/10 p-3 flex flex-col gap-1">
-			{#each errors as err}
+			{#each errors as err, i (`${err.line ?? ""}:${err.column ?? ""}:${err.message}:${i}`)}
 				<div class="text-error text-sm font-mono">
 					{#if err.line}<span class="opacity-60">{err.severity} {err.line}:{err.column} — </span>{/if}{err.message}
 				</div>
@@ -184,15 +184,15 @@
 			<table class="table table-sm table-zebra w-full">
 				<thead>
 					<tr>
-						{#each columns as col}
+						{#each columns as col (col)}
 							<th>{col}</th>
 						{/each}
 					</tr>
 				</thead>
 				<tbody>
-					{#each rows as row}
+					{#each rows as row, rowIndex (rowIndex)}
 						<tr>
-							{#each columns as _col, i}
+							{#each columns as _col, i (_col)}
 								<td class="font-mono text-xs whitespace-pre-wrap">{formatCell(row[i])}</td>
 							{/each}
 						</tr>

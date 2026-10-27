@@ -1,20 +1,20 @@
 /*
 	Provide service layer for the application.
 */
-import db from '$lib/data/db';
-import { Account, LastXact, Money, Payee, ScheduledTransaction, Xact } from '$lib/data/model';
-import { settings, SettingKeys } from '$lib/settings';
-import { HomeCardNames, PtaSystems } from '$lib/enums';
-import { DefaultCurrencyStore, ScheduledXact, xact } from '$lib/data/mainStore';
+import db from '#lib/data/db';
+import { Account, LastXact, Money, Payee, ScheduledTransaction, Xact } from '#lib/data/model';
+import { settings, SettingKeys } from '#lib/settings';
+import { HomeCardNames, PtaSystems } from '#lib/enums';
+import { DefaultCurrencyStore, ScheduledXact, xact } from '#lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
-import * as LedgerParser from '$lib/utils/ledgerParser';
-import * as BeancountParser from '$lib/utils/beancountParser';
-import { formatAmount } from '$lib/utils/formatter';
-import { readFile, saveFile } from '$lib/utils/opfslib';
-import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '$lib/constants';
+import * as LedgerParser from '#lib/utils/ledgerParser';
+import * as BeancountParser from '#lib/utils/beancountParser';
+import { formatAmount } from '#lib/utils/formatter';
+import { readFile, saveFile } from '#lib/utils/opfslib';
+import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 import { ensureInitialized, createParsedLedger } from './rustledger';
-import { mapDirectiveSpans } from '$lib/rledger/sourceEditor';
+import { mapDirectiveSpans } from '#lib/rledger/sourceEditor';
 
 // interface AccountIndex {
 // 	[key: string]: Account;

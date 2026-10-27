@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { toaster } from '$lib/toaster-svelte';
+import { toaster } from '#lib/toaster-svelte';
 
 describe('DaisyUI toaster', () => {
 	beforeEach(() => {

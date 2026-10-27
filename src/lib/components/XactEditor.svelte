@@ -1,27 +1,27 @@
 <script lang="ts">
-	import { selectionMetadata, xact } from '$lib/data/mainStore';
+	import { selectionMetadata, xact } from '#lib/data/mainStore';
 	import { onMount } from 'svelte';
+	import { SvelteDate } from 'svelte/reactivity';
 	import PostingEditor from './PostingEditor.svelte';
 	import { goto } from '$app/navigation';
-	import Notifier from '$lib/utils/notifier';
-	import appService from '$lib/services/appService';
-	import { getAccountBalance, loadAccount } from '$lib/services/accountsService';
-	import { SelectionModeMetadata, SettingKeys, settings } from '$lib/settings';
-	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '$lib/utils/xactUtils';
-	import { Posting, type Xact } from '$lib/data/model';
-	import {
-		ArrowUpDownIcon,
-		SigmaIcon,
-		TrashIcon,
-		UserIcon,
-		CalendarIcon,
-		FileTextIcon,
-		CirclePlusIcon,
-		TriangleAlertIcon,
-		CircleCheckIcon,
-		ChevronLeftIcon,
-		ChevronRightIcon
-	} from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import Notifier from '#lib/utils/notifier';
+	import appService from '#lib/services/appService';
+	import { getAccountBalance, loadAccount } from '#lib/services/accountsService';
+	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
+	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '#lib/utils/xactUtils';
+	import { Posting, type Xact } from '#lib/data/model';
+	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+import SigmaIcon from '@lucide/svelte/icons/sigma';
+import TrashIcon from '@lucide/svelte/icons/trash';
+import UserIcon from '@lucide/svelte/icons/user';
+import CalendarIcon from '@lucide/svelte/icons/calendar';
+import FileTextIcon from '@lucide/svelte/icons/file-text';
+import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
+import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Big } from 'big.js';
 	import moment from 'moment';
 
@@ -73,7 +73,7 @@
 		}
 	});
 	if (!$xact) {
-		goto('/');
+		goto(resolve('/'));
 	}
 
 	onMount(async () => {
@@ -194,7 +194,7 @@
 		meta.selectionType = 'account';
 		selectionMetadata.set(meta);
 
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	};
 
 	const onPayeeClicked = async () => {
@@ -203,7 +203,7 @@
 		meta.selectionType = 'payee';
 		selectionMetadata.set(meta);
 
-		await goto('/payees');
+		await goto(resolve('/payees'));
 	};
 
 	function onPostingAccountClicked(index: number) {
@@ -214,7 +214,7 @@
 
 	function shiftDate(days: number) {
 		if (!$xact?.date) return;
-		const d = new Date($xact.date);
+		const d = new SvelteDate($xact.date);
 		d.setDate(d.getDate() + days);
 		$xact.date = d.toISOString().slice(0, 10);
 	}
@@ -232,12 +232,16 @@
 		<CalendarIcon class="h-5 w-5 mr-2 opacity-70" />
 		<button type="button" class="btn btn-ghost h-11 w-11 p-0" onclick={() => shiftDate(-1)}><ChevronLeftIcon class="h-4 w-4" /></button>
 		<div class="relative flex-1">
-			<div
+			<button
+				type="button"
 				class="input rounded flex items-center cursor-pointer px-3 w-full"
-				onclick={() => dateInputEl?.showPicker?.()}
+				onclick={() => {
+					dateInputEl?.focus();
+					dateInputEl?.showPicker?.();
+				}}
 			>
 				{formattedDate}
-			</div>
+			</button>
 			<input
 				bind:this={dateInputEl}
 				title="Date"
@@ -327,10 +331,10 @@
 			>
 				<CirclePlusIcon />
 			</button>
-			<a class="btn btn-outline btn-accent btn-icon rounded" href="/postings/reorder">
+			<a class="btn btn-outline btn-accent btn-icon rounded" href={resolve('/postings/reorder')}>
 				<ArrowUpDownIcon />
 			</a>
-			<a class="btn btn-outline btn-accent btn-icon rounded" href="/postings/delete">
+			<a class="btn btn-outline btn-accent btn-icon rounded" href={resolve('/postings/delete')}>
 				<TrashIcon />
 			</a>
 		</div>

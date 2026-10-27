@@ -5,10 +5,10 @@
     If the user imports their Ledger and selects the root file, that file is then
     included in `cashier.bean` and the whole book is parsed.
 */
-import { CASHIER_XACT_FILE } from '$lib/constants';
-// import { SettingKeys, settings } from '$lib/settings';
-import appService from '$lib/services/appService';
-import * as OpfsLib from '$lib/utils/opfslib';
+import { CASHIER_XACT_FILE } from '#lib/constants';
+// import { SettingKeys, settings } from '#lib/settings';
+import appService from '#lib/services/appService';
+import * as OpfsLib from '#lib/utils/opfslib';
 
 /**
  * Initialize the application.

@@ -3,7 +3,7 @@ const state = vi.hoisted(() => ({
 	settings: [] as Array<{ key: string; value: string }>,
 	restored: [] as unknown[]
 }));
-vi.mock('$lib/settings', () => ({
+vi.mock('#lib/settings', () => ({
 	SettingKeys: { syncApiToken: 'syncApiToken' },
 	settings: {
 		getAll: async () => state.settings,
@@ -13,7 +13,7 @@ vi.mock('$lib/settings', () => ({
 		}
 	}
 }));
-vi.mock('$lib/data/db', () => ({
+vi.mock('#lib/data/db', () => ({
 	default: {
 		settings: {
 			clear: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('$lib/data/db', () => ({
 		scheduled: { toArray: async () => [], clear: vi.fn(), bulkAdd: vi.fn() }
 	}
 }));
-import { createBackup, restoreBackup } from '$lib/services/backupService';
+import { createBackup, restoreBackup } from '#lib/services/backupService';
 beforeEach(() => {
 	state.settings = [];
 	state.restored = [];

@@ -10,14 +10,14 @@
  */
 
 import { writable, derived, get, type Readable } from 'svelte/store';
-import { Account } from '$lib/data/model';
-import { settings, SettingKeys } from '$lib/settings';
+import { Account } from '#lib/data/model';
+import { settings, SettingKeys } from '#lib/settings';
 import type {
 	WorkerRequestPayload,
 	WorkerResponse,
 	WorkerResponsePayload
-} from '$lib/workers/ledger.worker';
-import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '$lib/constants';
+} from '#lib/workers/ledger.worker';
+import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 
 // Extract the response shape for a given `type` discriminant.
 type ResponseOf<T extends WorkerResponsePayload['type']> = Extract<
@@ -51,7 +51,7 @@ class LedgerWorkerClient {
 
 	private get worker(): Worker {
 		if (!this._worker) {
-			this._worker = new Worker(new URL('$lib/workers/ledger.worker.ts', import.meta.url), {
+			this._worker = new Worker(new URL('../workers/ledger.worker.ts', import.meta.url), {
 				type: 'module'
 			});
 			this._worker.onmessage = (e: MessageEvent<WorkerResponse>) => {

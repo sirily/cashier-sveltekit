@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import DragReorderList from '$lib/components/DragReorderList.svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { DEFAULT_FORECAST_DAYS } from '$lib/constants';
-	import { selectionMetadata } from '$lib/data/mainStore';
-	import { SelectionType } from '$lib/enums';
-	import { SelectionModeMetadata, SettingKeys, settings } from '$lib/settings';
-	import { CheckIcon, TrashIcon } from '@lucide/svelte';
+	import DragReorderList from '#lib/components/DragReorderList.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { DEFAULT_FORECAST_DAYS } from '#lib/constants';
+	import { selectionMetadata } from '#lib/data/mainStore';
+	import { SelectionType } from '#lib/enums';
+	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
+	import CheckIcon from '@lucide/svelte/icons/check';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	let days = $state<number>(DEFAULT_FORECAST_DAYS);
@@ -46,7 +48,7 @@
 		meta.selectionType = SelectionType.ACCOUNT;
 		selectionMetadata.set(meta);
 
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	function onDeleteClicked(index: number) {

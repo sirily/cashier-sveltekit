@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
     import { goto } from '$app/navigation'
-    import Toolbar from '$lib/components/Toolbar.svelte'
-    import { Xact } from '$lib/data/model'
-    import { xact as xactStore, xactSpan } from '$lib/data/mainStore'
-    import { type ParseResult, parseTranscript, buildTransaction, formatBeancount } from '$lib/utils/voiceNlp'
-    import fullLedgerService from '$lib/services/ledgerWorkerClient'
+    import Toolbar from '#lib/components/Toolbar.svelte'
+    import { Xact } from '#lib/data/model'
+    import { xact as xactStore, xactSpan } from '#lib/data/mainStore'
+    import { type ParseResult, parseTranscript, buildTransaction, formatBeancount } from '#lib/utils/voiceNlp'
+    import fullLedgerService from '#lib/services/ledgerWorkerClient'
 
     // --- State ---
 
@@ -26,24 +27,24 @@
 
     // --- Web Speech API ---
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     let recognition: any = null
 
     function initRecognition() {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
         if (!SR) {
             supported = false
             return null
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         const r: any = new SR()
         r.continuous = false
         r.interimResults = true
         r.lang = 'en-US'
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         r.onresult = (event: any) => {
             let interim = ''
             let final = ''
@@ -56,7 +57,7 @@
             if (final) handleTranscript(final)
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         r.onerror = (event: any) => {
             if (event.error === 'network') {
                 errorMsg =
@@ -117,7 +118,7 @@
         if (!transaction) return
         xactStore.set(transaction)
         xactSpan.set(undefined)
-        goto('/tx')
+        goto(resolve('/tx'))
     }
 
     async function resolveFromAccount() {
@@ -220,7 +221,7 @@
                         </div>
                     </div>
                     <ul class="list-disc list-inside text-sm space-y-1">
-                        {#each parseResult.matched as item}
+                        {#each parseResult.matched as item, i (`${item}:${i}`)}
                             <li>{item}</li>
                         {/each}
                     </ul>
@@ -277,7 +278,7 @@
                             'Received 500 euros from salary',
                             'Transferred 100 euros from checking to savings',
                             'Bought groceries for 35 euros',
-                        ] as phrase}
+                        ] as phrase (phrase)}
                             <li>
                                 <button
                                     class="text-left opacity-70 hover:opacity-100 hover:underline"

@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import type { UnifiedXact } from './+page.js';
-	import * as Formatter from '$lib/utils/formatter';
-	import { ScaleIcon } from '@lucide/svelte';
-	import { xact, xactSpan } from '$lib/data/mainStore';
+	import * as Formatter from '#lib/utils/formatter';
+	import ScaleIcon from '@lucide/svelte/icons/scale';
+	import { xact, xactSpan } from '#lib/data/mainStore';
 
 	const PAGE_SIZE = 30;
 	let visibleCount = $state(PAGE_SIZE);
@@ -16,7 +17,7 @@
 		if (!row.isDevice || !row.xact || !row.span) return;
 		xact.set(row.xact);
 		xactSpan.set(row.span);
-		await goto('/xact-actions');
+		await goto(resolve('/xact-actions'));
 	}
 
 	const allRows = $derived(page.data.unifiedRows as UnifiedXact[]);
@@ -40,7 +41,7 @@
 			<ToolbarMenuItem
 				Icon={ScaleIcon}
 				text="Balance Adjustment"
-				onclick={() => goto(`/accounts/bal-adj?account=${encodeURIComponent(page.data.account.name)}`)}
+				onclick={() => goto(resolve(`/accounts/bal-adj?${new URLSearchParams({ account: page.data.account.name })}`))}
 			/>
 		{/snippet}
 	</Toolbar>

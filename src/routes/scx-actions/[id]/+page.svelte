@@ -1,23 +1,22 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import SquareButton from '$lib/components/SquareButton.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import CashierDAL, { saveScheduledTransaction } from '$lib/data/dbdal';
-	import { ScheduledXact, xact } from '$lib/data/mainStore';
-	import type { ScheduledTransaction, Xact } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import Notifier from '$lib/utils/notifier';
-	import { calculateNextIteration } from '$lib/scheduledTransactions';
-	import {
-		ChevronsRightIcon,
-		SquarePenIcon,
-		ScrollIcon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import SquareButton from '#lib/components/SquareButton.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import CashierDAL, { saveScheduledTransaction } from '#lib/data/dbdal';
+	import { ScheduledXact, xact } from '#lib/data/mainStore';
+	import type { ScheduledTransaction, Xact } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import Notifier from '#lib/utils/notifier';
+	import { calculateNextIteration } from '#lib/scheduledTransactions';
+	import ChevronsRightIcon from '@lucide/svelte/icons/chevrons-right';
+import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+import ScrollIcon from '@lucide/svelte/icons/scroll';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
-	import db from '$lib/data/db';
+	import db from '#lib/data/db';
 
 	Notifier.init();
 
@@ -30,7 +29,7 @@
 
 	onMount(() => {
 		if (!id) {
-			goto('/');
+			goto(resolve('/'));
 		}
 	});
 
@@ -73,7 +72,7 @@
 		xact.set(newTx);
 
 		// open the transaction. Maintain page navigation history.
-		await goto('/tx', { replaceState: true });
+		await goto(resolve('/tx'), { replaceState: true });
 	}
 
 	async function onEnterConfirmed() {
@@ -98,7 +97,7 @@
 	}
 
 	async function onEditClicked(id: any) {
-		await goto(`/scx-editor/${id}`);
+		await goto(resolve('/scx-editor/[[id]]', { id: String(id) }));
 	}
 
 	async function onSkipClicked() {

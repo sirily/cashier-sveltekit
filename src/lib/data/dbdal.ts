@@ -3,8 +3,8 @@
  */
 
 import type { IndexableType } from 'dexie';
-import { Account, Payee, ScheduledTransaction } from '$lib/data/model';
-import db from '$lib/data/db';
+import { Account, Payee, ScheduledTransaction } from '#lib/data/model';
+import db from '#lib/data/db';
 import type { DAL } from './dal';
 
 export default class CashierDAL implements DAL {

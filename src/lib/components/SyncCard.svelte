@@ -1,6 +1,8 @@
 <script>
-	import { RefreshCwIcon, SettingsIcon } from '@lucide/svelte';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+import SettingsIcon from '@lucide/svelte/icons/settings';
 	import CardTemplate from './HomeCardTemplate.svelte';
+	import { resolve } from '$app/paths';
 </script>
 
 <CardTemplate>
@@ -15,7 +17,7 @@
 	{/snippet}
 	{#snippet footer()}
 		<center>
-			<a href="/sync" class="btn btn-outline btn-warning uppercase rounded">
+			<a href={resolve('/sync')} class="btn btn-outline btn-warning uppercase rounded">
 				<span><SettingsIcon /></span>
 				<span>Sync Settings</span>
 			</a>

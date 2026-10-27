@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import AccordionSection from '$lib/components/AccordionSection.svelte';
-	import ledgerService from '$lib/services/ledgerService';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import AccordionSection from '#lib/components/AccordionSection.svelte';
+	import ledgerService from '#lib/services/ledgerService';
 	import JsonTreeNode from './JsonTreeNode.svelte';
 
 	let isLoading = $state(false);
