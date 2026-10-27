@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import DragReorderList from '#lib/components/DragReorderList.svelte';
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
@@ -11,7 +12,7 @@
 
 	onMount(() => {
 		if (!$xact) {
-			goto('/');
+			goto(resolve('/'));
 			return;
 		}
 		postings = [...$xact.postings];

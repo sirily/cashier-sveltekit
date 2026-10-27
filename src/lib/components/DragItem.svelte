@@ -1,10 +1,11 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	/**
 	 * @type {{
 	 *   duration?: number
 	 *   index: number
-	 *   set_drag_element: (clientX: number, clientY: number, drag: HTMLElement) => void
-	 *   todo_list: ReturnType<typeof import("../TodoListExample.svelte").create_todo_list>
+	 *   set_drag_element: (clientX: number, clientY: number, preview: Snippet, rect: DOMRect) => void
+	 *   todo_list: ReturnType<typeof import("./DragListReorder.svelte").create_todo_list>
 	 *   type: "done" | "todo"
 	 * }}
 	 */
@@ -33,26 +34,35 @@
 	const handle_dragenter = () => {
 		todo_list.enter_drag(index, type);
 	};
-	const handle_dragstart = () => todo_list.start_drag(index, type);
+	let dragLabel = $state('');
+	const handle_dragstart = () => {
+		// Keep the preview stable when the source row changes or leaves its list.
+		dragLabel = todo_list.$items[type][index];
+		todo_list.start_drag(index, type);
+	};
 </script>
 
 <Dragable delay={300} ondragstart={handle_dragstart} setDragElement={set_drag_element}>
+	{#snippet drag()}
+		<div style="width:5em; text-align:center; font-size:2.5em; cursor:move; color:#000;">
+			{dragLabel + '!!'}
+		</div>
+	{/snippet}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		bind:offsetHeight={todo_list.heights[type][index]}
-		style="border-radius:.5em; width:6em; outline:.1em solid; text-align:center; font-size:2em; cursor:pointer; transform:translateY({transform}px);
-                {todo_list.$is_dragging &&
+		style="border-radius:.5em; width:6em; outline:{is_dragging
+			? '.2em solid #aaa'
+			: '.1em solid'}; text-align:center; font-size:2em; cursor:pointer; transform:translateY({transform}px);
+			{todo_list.$is_dragging &&
 			todo_list.$drag_type == type &&
 			`transition:${duration}ms`};
-                {is_dragging && 'opacity:.2; outline:.2em solid #aaa'};
-                {!todo_list.$items[type][index] && 'display:none'};"
+			{is_dragging && 'opacity:.2'};
+			{!todo_list.$items[type][index] && 'display:none'};"
 		onclick={handle_click}
 		ondragenter={handle_dragenter}
 	>
 		{todo_list.$items[type][index]}
-	</div>
-	<div slot="drag" style="width:5em; text-align:center; font-size:2.5em; cursor:move; color:#000;">
-		{todo_list.$items[type][index] + '!!'}
 	</div>
 </Dragable>

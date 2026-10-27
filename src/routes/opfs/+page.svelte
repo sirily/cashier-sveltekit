@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import OpfsFilePicker from '#lib/components/OpfsFilePicker.svelte';
 	import { FilePlusIcon, UploadIcon, Trash2Icon } from '@lucide/svelte';
@@ -40,7 +41,7 @@
 	});
 
 	function onFileSelect(entry: FileTreeEntry) {
-		goto(`/opfs/edit-file?file=${encodeURIComponent(entry.path)}`);
+		goto(resolve(`/opfs/edit-file?${new URLSearchParams({ file: entry.path })}`));
 	}
 
 	function confirmDelete(filePath: string) {

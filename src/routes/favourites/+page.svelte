@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
+
+	import { SvelteMap } from 'svelte/reactivity';
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
@@ -75,7 +78,7 @@
 	 * Query account balances from the ParsedLedger via BQL.
 	 */
 	async function queryFavouriteBalances(favNames: string[]): Promise<Map<string, Account>> {
-		const result = new Map<string, Account>();
+		const result = new SvelteMap<string, Account>();
 		if (favNames.length === 0) return result;
 
 		await fullLedgerService.ensureLoaded();
@@ -180,18 +183,18 @@
 	}
 
 	async function onAccountClick(accountName?: string) {
-		goto('/accounts/account-xacts/' + accountName);
+		goto(resolve('/accounts/account-xacts/[accountName]', { accountName: encodeURIComponent(accountName ?? '') }))
 	}
 
 	async function onAddClicked() {
 		$selectionMetadata = new SelectionModeMetadata();
 		$selectionMetadata.selectionType = SelectionType.ACCOUNT;
 
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	async function onDeleteClicked() {
-		await goto('/favourites/delete');
+		await goto(resolve('/favourites/delete'));
 	}
 
 	function onDeleteAllClicked() {
@@ -206,7 +209,7 @@
 	}
 
 	async function onReorderClick() {
-		await goto('/favourites/reorder');
+		await goto(resolve('/favourites/reorder'));
 	}
 </script>
 

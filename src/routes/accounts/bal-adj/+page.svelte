@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import Toolbar from '#lib/components/Toolbar.svelte';
@@ -75,7 +76,7 @@
 		meta.origin = 'bal-adj';
 		meta.selectionType = 'account';
 		selectionMetadata.set(meta);
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	async function openCalculator() {
@@ -85,7 +86,7 @@
 		meta.selectionType = 'amount';
 		meta.initialValue = parseFloat(enteredBalance) || 0;
 		selectionMetadata.set(meta);
-		await goto('/calculator');
+		await goto(resolve('/calculator'));
 	}
 
 	async function onFab() {
@@ -97,7 +98,7 @@
 		$xact.postings[0].amount = -(entered - ledgerBalance);
 		$xact.postings[1].account = accountName;
 
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 </script>
 

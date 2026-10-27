@@ -104,14 +104,16 @@ afterEach(() => {
 
 describe('PWA update lifecycle', () => {
 	it('retries initialization after registration fails', async () => {
-		const { checkForUpdate, workbox } = await (async () => {
+		const { checkForUpdate, workbox, error, consoleError } = await (async () => {
 			const workbox = new MockWorkbox();
 			mocks.workbox = workbox;
 			setupServiceWorker();
 			const pwa = await import('../src/lib/services/pwaUpdate.svelte');
-			workbox.register.mockRejectedValueOnce(new Error('temporary registration failure'));
+			const error = new Error('temporary registration failure');
+			const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+			workbox.register.mockRejectedValueOnce(error);
 			expect(await pwa.checkForUpdate()).toBe('error');
-			return { ...pwa, workbox };
+			return { ...pwa, workbox, error, consoleError };
 		})();
 
 		registration.waiting = null;
@@ -120,21 +122,30 @@ describe('PWA update lifecycle', () => {
 		expect(workbox.register).toHaveBeenCalledTimes(2);
 		expect(mocks.workboxConstructions).toBe(1);
 		expect(workbox.addEventListener).toHaveBeenCalledTimes(2);
+		expect(consoleError.mock.calls).toEqual([['Service worker initialization failed:', error]]);
 	});
 
 	it('resolves installed timestamp when initialization fails and no controller exists', async () => {
 		setupServiceWorker();
 		mocks.workbox = new MockWorkbox();
-		mocks.workbox.register.mockRejectedValue(new Error('temporary registration failure'));
+		const error = new Error('temporary registration failure');
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		mocks.workbox.register.mockRejectedValue(error);
 		const pwa = await import('../src/lib/services/pwaUpdate.svelte');
 		expect(await pwa.initPwa()).toBe('error');
 		expect(await pwa.getInstalledBuildTimestamp()).toBeUndefined();
+		expect(consoleError.mock.calls).toEqual([
+			['Service worker initialization failed:', error],
+			['Service worker initialization failed:', error]
+		]);
 	});
 
 	it('reads installed timestamp despite initialization failure when a controller exists', async () => {
 		const serviceWorker = setupServiceWorker();
 		mocks.workbox = new MockWorkbox();
-		mocks.workbox.register.mockRejectedValue(new Error('temporary registration failure'));
+		const error = new Error('temporary registration failure');
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		mocks.workbox.register.mockRejectedValue(error);
 		const postMessage = vi.fn((_message: unknown, ports: MessagePort[]) => {
 			ports[0].postMessage('build-time');
 		});
@@ -144,6 +155,7 @@ describe('PWA update lifecycle', () => {
 		});
 		const pwa = await import('../src/lib/services/pwaUpdate.svelte');
 		expect(await pwa.getInstalledBuildTimestamp()).toBe('build-time');
+		expect(consoleError.mock.calls).toEqual([['Service worker initialization failed:', error]]);
 	});
 
 	it('coalesces concurrent initialization and reuses successful initialization', async () => {
@@ -163,12 +175,15 @@ describe('PWA update lifecycle', () => {
 		mocks.workbox = workbox;
 		setupServiceWorker();
 		const pwa = await import('../src/lib/services/pwaUpdate.svelte');
-		workbox.register.mockRejectedValueOnce(new Error('temporary registration failure'));
+		const error = new Error('temporary registration failure');
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		workbox.register.mockRejectedValueOnce(error);
 		expect(await pwa.initPwa()).toBe('error');
 
 		await Promise.all([pwa.initPwa(), pwa.initPwa(), pwa.initPwa()]);
 		expect(workbox.register).toHaveBeenCalledTimes(2);
 		expect(mocks.workboxConstructions).toBe(1);
+		expect(consoleError.mock.calls).toEqual([['Service worker initialization failed:', error]]);
 	});
 
 	it('does not activate a waiting worker until the user requests Reload', async () => {

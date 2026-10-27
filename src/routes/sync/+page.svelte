@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { BoxIcon, RefreshCcw } from '@lucide/svelte';
 	import { onMount } from 'svelte';
@@ -250,7 +251,7 @@
 
 	async function onOpfsClick() {
 		// navigate to OPFS page
-		await goto('/opfs');
+		await goto(resolve('/opfs'));
 	}
 
 	async function onSyncClicked() {
@@ -662,7 +663,7 @@
 			<div>
 				<h2 class="font-semibold">Synchronization has errors</h2>
 				<ul class="mt-2 list-disc space-y-1 pl-5">
-					{#each diagnostics.syncErrors as error}
+					{#each diagnostics.syncErrors as error, i (`${error.stage}:${error.message}:${i}`)}
 						<li>
 							<span class="font-medium">{error.stage}:</span> {error.message}
 						</li>
@@ -691,7 +692,7 @@
 					{#if diagnostics.parseErrors?.length}
 						<div>Parse error details</div>
 						<div class="space-y-1 break-words">
-							{#each diagnostics.parseErrors as error}
+							{#each diagnostics.parseErrors as error, i (`${error}:${i}`)}
 								<div>{error}</div>
 							{/each}
 						</div>

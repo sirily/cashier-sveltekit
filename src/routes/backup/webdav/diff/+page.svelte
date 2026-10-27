@@ -85,13 +85,13 @@
                 <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-sm bg-success/40"></span>remote only</span>
             </div>
 
-            {#each sections as section}
+            {#each sections as section (section.filename)}
                 <div>
                     <p class="font-mono text-sm font-semibold mb-1 text-base-content/70">{section.filename}</p>
                     {#if section.identical}
                         <p class="text-sm text-success">Files are identical.</p>
                     {:else}
-                        <pre class="text-xs font-mono leading-5 overflow-x-auto rounded bg-base-200 p-2 select-text">{#each section.lines as line}{#if line.type === 'removed'}<span class="block bg-error/20 text-error-content whitespace-pre">- {line.content}</span>{:else if line.type === 'added'}<span class="block bg-success/20 text-success-content whitespace-pre">+ {line.content}</span>{:else}<span class="block text-base-content/50 whitespace-pre">  {line.content}</span>{/if}{/each}</pre>
+                        <pre class="text-xs font-mono leading-5 overflow-x-auto rounded bg-base-200 p-2 select-text">{#each section.lines as line, i (`${line.type}:${i}`)}{#if line.type === 'removed'}<span class="block bg-error/20 text-error-content whitespace-pre">- {line.content}</span>{:else if line.type === 'added'}<span class="block bg-success/20 text-success-content whitespace-pre">+ {line.content}</span>{:else}<span class="block text-base-content/50 whitespace-pre">  {line.content}</span>{/if}{/each}</pre>
                     {/if}
                 </div>
             {/each}

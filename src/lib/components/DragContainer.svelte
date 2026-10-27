@@ -1,35 +1,46 @@
 <script lang="ts">
+	import { onDestroy, type Snippet } from 'svelte';
+
 	interface Props {
+		children: Snippet;
 		classs?: string;
-		dragElement?: HTMLElement | null;
+
 		ondragend?: (event: DragEvent) => void;
 		ondragmove?: (event: DragEvent) => void;
-		setDragElement?: (clientX: number, clientY: number, drag_element: HTMLElement) => void;
+		setDragElement?: (clientX: number, clientY: number, preview: Snippet, rect: DOMRect) => void;
 	}
 
 	let {
+		children,
 		classs = '',
-		dragElement = null,
+
 		ondragend,
 		ondragmove,
 		setDragElement = $bindable()
 	}: Props = $props();
-	setDragElement = (client_x, client_y, drag_element) => {
-		dragElement = drag_element;
-		const container_rect = container.getBoundingClientRect();
-		x = client_x - container_rect.left;
-		y = client_y - container_rect.top;
-		container.append(dragElement);
+	setDragElement = (client_x, client_y, preview, rect) => {
+		dragPreview = preview;
+		x = client_x - rect.left;
+		y = client_y - rect.top;
+		cx = client_x;
+		cy = client_y;
+		translate();
 		is_dragging = true;
 	};
 
-	// oxlint: container is assigned via bind:this below
-	// eslint-disable-next-line no-unassigned-vars
-	let container: HTMLElement;
+	let dragPreview = $state<Snippet | null>(null);
+	let dragElement = $state<HTMLDivElement | null>(null);
+	let previewLeft = $state(0);
+	let previewTop = $state(0);
+
+	let container: HTMLElement = $state()!;
 	let cx = 0;
 	let cy = 0;
 	let is_dragging: boolean;
-	let request_id: number;
+	let request_id = 0;
+	onDestroy(() => {
+			if (request_id) cancelAnimationFrame(request_id);
+		});
 	/** @type {HTMLElement?} */
 	let terrain: { dispatchEvent: (arg0: DragEvent) => void } | null;
 	let x = 0;
@@ -70,12 +81,13 @@
 	};
 	const handle_mouseup = () => {
 		if (is_dragging) {
-			if (dragElement) container.removeChild(dragElement);
+			cancelAnimationFrame(request_id);
+			request_id = 0;
 			if (terrain) {
 				terrain.dispatchEvent(new DragEvent('drop'));
 				terrain = null;
 			}
-			dragElement = null;
+			dragPreview = null;
 			is_dragging = false;
 			ondragend?.(new DragEvent('dragend'));
 		}
@@ -85,7 +97,7 @@
 	const get_terrain = (terrains: HTMLElement[]) => {
 		const length = terrains.length;
 		for (let i = 0; i < length; i++) {
-			if (dragElement == terrains[i]) {
+			if (dragElement?.contains(terrains[i])) {
 				return terrains[i + 1];
 			}
 		}
@@ -93,9 +105,8 @@
 	};
 	const translate = () => {
 		const container_rect = container.getBoundingClientRect();
-		if (dragElement) {
-			dragElement.style.transform = `translate(${cx - x - container_rect.left}px, ${cy - y - container_rect.top}px)`;
-		}
+		previewLeft = cx - x - container_rect.left + container.scrollLeft - container.clientLeft;
+		previewTop = cy - y - container_rect.top + container.scrollTop - container.clientTop;
 	};
 
 	/** @param {number} time */
@@ -107,6 +118,7 @@
 	/** @param {number} time */
 	const scroll_with_drag = (time: number) => {
 		request_id = 0;
+		if (!is_dragging) return;
 		let xs = container;
 		for (;;) {
 			if (xs === document.body) {
@@ -187,9 +199,22 @@
 	onmouseup={handle_mouseup}
 	ontouchmove={handle_touchmove}
 	ontouchend={handle_touchend}
+	ontouchcancel={handle_touchend}
 />
 
 <div bind:this={container} class={classs} style="position:relative;">
-	<slot />
-	<!-- {@render children()} -->
+	{@render children()}
+	{#if dragPreview}
+		<div
+			bind:this={dragElement}
+			data-drag-preview
+			style:position="absolute"
+			style:left="{previewLeft}px"
+			style:top="{previewTop}px"
+			style:pointer-events="none"
+			style:z-index="50"
+		>
+			{@render dragPreview()}
+		</div>
+	{/if}
 </div>

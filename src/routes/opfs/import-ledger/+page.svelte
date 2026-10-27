@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+		import { SvelteSet } from 'svelte/reactivity';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { FolderOpenIcon, RefreshCcwIcon } from '@lucide/svelte';
 	import { settings, SettingKeys } from '#lib/settings';
@@ -209,7 +210,7 @@
 			scanProgress.total = rawFiles.length;
 
 			const manifest = await getManifest();
-			const seen = new Set<string>();
+			const seen = new SvelteSet<string>();
 			const result: ScannedFile[] = Array.from({ length: rawFiles.length });
 			const stats = { new: 0, modified: 0, identical: 0, deleted: 0 };
 
@@ -461,7 +462,7 @@
 							class="overflow-y-auto border border-base-300 rounded font-mono text-xs"
 							style="max-height: 5.5rem;"
 						>
-							{#each preview as file}
+							{#each preview as file (file.path)}
 								<div class="flex items-center gap-2 px-2 py-0.5 hover:bg-base-200">
 									<span
 										class="badge badge-xs shrink-0 {file.status === 'new'
@@ -514,7 +515,7 @@
 				class="bg-neutral text-neutral-content font-mono text-xs rounded p-2 overflow-y-auto"
 				style="height: 7.5rem; min-height: 7.5rem;"
 			>
-				{#each logLines as line}
+				{#each logLines as line, i (`${i}:${line}`)}
 					<div>{line}</div>
 				{/each}
 			</div>

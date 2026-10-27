@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import DragReorderList from '#lib/components/DragReorderList.svelte';
 	import Fab from '#lib/components/FAB.svelte';
@@ -46,7 +47,7 @@
 		meta.selectionType = SelectionType.ACCOUNT;
 		selectionMetadata.set(meta);
 
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	function onDeleteClicked(index: number) {

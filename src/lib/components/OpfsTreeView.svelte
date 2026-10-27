@@ -44,11 +44,7 @@
 <div class="flex flex-col gap-1">
 	<div class="flex items-center justify-between pb-1">
 		<span class="font-semibold opacity-60">Files</span>
-		<button
-			class="btn btn-ghost btn-xs"
-			onclick={load}
-			title="Refresh"
-		>
+		<button class="btn btn-ghost btn-xs" onclick={load} title="Refresh">
 			<RefreshCw size={14} />
 		</button>
 	</div>
@@ -66,7 +62,7 @@
 		<p class="py-4 opacity-50">No files found in OPFS.</p>
 	{:else}
 		<ul class="menu p-0">
-			{#each tree as node}
+			{#each tree as node (`${node.kind}:${node.name}`)}
 				<OpfsTreeNode {node} />
 			{/each}
 		</ul>

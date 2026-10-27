@@ -2,11 +2,17 @@
 	import { CalendarClockIcon, CalendarDaysIcon } from '@lucide/svelte';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import type { Money, ScheduledTransaction, Xact } from '#lib/data/model';
 	import { onMount } from 'svelte';
 	import db from '#lib/data/db';
 	import { XactAugmenter } from '#lib/utils/xactAugmenter';
-	import { formatAmount, getAmountColour, getDateColour, getReadableDate } from '#lib/utils/formatter';
+	import {
+		formatAmount,
+		getAmountColour,
+		getDateColour,
+		getReadableDate
+	} from '#lib/utils/formatter';
 
 	let scxs: ScheduledTransaction[] = $state([]);
 	let amounts: Money[] = $state([]);
@@ -28,11 +34,11 @@
 
 	async function onCalendarClick(e: MouseEvent) {
 		e.stopPropagation();
-		await goto('/scheduled-xacts/calendar');
+		await goto(resolve('/scheduled-xacts/calendar'));
 	}
 
 	async function onClick() {
-		await goto('/scheduled-xacts');
+		await goto(resolve('/scheduled-xacts'));
 	}
 </script>
 
@@ -69,11 +75,10 @@
 	{/snippet}
 	{#snippet footer()}
 		<center>
-		<button type="button" class="btn btn-outline btn-warning uppercase"
-			onclick={onCalendarClick}>
-			<CalendarDaysIcon />
-			<span>Calendar</span>
-		</button>
-	</center>
+			<button type="button" class="btn btn-outline btn-warning uppercase" onclick={onCalendarClick}>
+				<CalendarDaysIcon />
+				<span>Calendar</span>
+			</button>
+		</center>
 	{/snippet}
 </HomeCardTemplate>

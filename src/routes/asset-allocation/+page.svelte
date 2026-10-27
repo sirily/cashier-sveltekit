@@ -146,7 +146,7 @@
 			</thead>
 			<tbody>
 				{#if _allocation && _allocation.length > 0}
-					{#each _allocation.filter((item) => item.depth === 0) as rootItem}
+					{#each _allocation.filter((item) => item.depth === 0) as rootItem (rootItem.fullname)}
 						<AssetClassRow
 							assetClass={rootItem}
 							children={getChildren(rootItem.fullname)}

@@ -78,7 +78,7 @@
         {:else if error}
             <div class="alert alert-error text-sm">{error}</div>
         {:else}
-            {#each sections as section, i}
+            {#each sections as section, i (section.filename)}
                 <div>
                     <div class="flex items-center gap-2 mb-1">
                         <p class="font-mono text-sm font-semibold text-base-content/70 flex-1">{section.filename}</p>

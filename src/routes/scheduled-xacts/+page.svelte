@@ -49,7 +49,7 @@
 		ScheduledXact.set(scx);
 		xact.set(x);
 
-		await goto('/scx-editor/null');
+		await goto(resolve('/scx-editor/[[id]]', { id: 'null' }));
 	}
 
 	async function onItemClicked(id: number) {
@@ -76,9 +76,9 @@
 <article class="flex h-screen flex-col">
 	<Toolbar title="Scheduled Transactions">
 		{#snippet menuItems()}
-			<ToolbarMenuItem Icon={PackageIcon} text="Backup" targetNav="/export/scheduled" />
-			<ToolbarMenuItem Icon={PackageOpenIcon} text="Restore" targetNav="/restore/scheduled" />
-			<ToolbarMenuItem Icon={CalendarIcon} text="Calendar" targetNav="/scheduled-xacts/calendar" />
+			<ToolbarMenuItem Icon={PackageIcon} text="Backup" targetNav={resolve('/export/[dataType=exportType]', { dataType: 'scheduled' })} />
+			<ToolbarMenuItem Icon={PackageOpenIcon} text="Restore" targetNav={resolve('/restore/[itemType]', { itemType: 'scheduled' })} />
+			<ToolbarMenuItem Icon={CalendarIcon} text="Calendar" targetNav={resolve('/scheduled-xacts/calendar')} />
 		{/snippet}
 	</Toolbar>
 	<!-- search toolbar -->

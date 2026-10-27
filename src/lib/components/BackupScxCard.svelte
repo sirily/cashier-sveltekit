@@ -5,6 +5,7 @@
 	import { SettingKeys, settings } from '#lib/settings';
 	import Notifier from '#lib/utils/notifier';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import db from '#lib/data/db';
 	import { CloudBackupService } from '#lib/services/cloudBackupService';
 	import { BackupType } from '#lib/enums';
@@ -24,7 +25,7 @@
 		const serverUrl = await settings.get<string>(SettingKeys.backupServerUrl);
 		if (!serverUrl) {
 			Notifier.info('Backup server URL not set.');
-			await goto('/settings/webdav-cfg');
+			await goto(resolve('/settings/webdav-cfg'));
 			return;
 		}
 
@@ -68,9 +69,7 @@
 	{/snippet}
 	{#snippet footer()}
 		<div class="grid grid-cols-2 place-items-center gap-4">
-			<button type="button" class="btn btn-primary" onclick={onBackupClick}>
-				Backup</button
-			>
+			<button type="button" class="btn btn-primary" onclick={onBackupClick}> Backup</button>
 			<button type="button" class="btn btn-warning" onclick={onRestoreClick} disabled>
 				Restore</button
 			>

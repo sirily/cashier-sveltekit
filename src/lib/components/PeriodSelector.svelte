@@ -52,7 +52,7 @@
 </script>
 
 <select class="select select-bordered select-sm" bind:value={selectedKey}>
-	{#each periods as period}
+	{#each periods as period (period.key)}
 		<option value={period.key}>{period.label}</option>
 	{/each}
 </select>

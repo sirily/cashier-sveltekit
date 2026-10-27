@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import db from '#lib/data/db';
@@ -6,8 +7,9 @@
 	import appService from '#lib/services/appService';
 	import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/svelte';
 	import { onMount } from 'svelte';
+		import { SvelteDate, SvelteSet } from 'svelte/reactivity';
 
-	const today = new Date();
+	const today = new SvelteDate();
 	today.setHours(0, 0, 0, 0);
 
 	let year = $state(today.getFullYear());
@@ -25,7 +27,7 @@
 	}
 
 	// Set of dates (ISO strings) that have scheduled transactions
-	const markedDates = $derived(new Set(allItems.map((s) => s.nextDate.slice(0, 10))));
+	const markedDates = $derived(new SvelteSet(allItems.map((s) => s.nextDate.slice(0, 10))));
 
 	const monthLabel = $derived(
 		new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -92,7 +94,7 @@
 
 	async function onItemClicked(id: number) {
 		await appService.loadScheduledXact(id);
-		await goto(`/scx-actions/${id}`);
+		await goto(resolve('/scx-actions/[id]', { id: String(id) }));
 	}
 </script>
 
@@ -112,14 +114,14 @@
 
 	<!-- Day-of-week headers -->
 	<div class="grid grid-cols-7 text-center text-xs font-medium opacity-60 px-1">
-		{#each ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as label}
+		{#each ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as label (label)}
 			<div class="py-1">{label}</div>
 		{/each}
 	</div>
 
 	<!-- Calendar grid -->
 	<div class="grid grid-cols-7 px-1">
-		{#each calendarDays() as cell}
+		{#each calendarDays() as cell (cell.iso)}
 			{@const isToday = cell.iso === toIso(today.getFullYear(), today.getMonth(), today.getDate())}
 			{@const isSelected = cell.iso === selectedDate}
 			{@const hasItems = markedDates.has(cell.iso)}

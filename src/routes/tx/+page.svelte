@@ -31,7 +31,7 @@
 
 	onMount(async () => {
 		if (!get(xact)) {
-			await goto('/');
+			await goto(resolve('/'));
 			return;
 		}
 	});
@@ -188,7 +188,7 @@
 					</div>
 				{:else}
 					<ul class="space-y-2">
-						{#each validationIssues as issue}
+						{#each validationIssues as issue, i (`${issue.kind}:${issue.message}:${i}`)}
 							<li class="alert {issue.kind === 'error' ? 'alert-error' : 'alert-warning'} py-2">
 								<span>{issue.message}</span>
 							</li>

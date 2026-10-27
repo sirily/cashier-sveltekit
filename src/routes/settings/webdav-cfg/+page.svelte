@@ -196,7 +196,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each remoteFiles as f}
+									{#each remoteFiles as f (`${f.isDirectory}:${f.name}`)}
 										<tr>
 											<td class="font-mono text-xs">{f.isDirectory ? '📁 ' : ''}{f.name}</td>
 											<td class="text-right text-xs tabular-nums">{f.size != null ? f.size.toLocaleString() + ' B' : '—'}</td>

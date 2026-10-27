@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import type { EventHandler } from 'svelte/elements';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { SelectionModeMetadata } from '#lib/settings';
 
 	type Props = {
@@ -45,7 +46,7 @@
 		selectionMetadata.set(meta);
 
 		// Navigate to calculator
-		await goto('/calculator');
+		await goto(resolve('/calculator'));
 	}
 
 	/**

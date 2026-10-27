@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
@@ -144,7 +145,7 @@
 	}
 
 	async function onOpfsClick() {
-		await goto('/opfs');
+		await goto(resolve('/opfs'));
 	}
 
 	async function saveSettings() {
@@ -169,15 +170,15 @@
 
 		Notifier.success('Settings saved');
 
-		await goto('/'); // Go to home after saving settings
+		await goto(resolve('/')); // Go to home after saving settings
 	}
 </script>
 
 <Toolbar title="Settings">
 	{#snippet menuItems()}
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
-		<ToolbarMenuItem text="JSON Editor" Icon={FileBraces} targetNav="/settings/json-editor" />
-		<ToolbarMenuItem text="WebDAV Config" Icon={NetworkIcon} targetNav="/settings/webdav-cfg" />
+		<ToolbarMenuItem text="JSON Editor" Icon={FileBraces} targetNav={resolve('/settings/json-editor')} />
+		<ToolbarMenuItem text="WebDAV Config" Icon={NetworkIcon} targetNav={resolve('/settings/webdav-cfg')} />
 	{/snippet}
 </Toolbar>
 
@@ -227,7 +228,7 @@
 	<h3 class="text-xl font-bold">Ledger Configuration</h3>
 
 	<p class="text-sm">
-		<a href="/opfs/import-ledger" class="link">Import Ledger files</a>
+		<a href={resolve("/opfs/import-ledger")} class="link">Import Ledger files</a>
 		first, then choose the book file here.
 	</p>
 
@@ -249,7 +250,7 @@
 		<button
 			class="btn btn-primary btn-sm rounded"
 			type="button"
-			onclick={() => goto(`/opfs/file-picker?returnSetting=${USER_BOOK_FILENAME}`)}
+			onclick={() => goto(resolve(`/opfs/file-picker?${new URLSearchParams({ returnSetting: USER_BOOK_FILENAME })}`))}
 		>
 			Select
 		</button>
@@ -276,7 +277,7 @@
 			class="btn btn-primary btn-sm rounded"
 			type="button"
 			onclick={() =>
-				goto(`/opfs/file-picker?returnSetting=${SettingKeys.assetAllocationDefinition}`)}
+				goto(resolve(`/opfs/file-picker?${new URLSearchParams({ returnSetting: SettingKeys.assetAllocationDefinition })}`))}
 		>
 			Select
 		</button>
@@ -335,7 +336,7 @@
 		</label>
 		<div class="flex gap-2">
 			<select id="date-format" class="select rounded flex-1" bind:value={dateFormat}>
-				{#each dateFormatOptions as opt}
+				{#each dateFormatOptions as opt (opt.value)}
 					<option value={opt.value}>{opt.label}</option>
 				{/each}
 			</select>

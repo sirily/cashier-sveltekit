@@ -390,7 +390,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each entries as entry}
+						{#each entries as entry (entry.path)}
 							<tr
 								class="cursor-pointer hover"
 								class:bg-secondary={selectedEntry?.path === entry.path}
@@ -507,7 +507,7 @@
 								<div class="mb-4">
 									<table class="table table-sm w-auto">
 										<tbody>
-											{#each Object.entries(fileMeta) as [key, value]}
+											{#each Object.entries(fileMeta) as [key, value] (key)}
 												<tr>
 													<td class="font-semibold opacity-70 pr-4">{key}</td>
 													<td class="font-mono text-sm">{value}</td>

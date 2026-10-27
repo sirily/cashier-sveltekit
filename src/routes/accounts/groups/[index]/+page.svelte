@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import ColorPicker from '#lib/components/ColorPicker.svelte';
@@ -99,7 +100,7 @@
 	async function onAddClicked() {
 		$selectionMetadata = new SelectionModeMetadata();
 		$selectionMetadata.selectionType = SelectionType.ACCOUNT;
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	function openRenameModal() {

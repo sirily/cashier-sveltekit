@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import JournalCard from '#lib/components/JournalCard.svelte';
 	import { ArrowDownUpIcon, PlusIcon, SettingsIcon } from '@lucide/svelte';
 	import Toolbar from '../lib/components/Toolbar.svelte';
@@ -55,15 +56,15 @@
 		const tx = Xact.create();
 		xact.set(tx);
 
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 </script>
 
 <article class="flex h-screen flex-col">
 	<Toolbar>
 		{#snippet menuItems()}
-			<ToolbarMenuItem text="Home Settings" Icon={SettingsIcon} targetNav="/home-settings" />
-			<ToolbarMenuItem text="Reorder Cards" targetNav="/home-reorder" Icon={ArrowDownUpIcon} />
+			<ToolbarMenuItem text="Home Settings" Icon={SettingsIcon} targetNav={resolve('/home-settings')} />
+			<ToolbarMenuItem text="Reorder Cards" targetNav={resolve('/home-reorder')} Icon={ArrowDownUpIcon} />
 		{/snippet}
 	</Toolbar>
 

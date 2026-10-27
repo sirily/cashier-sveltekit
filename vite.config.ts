@@ -74,7 +74,7 @@ const config: UserConfig = defineConfig({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
-			adapter: adapter({ fallback: 'index.html' }),
+			adapter: adapter({ fallback: '200.html' }),
 			serviceWorker: { register: false },
 			prerender: { entries: ['*'] }
 		}),

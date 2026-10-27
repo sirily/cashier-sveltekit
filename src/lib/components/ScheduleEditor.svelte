@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { ScheduledXact } from '#lib/data/mainStore';
 	import { RecurrencePeriods } from '#lib/enums';
 	import Notifier from '#lib/utils/notifier';
@@ -16,7 +17,7 @@
 	onMount(async () => {
 		if (!$ScheduledXact) {
 			Notifier.info('No Scheduled Transaction found!');
-			goto('/scheduled-xacts');
+			goto(resolve('/scheduled-xacts'));
 		}
 		await loadData();
 	});

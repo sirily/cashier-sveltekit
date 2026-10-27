@@ -3,6 +3,7 @@
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { Constants, SettingKeys, settings } from '#lib/settings';
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import DailyForecastChart from './DailyForecastChart.svelte';
 
 	let _accountNames: string[] = $state([]);
@@ -22,7 +23,7 @@
 
 		_accountNames = accountNames;
 
-		_days = await settings.get(SettingKeys.forecastDays) as number;
+		_days = (await settings.get(SettingKeys.forecastDays)) as number;
 		if (_days === 0) {
 			_days = Constants.ForecastDays;
 		}
@@ -39,8 +40,8 @@
 		Financial Forecast
 	{/snippet}
 	{#snippet menu()}
-		<a href="/forecast-settings">
-			<Settings2Icon  />
+		<a href={resolve('/forecast-settings')}>
+			<Settings2Icon />
 		</a>
 	{/snippet}
 	{#snippet content()}

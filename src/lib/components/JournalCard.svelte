@@ -2,6 +2,7 @@
 	import { FileUpIcon, ScrollIcon, TriangleAlertIcon } from '@lucide/svelte';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Money, Posting, Xact } from '#lib/data/model';
 	import { XactAugmenter } from '#lib/utils/xactAugmenter';
 	import Notifier from '#lib/utils/notifier';
@@ -94,12 +95,12 @@
 	}
 
 	async function onClick() {
-		await goto('/journal');
+		await goto(resolve('/journal'));
 	}
 
 	async function onExportClick(e: Event) {
 		e.stopPropagation();
-		await goto('/export/journal');
+		await goto(resolve('/export/[dataType=exportType]', { dataType: 'journal' }));
 	}
 </script>
 
@@ -116,7 +117,7 @@
 			<p>The device journal is empty</p>
 		{:else}
 			<div class="container space-y-1 text-base">
-				{#each xacts as xact, index (index)}
+				{#each xacts as xact, index (`${xact.date}:${xact.payee}:${index}`)}
 					<div class="border-base-content/15 flex space-x-2 border-b">
 						<time class="opacity-60">
 							{getReadableDate(xact.date ?? '')}

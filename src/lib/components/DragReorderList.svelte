@@ -20,6 +20,10 @@
 		class: className = ''
 	}: Props = $props();
 
+	// Distinct objects may share a label (e.g. postings to the same account).
+	// Repeated primitive values have no separate identity; use positional keys for those.
+	const hasDuplicateItems = $derived(new Set(items).size !== items.length);
+
 	let listEl = $state<HTMLElement | null>(null);
 	let isDragging = $state(false);
 	let dragCurIndex = $state(-1);
@@ -117,7 +121,7 @@
 	{#if items.length === 0 && empty}
 		{@render empty()}
 	{:else}
-		{#each items as item, i}
+		{#each items as item, i (hasDuplicateItems ? i : item)}
 			<div
 				role="listitem"
 				data-item

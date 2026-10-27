@@ -11,7 +11,7 @@ declare const self: ServiceWorkerGlobalScope;
 declare const __STATIC_REVISIONS__: Record<string, string>;
 declare const __BUILD_TIMESTAMP__: string;
 
-const SHELL = '/index.html';
+const SHELL = '/200.html';
 const MANIFEST = '/manifest.webmanifest';
 const toUrl = ({ path }: { path: string }) => (path.startsWith('/') ? path : `/${path}`);
 const build = immutable.map(toUrl);

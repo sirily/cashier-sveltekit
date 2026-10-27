@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
 	import SquareButton from '#lib/components/SquareButton.svelte';
@@ -24,7 +25,7 @@
 	let isDeleteConfirmationOpen = $state(false);
 
 	if (!$xact) {
-		goto('/');
+		goto(resolve('/'));
 	}
 
 	onMount(async () => {
@@ -98,11 +99,11 @@
 		xact.set(newXact);
 		xactSpan.set(undefined);
 
-		goto('/tx', { replaceState: true });
+		goto(resolve('/tx'), { replaceState: true });
 	}
 
 	async function onEditClicked() {
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 
 	async function onScheduleClick() {
@@ -113,7 +114,7 @@
 			$xact.id = undefined;
 		}
 
-		goto('/scx-editor');
+		goto(resolve('/scx-editor/[[id]]', { id: undefined }));
 	}
 </script>
 

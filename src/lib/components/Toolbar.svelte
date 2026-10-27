@@ -46,7 +46,7 @@
 					>
 						<EllipsisVertical size={18} />
 					</button>
-					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+
 					<ul
 						role="menu"
 						class="menu menu-sm dropdown-content bg-primary rounded-box z-1 mt-1 w-52 p-2 shadow"

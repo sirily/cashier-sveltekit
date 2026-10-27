@@ -31,7 +31,8 @@
 	let connectionManager: PeerConnectionManager | null = null;
 	let connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'failed' = 'disconnected';
 	let messageText: string = '';
-	let messages: Array<{ text: string; sender: 'me' | 'remote'; timestamp: Date }> = [];
+	let messages: Array<{ id: number; text: string; sender: 'me' | 'remote'; timestamp: Date }> = [];
+		let nextMessageId = 0;
 
 	// Generate a random peer ID
 	function generatePeerId(): string {
@@ -279,6 +280,7 @@
 		messages = [
 			...messages,
 			{
+				id: nextMessageId++,
 				text,
 				sender,
 				timestamp: new Date()
@@ -587,7 +589,7 @@
 							{#if messages.length === 0}
 								<p class="text-center text-sm opacity-60">No messages yet</p>
 							{/if}
-							{#each messages as msg}
+							{#each messages as msg (msg.id)}
 								<div class="chat {msg.sender === 'me' ? 'chat-end' : 'chat-start'} mb-2">
 									<div class="chat-header text-xs opacity-60">
 										{msg.sender === 'remote' ? 'Remote' : 'You'}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { onMount } from 'svelte';
 	import { selectionMetadata } from '#lib/data/mainStore';

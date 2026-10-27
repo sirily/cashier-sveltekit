@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import Fab from '#lib/components/FAB.svelte';
@@ -47,20 +48,20 @@
 	}
 
 	async function onExportClick() {
-		await goto('/export/journal');
+		await goto(resolve('/export/[dataType=exportType]', { dataType: 'journal' }));
 	}
 
 	async function onFab() {
 		const tx = Xact.create();
 		xact.set(tx);
 		xactSpan.set(undefined);
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 
 	async function onRowClick(tx: Xact, span: DirectiveSpan) {
 		xact.set(tx);
 		xactSpan.set(span);
-		goto('/xact-actions');
+		goto(resolve('/xact-actions'));
 	}
 </script>
 
@@ -74,7 +75,7 @@
 			<ToolbarMenuItem
 				text="Import Ledger item"
 				Icon={ImportIcon}
-				targetNav="/import-ledger-xact"
+				targetNav={resolve('/import-ledger-xact')}
 			/>
 		{/snippet}
 	</Toolbar>

@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import SearchToolbar from '#lib/components/SearchToolbar.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { selectionMetadata } from '#lib/data/mainStore';
 	import { ListSearch } from '#lib/utils/ListSearch';
 	import { onMount } from 'svelte';
+		import { SvelteMap } from 'svelte/reactivity';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import type { Account } from '#lib/data/model';
 	import { goto } from '$app/navigation';
@@ -26,7 +28,7 @@
 		const ledgerAccounts = (await fullLedgerService.getAllAccounts()) as Account[];
 		const dal = await CashierDAL.create();
 		const syncedAccounts = await dal.loadAccounts();
-		const accountByName = new Map<string, Account>();
+		const accountByName = new SvelteMap<string, Account>();
 		for (const account of [...ledgerAccounts, ...syncedAccounts]) {
 			if (account.name) accountByName.set(account.name, account);
 		}
@@ -73,7 +75,7 @@
 			history.back();
 		} else {
 			// navigate to account details page
-			goto('/accounts/account-xacts/' + encodeURIComponent(name));
+			goto(resolve('/accounts/account-xacts/[accountName]', { accountName: encodeURIComponent(name) }));
 		}
 	}
 

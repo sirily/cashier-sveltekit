@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -20,7 +21,7 @@
 
 	onMount(async () => {
 		if (!filePath) {
-			goto('/opfs');
+			goto(resolve('/opfs'));
 			return;
 		}
 
@@ -52,7 +53,7 @@
 	}
 
 	function close() {
-		goto('/opfs');
+		goto(resolve('/opfs'));
 	}
 
 	function scrollToBottom() {

@@ -277,13 +277,13 @@
 
 		<!-- Directory picker -->
 		<section class="flex flex-col gap-2">
-			<label class="label font-semibold">Source Directory</label>
+			<span class="label font-semibold" id="source-directory-label">Source Directory</span>
 			<div class="flex items-center gap-2 flex-wrap">
 				{#if dirName}
 					<span class="font-mono text-sm bg-base-200 rounded px-3 py-2 flex-1 truncate">{dirName}/</span>
 				{/if}
 				{#if hasDirectoryPicker}
-					<button class="btn btn-primary gap-2" onclick={pickDirectory}>
+					<button class="btn btn-primary gap-2" aria-labelledby="source-directory-label" onclick={pickDirectory}>
 						<FolderOpenIcon class="w-5 h-5" />
 						{dirName ? 'Change' : 'Select Directory'}
 					</button>
@@ -347,7 +347,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each syncEntries as entry}
+							{#each syncEntries as entry (entry.path)}
 								{@const isConflict = entry.action === 'conflict'}
 								{@const isSkip = entry.action === 'skip'}
 								{@const opfsIsSource = entry.action === 'opfs-to-fs'}
@@ -363,6 +363,7 @@
 									<!-- Arrow / X / skip column — clickable -->
 									<td class="text-center">
 										<button
+											aria-label="Change sync action for {entry.path}"
 											class="btn btn-ghost btn-xs p-0 w-8 h-8"
 											onclick={() => cycleAction(entry.path)}
 											title="Click to change action"
@@ -423,7 +424,7 @@
 				class="bg-neutral text-neutral-content font-mono text-xs rounded p-2 overflow-y-auto"
 				style="height: 7.5rem; min-height: 7.5rem;"
 			>
-				{#each logLines as line}
+				{#each logLines as line, index (`${index}-${line}`)}
 					<div>{line}</div>
 				{/each}
 			</div>

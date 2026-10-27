@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { drawerState } from '#lib/data/mainStore';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	// Icons
 	import {
 		CalendarClockIcon,
@@ -25,13 +26,9 @@
 		CalculatorIcon,
 		CalendarIcon,
 		MicIcon,
-
 		ListTreeIcon,
 		ShieldCheckIcon,
-
 		CloudUploadIcon
-
-
 	} from '@lucide/svelte';
 
 	function closeDrawer(): void {
@@ -54,7 +51,7 @@
 		<ul class="menu menu-lg w-full">
 			<li>
 				<a
-					href="/"
+					href={resolve('/')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"
@@ -66,7 +63,7 @@
 			</li>
 			<li>
 				<a
-					href="/accounts/groups"
+					href={resolve('/accounts/groups')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/accounts/groups'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"
@@ -78,7 +75,7 @@
 			</li>
 			<li>
 				<a
-					href="/journal"
+					href={resolve('/journal')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/journal'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"
@@ -90,7 +87,7 @@
 			</li>
 			<li>
 				<a
-					href="/scheduled-xacts"
+					href={resolve('/scheduled-xacts')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/scheduled-xacts'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"
@@ -101,7 +98,11 @@
 				</a>
 			</li>
 			<li>
-				<a href="/tools/voice-entry" class="flex w-full items-center gap-2 py-2" onclick={closeDrawer}>
+				<a
+					href={resolve('/tools/voice-entry')}
+					class="flex w-full items-center gap-2 py-2"
+					onclick={closeDrawer}
+				>
 					<MicIcon />
 					<span>Voice Entry</span>
 				</a>
@@ -121,7 +122,7 @@
 					<ul>
 						<li>
 							<a
-								href="/reports"
+								href={resolve('/reports')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/reports'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -133,9 +134,8 @@
 						</li>
 						<li>
 							<a
-								href="/accounts/tree"
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
-								'/accounts/tree'
+								href={resolve('/accounts/tree')}
+								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/accounts/tree'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
 								onclick={closeDrawer}
@@ -146,7 +146,7 @@
 						</li>
 						<li>
 							<a
-								href="/favourites"
+								href={resolve('/favourites')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/favourites'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -157,14 +157,18 @@
 							</a>
 						</li>
 						<li>
-							<a href="/scheduled-xacts/calendar" class="flex w-full items-center gap-2 py-2" onclick={closeDrawer}>
+							<a
+								href={resolve('/scheduled-xacts/calendar')}
+								class="flex w-full items-center gap-2 py-2"
+								onclick={closeDrawer}
+							>
 								<CalendarIcon />
 								<span>Calendar</span>
 							</a>
 						</li>
 						<li>
 							<a
-								href="/accounts"
+								href={resolve('/accounts')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/accounts'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -176,7 +180,7 @@
 						</li>
 						<li>
 							<a
-								href="/asset-allocation"
+								href={resolve('/asset-allocation')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
 								'/asset-allocation'
 									? 'active bg-secondary text-secondary-content'
@@ -189,7 +193,7 @@
 						</li>
 						<li>
 							<a
-								href="/payees"
+								href={resolve('/payees')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/payees'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -212,7 +216,7 @@
 					<ul>
 						<li>
 							<a
-								href="/opfs/import-ledger"
+								href={resolve('/opfs/import-ledger')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
 								'/opfs/import-ledger'
 									? 'active bg-secondary text-secondary-content'
@@ -225,7 +229,7 @@
 						</li>
 						<li>
 							<a
-								href="/opfs/sync"
+								href={resolve('/opfs/sync')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/opfs/sync'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -237,7 +241,7 @@
 						</li>
 						<li>
 							<a
-								href="/backup"
+								href={resolve('/backup')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/backup'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -249,7 +253,7 @@
 						</li>
 						<li>
 							<a
-								href="/backup/webdav"
+								href={resolve('/backup/webdav')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/backup/webdav'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -261,7 +265,7 @@
 						</li>
 						<li>
 							<a
-								href="/opfs"
+								href={resolve('/opfs')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/opfs'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -284,7 +288,7 @@
 					<ul>
 						<li>
 							<a
-								href="/tools/serialization"
+								href={resolve('/tools/serialization')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
 								'/tools/serialization'
 									? 'active bg-secondary text-secondary-content'
@@ -297,7 +301,7 @@
 						</li>
 						<li>
 							<a
-								href="/calculator"
+								href={resolve('/calculator')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/calculator'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -309,7 +313,7 @@
 						</li>
 						<li>
 							<a
-								href="/util/validation"
+								href={resolve('/util/validation')}
 								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/util/validation'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
@@ -341,7 +345,7 @@
 		<ul class="menu menu-lg w-full">
 			<li>
 				<a
-					href="/help"
+					href={resolve('/help')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/help'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"
@@ -353,7 +357,7 @@
 			</li>
 			<li>
 				<a
-					href="/about"
+					href={resolve('/about')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/about'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"
@@ -365,7 +369,7 @@
 			</li>
 			<li>
 				<a
-					href="/settings"
+					href={resolve('/settings')}
 					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/settings'
 						? 'active bg-secondary text-secondary-content'
 						: ''}"

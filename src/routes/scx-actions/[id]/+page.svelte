@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
@@ -30,7 +31,7 @@
 
 	onMount(() => {
 		if (!id) {
-			goto('/');
+			goto(resolve('/'));
 		}
 	});
 
@@ -73,7 +74,7 @@
 		xact.set(newTx);
 
 		// open the transaction. Maintain page navigation history.
-		await goto('/tx', { replaceState: true });
+		await goto(resolve('/tx'), { replaceState: true });
 	}
 
 	async function onEnterConfirmed() {
@@ -98,7 +99,7 @@
 	}
 
 	async function onEditClicked(id: any) {
-		await goto(`/scx-editor/${id}`);
+		await goto(resolve('/scx-editor/[[id]]', { id: String(id) }));
 	}
 
 	async function onSkipClicked() {

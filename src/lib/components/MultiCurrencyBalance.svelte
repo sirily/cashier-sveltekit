@@ -18,9 +18,7 @@
 	);
 	const primaryQuantity = $derived(balances?.[primaryCurrency] ?? 0);
 	const extraBalances = $derived(
-		balances
-			? Object.entries(balances).filter(([cur]) => cur !== primaryCurrency)
-			: []
+		balances ? Object.entries(balances).filter(([cur]) => cur !== primaryCurrency) : []
 	);
 	const hasMultiple = $derived(extraBalances.length > 0);
 
@@ -32,24 +30,27 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div class={`flex flex-col items-end tabular-nums ${className}`}>
-	<data
-		class={`text-right ${loaded ? getAmountColour(primaryQuantity) : 'text-base-content/30'} ${hasMultiple && loaded ? 'cursor-pointer' : ''}`}
-		role={hasMultiple && loaded ? 'button' : undefined}
-		tabindex={hasMultiple && loaded ? 0 : undefined}
-		onclick={hasMultiple && loaded ? toggle : undefined}
-		onkeydown={hasMultiple && loaded ? (e) => e.key === 'Enter' && toggle(e) : undefined}
-	>
-		{#if loaded}
-			{formatAmount(primaryQuantity)}&nbsp;{primaryCurrency}{#if hasMultiple}<span class="text-base-content/40"> …</span>{/if}
-		{:else}
-			···
-		{/if}
-	</data>
+	{#if hasMultiple && loaded}
+		<button
+			type="button"
+			class={`text-right ${getAmountColour(primaryQuantity)} cursor-pointer`}
+			onclick={toggle}
+		>
+			{formatAmount(primaryQuantity)}&nbsp;{primaryCurrency}<span class="text-base-content/40">
+				…</span
+			>
+		</button>
+	{:else}
+		<data
+			class={`text-right ${loaded ? getAmountColour(primaryQuantity) : 'text-base-content/30'}`}
+		>
+			{loaded ? `${formatAmount(primaryQuantity)} ${primaryCurrency}` : '···'}
+		</data>
+	{/if}
 
 	{#if expanded && loaded}
-		{#each extraBalances as [currency, amount]}
+		{#each extraBalances as [currency, amount] (currency)}
 			<data class={`text-right ${getAmountColour(amount)}`}>
 				{formatAmount(amount)}&nbsp;{currency}
 			</data>

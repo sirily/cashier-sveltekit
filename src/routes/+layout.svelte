@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	// Stylesheets
 	import '../app.css';
 	// libs
@@ -64,7 +65,7 @@
 	<title>Cashier</title>
 
 	<!-- PWA -->
-	<base href="/" />
+	<base href={resolve("/")} />
 </svelte:head>
 
 <div class="drawer">

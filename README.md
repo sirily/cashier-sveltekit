@@ -10,7 +10,7 @@ and reference data use IndexedDB.
 
 ## Development
 
-Use Node.js 22.19 or newer (Node.js 24.15 is the recommended CI version), npm, and the versions recorded in `package.json` and `package-lock.json`.
+Use Node.js 24.15 or newer (Node.js 24.15 is the CI version), npm, and the versions recorded in `package.json` and `package-lock.json`.
 
 ```sh
 npm ci

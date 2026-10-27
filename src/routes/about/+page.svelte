@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import {
 		checkForUpdate,
@@ -50,7 +51,7 @@
 			It is used to write transaction records and transfer them to the full-blown personal finance
 			system. It can also display the account and other useful information. For more detailed
 			overview of the functionality, see the
-			<a class="link link-primary" href="/help">Help</a> section.
+			<a class="link link-primary" href={resolve("/help")}>Help</a> section.
 		</p>
 
 		<p>
@@ -94,10 +95,10 @@
 
 		<ul>
 			<li>
-				<a class="link link-primary" href="/ledger">Parsed Ledger</a>
+				<a class="link link-primary" href={resolve("/ledger")}>Parsed Ledger</a>
 			</li>
 			<li>
-				<a class="link link-primary" href="/ledger/multi">Parsed Multi Ledger</a>
+				<a class="link link-primary" href={resolve("/ledger/multi")}>Parsed Multi Ledger</a>
 			</li>
 		</ul>
 	</section>

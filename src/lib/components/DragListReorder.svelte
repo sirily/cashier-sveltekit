@@ -127,17 +127,16 @@
 </script>
 
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import DragItem from '#lib/components/DragItem.svelte';
 	import DragItemPlaceHolder from '#lib/components/DragItemPlaceHolder.svelte';
 	import DragContainer from '#lib/components/DragContainer.svelte';
 
 	const todo_list = create_todo_list();
 
-	type DragHandler = (clientX: number, clientY: number, drag_element: HTMLElement) => void;
+	type DragHandler = (clientX: number, clientY: number, preview: Snippet, rect: DOMRect) => void;
 
-	let set_drag_element: DragHandler | undefined =
-		/** @type {(clientX: number, clientY: number, drag: HTMLElement) => any} */
-		$state(); /**/
+	let set_drag_element = $state<DragHandler>(() => {});
 </script>
 
 <div style="display:flex; justify-content:center;">
@@ -149,7 +148,7 @@
 			<div style="display:flex; flex-direction:column; gap:10px">
 				<span style="font-size:2em; font-weight:bold;">To do</span>
 				<div style="height:.5em;"></div>
-				{#each [...todo_list.$items['todo'], ''] as v, i}
+				{#each [...todo_list.$items['todo'], ''] as v, i (`todo-${i}`)}
 					<DragItem index={i} {todo_list} {set_drag_element} type="todo" />
 				{/each}
 				{#if todo_list.$is_dragging && todo_list.$drag_type != 'todo'}
@@ -160,7 +159,7 @@
 			<div style="display:flex; flex-direction:column; gap:10px">
 				<span style="font-size:2em; font-weight:bold;">Done</span>
 				<div style="height:.5em;"></div>
-				{#each [...todo_list.$items['done'], ''] as v, i}
+				{#each [...todo_list.$items['done'], ''] as v, i (`done-${i}`)}
 					<DragItem index={i} {todo_list} {set_drag_element} type="done" />
 				{/each}
 				{#if todo_list.$is_dragging && todo_list.$drag_type != 'done'}

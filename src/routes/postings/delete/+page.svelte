@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { xact } from '#lib/data/mainStore';
@@ -12,7 +13,7 @@
 
 	onMount(async () => {
 		if (!$xact) {
-			goto('/');
+			goto(resolve('/'));
 			return;
 		}
 	});

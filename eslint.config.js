@@ -30,6 +30,7 @@ export default [
 		languageOptions: {
 			parserOptions: {
 				parser: tsParser,
+				projectService: true,
 				extraFileExtensions: ['.svelte']
 			}
 		}

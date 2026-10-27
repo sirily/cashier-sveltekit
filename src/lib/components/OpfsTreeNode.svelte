@@ -13,10 +13,7 @@
 
 {#if node.kind === 'directory'}
 	<li>
-		<button
-			class="flex w-full items-center gap-1 text-left"
-			onclick={toggle}
-		>
+		<button class="flex w-full items-center gap-1 text-left" onclick={toggle}>
 			<span class="text-base-content/40">
 				{#if node.expanded}
 					<ChevronDown size={14} />
@@ -35,7 +32,7 @@
 		</button>
 		{#if node.expanded && node.children && node.children.length > 0}
 			<ul>
-				{#each node.children as child}
+				{#each node.children as child (`${node.name}/${child.name}`)}
 					<Self node={child} />
 				{/each}
 			</ul>

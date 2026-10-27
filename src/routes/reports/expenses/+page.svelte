@@ -1,6 +1,9 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { tick } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
+
 	import { ChartBar, ChartPie } from '@lucide/svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import PeriodSelector, { type Period } from '#lib/components/PeriodSelector.svelte';
@@ -26,7 +29,7 @@
 			dateFrom: currentPeriod.dateFrom,
 			dateTo: currentPeriod.dateTo
 		});
-		goto(`/reports/tx-search?${params}`);
+		goto(resolve(`/reports/tx-search?${params.toString()}`));
 	}
 
 	async function loadExpenses(period: Period) {
@@ -62,7 +65,7 @@
 			}
 
 			// Aggregate amounts per account
-			const totals = new Map<string, number>();
+			const totals = new SvelteMap<string, number>();
 			for (const row of rows as any[]) {
 				const account = String(row[accountIdx] ?? '');
 				const amount = parseFloat(String(row[numberIdx] ?? '0')) || 0;

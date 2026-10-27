@@ -237,7 +237,7 @@
 			<p>Loading...</p>
 		{:else}
 			<ul class="ms-4 mt-4">
-				{#each data.stocks || [] as stock}
+				{#each data.stocks || [] as stock (stock.name)}
 					<li class="mt-3">
 						<h6 class="h6 flex items-center gap-2">
 							• {stock.name}
@@ -265,7 +265,7 @@
 						{/if}
 
 						<!-- Accounts -->
-						{#each stock.accounts as account}
+						{#each stock.accounts as account (account.name)}
 							<div class="ms-3">
 								{account.name},
 								{formatAccountBalances(account.balances) || 'No balances'},
@@ -298,15 +298,15 @@
 										<table class="border-collapse">
 											<thead>
 												<tr class="opacity-60">
-													{#each lotsData[stock.name].columns as col}
+													{#each lotsData[stock.name].columns as col (col)}
 														<th class="pr-4 text-left font-normal">{col}</th>
 													{/each}
 												</tr>
 											</thead>
 											<tbody>
-												{#each lotsData[stock.name].rows as row}
+												{#each lotsData[stock.name].rows as row, rowIndex (`${stock.name}:${rowIndex}`)}
 													<tr>
-														{#each row as cell}
+														{#each row as cell, cellIndex (`${stock.name}:${rowIndex}:${cellIndex}`)}
 															<td class="pr-4">
 																{typeof cell === 'object' ? JSON.stringify(cell) : cell}
 															</td>
@@ -419,11 +419,11 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each data.investmentAccounts ?? [] as acct}
+									{#each data.investmentAccounts ?? [] as acct (acct.name)}
 										<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-900">
 											<td class="pr-3 py-0.5">{acct.name}</td>
 											<td class="pr-3 py-0.5">
-												{#each Object.entries(acct.balances ?? {}) as [cur, qty]}
+												{#each Object.entries(acct.balances ?? {}) as [cur, qty] (cur)}
 													<span class="mr-2">{qty} {cur}</span>
 												{/each}
 											</td>
@@ -439,7 +439,7 @@
 					<!-- Per-Symbol Raw Queries -->
 					<section>
 						<h3 class="mb-1 font-sans text-sm font-semibold">Per-Symbol Raw Queries</h3>
-						{#each data.stocks ?? [] as stock}
+						{#each data.stocks ?? [] as stock (stock.name)}
 							<div class="mt-2 rounded border">
 								<button
 									class="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-900"
@@ -470,7 +470,7 @@
 												{ label: 'gain/loss (cost + convert)', result: sd.gainLoss },
 												{ label: 'cost only (no convert) — isolates cost() vs convert()', result: sd.costOnly },
 												{ label: 'raw positions per lot', result: sd.rawPositions }
-											] as { label, result }}
+											] as { label, result } (label)}
 												<div>
 													<div class="mb-0.5 opacity-60">{label}</div>
 													<div class="break-all rounded bg-gray-100 p-1 dark:bg-gray-800">{result?.query}</div>
@@ -479,7 +479,7 @@
 													{/if}
 													{#if result?.rows?.length}
 														<div class="mt-0.5 opacity-60">cols: {result.columns.join(', ')}</div>
-														{#each result.rows as row}
+														{#each result.rows as row, rowIndex (`${stock.name}:${label}:${rowIndex}`)}
 															<div>{formatRow(row)}</div>
 														{/each}
 													{:else}
