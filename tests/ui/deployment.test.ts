@@ -1,6 +1,4 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import path from 'node:path';
 
 test('a stale lazy-loaded route recovers by navigating to the new deployment', async ({
 	browser
@@ -23,31 +21,25 @@ test('a stale lazy-loaded route recovers by navigating to the new deployment', a
 			route.fulfill({ json: { version: `${version}-new-deployment` } })
 		);
 
-		const generatedApp = await readFile(
-			path.resolve('.svelte-kit/generated/client-optimized/app.js'),
-			'utf8'
-		);
-		const calculatorRoute = generatedApp.match(/"\/calculator": \[([0-9]+)\]/);
-		expect(calculatorRoute).not.toBeNull();
-		const calculatorNode = calculatorRoute![1];
-		const staleChunkName = `${calculatorNode}.`;
-		let staleChunkFailed = false;
+		await page.getByRole('complementary').getByText('Utilities', { exact: true }).click();
+		const calculatorLink = page.getByRole('link', { name: 'Calculator' });
+		await expect(calculatorLink).toBeVisible();
+		await page.mouse.move(0, 0);
 
-		await page.route(`**/_app/immutable/nodes/${staleChunkName}*.js`, async (route) => {
-			if (!staleChunkFailed) {
-				staleChunkFailed = true;
+		let staleChunkFailed = 0;
+		await page.route('**/_app/immutable/nodes/*.js', async (route) => {
+			if (staleChunkFailed === 0) {
+				staleChunkFailed += 1;
 				await route.fulfill({ status: 404, body: 'stale deployment chunk' });
 				return;
 			}
 			await route.continue();
 		});
 
-		await page.getByRole('complementary').getByText('Utilities', { exact: true }).click();
-		await expect(page.getByRole('link', { name: 'Calculator' })).toBeVisible();
-		await page.getByRole('link', { name: 'Calculator' }).click();
+		await calculatorLink.click();
 		await expect(page).toHaveURL(/\/calculator$/);
 		await expect(page.getByRole('button', { name: 'AC' })).toBeVisible();
-		expect(staleChunkFailed).toBe(true);
+		expect(staleChunkFailed).toBeGreaterThan(0);
 		expect(documentNavigations.some((url) => new URL(url).pathname === '/calculator')).toBe(true);
 	} finally {
 		await context.close();
