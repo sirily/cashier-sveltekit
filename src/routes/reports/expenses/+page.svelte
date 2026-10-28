@@ -1,26 +1,42 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { tick } from 'svelte';
+	import { untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
 
 	import ChartBar from '@lucide/svelte/icons/chart-bar';
-import ChartPie from '@lucide/svelte/icons/chart-pie';
+	import ChartPie from '@lucide/svelte/icons/chart-pie';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import PeriodSelector, { type Period } from '#lib/components/PeriodSelector.svelte';
 	import ExpensesBarChart from '#lib/components/ExpensesBarChart.svelte';
 	import ExpensesDonutChart from '#lib/components/ExpensesDonutChart.svelte';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { SettingKeys, settings } from '#lib/settings';
+	import ReportCompleteness from '#lib/components/ReportCompleteness.svelte';
+	import { queryReportPostings, type ReportPostings } from '#lib/services/reportPostings';
+	import { ReportRequest } from '#lib/services/reportRequest.svelte';
 
 	type ChartType = 'bar' | 'donut';
 	let chartType = $state<ChartType>('bar');
-	let isLoading = $state(false);
-	let error = $state<string | null>(null);
-	let chartLabels = $state<string[]>([]);
-	let chartValues = $state<number[]>([]);
+	const workerVersion = fullLedgerService.version;
+	const workerReloading = fullLedgerService.isReloading;
+	const request = new ReportRequest<{
+		result: ReportPostings;
+		currency: string;
+		labels: string[];
+		values: number[];
+		version: number;
+	}>();
+	let isLoading = $derived(
+		request.pending ||
+			$workerReloading ||
+			(request.value !== null && request.value.version !== $workerVersion)
+	);
+	let error = $derived(request.error);
+	let chartLabels = $derived(request.value?.labels ?? []);
+	let chartValues = $derived(request.value?.values ?? []);
 	let expenseTotal = $derived(chartValues.reduce((sum, v) => sum + v, 0));
-	let displayCurrency = $state('');
+	let displayCurrency = $derived(request.value?.currency ?? '');
 	let currentPeriod = $state<Period | null>(null);
 
 	function handleBarClick(account: string) {
@@ -33,57 +49,49 @@ import ChartPie from '@lucide/svelte/icons/chart-pie';
 		goto(resolve(`/reports/tx-search?${params.toString()}`));
 	}
 
-	async function loadExpenses(period: Period) {
+	function loadExpenses(period: Period) {
 		currentPeriod = period;
-		isLoading = true;
-		error = null;
-		await tick();
-
-		try {
-			const defaultCurrency = await settings.get<string>(SettingKeys.currency);
-			displayCurrency = defaultCurrency ?? '';
-			await fullLedgerService.ensureLoaded();
-
-			const bql = `SELECT account, NUMBER(CONVERT(units(position), "${defaultCurrency}")) AS number WHERE account ~ "^Expenses" AND date >= ${period.dateFrom} AND date <= ${period.dateTo}`;
-			const result = await fullLedgerService.query(bql);
-
-			if (result?.errors?.length) {
-				error = (result.errors as any[]).map((e) => e.message).join('; ');
-				chartLabels = [];
-				chartValues = [];
-				return;
-			}
-
-			const columns = result?.columns ?? [];
-			const rows = result?.rows ?? [];
-
-			const accountIdx = columns.indexOf('account');
-			const numberIdx = columns.indexOf('number');
-
-			if (accountIdx === -1 || numberIdx === -1) {
-				error = 'Unexpected query result columns.';
-				return;
-			}
-
-			// Aggregate amounts per account
-			const totals = new SvelteMap<string, number>();
-			for (const row of rows as any[]) {
-				const account = String(row[accountIdx] ?? '');
-				const amount = parseFloat(String(row[numberIdx] ?? '0')) || 0;
-				totals.set(account, (totals.get(account) ?? 0) + amount);
-			}
-
-			// Sort descending by amount
-			const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
-
-			chartLabels = sorted.map(([acc]) => acc);
-			chartValues = sorted.map(([, val]) => val);
-		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
-		} finally {
-			isLoading = false;
-		}
 	}
+
+	$effect(() => {
+		const period = currentPeriod;
+		const version = $workerVersion;
+		const reloading = $workerReloading;
+		untrack(() => {
+			if (!period || reloading) {
+				request.cancel();
+				return;
+			}
+			void request.run(
+				async () => {
+					const currency = (await settings.get<string>(SettingKeys.currency)) ?? '';
+					await fullLedgerService.ensureLoaded();
+					if (!fullLedgerService.isLoaded)
+						throw new Error('Ledger analysis is unavailable. Configure a book and reload.');
+					const result = await queryReportPostings(fullLedgerService, {
+						scope: 'expenses',
+						dateFrom: period.dateFrom,
+						dateTo: period.dateTo,
+						currency
+					});
+					const totals = new SvelteMap<string, number>();
+					for (const { account, amount } of result.postings) {
+						totals.set(account, (totals.get(account) ?? 0) + amount);
+					}
+					const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+					return {
+						result,
+						currency,
+						labels: sorted.map(([account]) => account),
+						values: sorted.map(([, value]) => value),
+						version
+					};
+				},
+				() => !$workerReloading && $workerVersion === version
+			);
+		});
+		return () => request.cancel();
+	});
 </script>
 
 <article class="flex h-screen flex-col" class:cursor-wait={isLoading}>
@@ -123,17 +131,24 @@ import ChartPie from '@lucide/svelte/icons/chart-pie';
 			<div class="rounded-lg border border-error bg-error/10 p-3 text-error text-sm font-mono">
 				{error}
 			</div>
-		{:else if chartLabels.length === 0}
-			<div class="py-12 text-center text-base-content/50 text-sm">No expense data for this period.</div>
-		{:else if chartType === 'bar'}
-			<ExpensesBarChart labels={chartLabels} values={chartValues} onclick={handleBarClick} />
-		{:else}
-			<ExpensesDonutChart labels={chartLabels} values={chartValues} onclick={handleBarClick} />
+		{:else if request.value}
+			<ReportCompleteness result={request.value.result} currency={displayCurrency} />
+			{#if !request.value.result.complete}
+				<!-- Never render a partial chart or a successful-empty state. -->
+			{:else if chartLabels.length === 0}
+				<div class="py-12 text-center text-base-content/50 text-sm">
+					No expense data for this period.
+				</div>
+			{:else if chartType === 'bar'}
+				<ExpensesBarChart labels={chartLabels} values={chartValues} onclick={handleBarClick} />
+			{:else}
+				<ExpensesDonutChart labels={chartLabels} values={chartValues} onclick={handleBarClick} />
+			{/if}
 		{/if}
 	</section>
 
 	<!-- Total -->
-	{#if chartValues.length > 0}
+	{#if !isLoading && !error && request.value?.result.complete && chartValues.length > 0}
 		<div class="flex justify-end px-4 py-2 border-t border-base-300 text-sm font-medium">
 			<span class="text-base-content/60 mr-2">Total:</span>
 			<span>{expenseTotal.toFixed(2)}{displayCurrency ? ` ${displayCurrency}` : ''}</span>
