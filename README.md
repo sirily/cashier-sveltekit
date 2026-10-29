@@ -20,6 +20,18 @@ npm run dev
 The development server normally runs at `http://localhost:5173/`. Agents should use the
 user-managed server rather than starting a second one without checking.
 
+### Serena in Zed devcontainers
+
+The development image installs uv and Serena 2.1.0. Project settings in
+`.zed/settings.json` run Serena inside the container (`remote: true`) and activate
+this repository automatically. `.mcp.json` provides the equivalent configuration
+for clients that read that file; Zed uses `context_servers` instead.
+
+After changing the image, rebuild the devcontainer. In Zed, open
+**Settings → AI → MCP Servers** and check that `serena` is active; restart it if
+needed and enable its tools in the current agent profile. The first launch downloads
+the Svelte and HTML language servers and needs network access.
+
 Checks and builds:
 
 ```sh
