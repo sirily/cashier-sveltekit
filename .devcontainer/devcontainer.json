@@ -8,6 +8,10 @@
 		// Path is relative to the devcontainer.json file.
 		"dockerfile": "Dockerfile"
 	},
+	"mounts": [
+		"source=${localWorkspaceFolderBasename}-devcontainer-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+	],
+	"remoteUser": "node",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
@@ -17,10 +21,14 @@
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "mkcert -install && mkcert localhost 127.0.0.1 ::1 && npm install",
-	"postCreateCommand": "npm install",
+	// Docker creates a fresh volume as root; allow the development user to install packages.
+	"postCreateCommand": "sudo chown node:node node_modules && npm install",
 
 	// Configure tool-specific properties.
 	"customizations": {
+		"zed": {
+			"extensions": ["svelte"]
+		},
 		"vscode": {
 			"extensions": [
 				"svelte.svelte-vscode",
@@ -34,14 +42,7 @@
 		}
 	},
 
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
-
 	"remoteEnv": {
 		"CHOKIDAR_USEPOLLING": "true"
 	}
-
-	// "mounts": [
-	// 	"source=D:/src/rustledger,target=/workspaces/rustledger,type=bind"
-	// ]
 }
