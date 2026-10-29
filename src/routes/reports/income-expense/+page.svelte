@@ -1,13 +1,16 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { untrack } from 'svelte';
 	import { SvelteMap, SvelteURLSearchParams } from 'svelte/reactivity';
-	import { tick } from 'svelte';
+
 	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import AccordionSection from '#lib/components/AccordionSection.svelte';
 	import IncomeExpenseChart from '#lib/components/IncomeExpenseChart.svelte';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { SettingKeys, settings } from '#lib/settings';
+	import ReportCompleteness from '#lib/components/ReportCompleteness.svelte';
+	import { queryReportPostings, type ReportPostings } from '#lib/services/reportPostings';
+	import { ReportRequest } from '#lib/services/reportRequest.svelte';
 
 	interface DayEntry {
 		date: string;
@@ -27,16 +30,31 @@
 	const availableYears = Array.from({ length: 10 }, (_, i) => currentYear - i);
 
 	let selectedPeriod = $state('last12');
-	let isLoading = $state(false);
-	let error = $state<string | null>(null);
-	let months = $state<string[]>([]);
-	let incomeData = $state<number[]>([]);
-	let expensesData = $state<number[]>([]);
-	let incomeMonths = $state<MonthDetail[]>([]);
-	let expenseMonths = $state<MonthDetail[]>([]);
+	const workerVersion = fullLedgerService.version;
+	const workerReloading = fullLedgerService.isReloading;
+	const request = new ReportRequest<{
+		result: ReportPostings;
+		currency: string;
+		months: string[];
+		incomeMonths: MonthDetail[];
+		expenseMonths: MonthDetail[];
+		dateTo: string;
+		version: number;
+	}>();
+	let isLoading = $derived(
+		request.pending ||
+			$workerReloading ||
+			(request.value !== null && request.value.version !== $workerVersion)
+	);
+	let error = $derived(request.error);
+	let months = $derived(request.value?.months ?? []);
+	let incomeMonths = $derived(request.value?.incomeMonths ?? []);
+	let expenseMonths = $derived(request.value?.expenseMonths ?? []);
+	let incomeData = $derived(incomeMonths.map((month) => month.total));
+	let expensesData = $derived(expenseMonths.map((month) => month.total));
 	let incomeExpanded = $state(false);
 	let expensesExpanded = $state(false);
-	let displayCurrency = $state('');
+	let displayCurrency = $derived(request.value?.currency ?? '');
 
 	let maxIncome = $derived(incomeData.reduce((m, v) => Math.max(m, v), 1));
 	let maxExpenses = $derived(expensesData.reduce((m, v) => Math.max(m, v), 1));
@@ -91,126 +109,128 @@
 		const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
 		const std = Math.sqrt(vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length);
 		const threshold = 1.5 * std;
-		return items.map((m) => ({ ...m, isOutlier: m.total > 0 && Math.abs(m.total - mean) > threshold }));
+		return items.map((m) => ({
+			...m,
+			isOutlier: m.total > 0 && Math.abs(m.total - mean) > threshold
+		}));
 	}
 
 	function formatMoney(amount: number): string {
 		return `${amount.toFixed(2)}${displayCurrency ? ` ${displayCurrency}` : ''}`;
 	}
 
-	function txSearchUrl(accountPattern: string, monthKey?: string, singleDate?: string): URLSearchParams {
-			const params = new SvelteURLSearchParams({ account: accountPattern });
-			if (singleDate) {
-				params.set('dateFrom', singleDate);
-				params.set('dateTo', singleDate);
-			} else if (monthKey) {
-				params.set('dateFrom', monthKey + '-01');
-				params.set('dateTo', lastDayOfMonth(monthKey));
-			}
-			return params;
+	function txSearchUrl(
+		accountPattern: string,
+		monthKey?: string,
+		singleDate?: string
+	): URLSearchParams {
+		const params = new SvelteURLSearchParams({ account: accountPattern });
+		if (singleDate) {
+			params.set('dateFrom', singleDate);
+			params.set('dateTo', singleDate);
+		} else if (monthKey) {
+			params.set('dateFrom', monthKey + '-01');
+			const monthEnd = lastDayOfMonth(monthKey);
+			const reportEnd = request.value?.dateTo ?? monthEnd;
+			params.set('dateTo', monthEnd < reportEnd ? monthEnd : reportEnd);
 		}
-
-	async function loadData() {
-		isLoading = true;
-		error = null;
-		await tick();
-
-		try {
-			const currency = await settings.get<string>(SettingKeys.currency);
-			displayCurrency = currency ?? '';
-			await fullLedgerService.ensureLoaded();
-
-			const monthList = getMonthList();
-			const dateFrom = monthList[0].key + '-01';
-			const dateTo =
-				selectedPeriod === 'last12'
-					? new Date().toISOString().slice(0, 10)
-					: lastDayOfMonth(monthList[11].key);
-
-			const bql = `SELECT date, account, NUMBER(CONVERT(units(position), '${currency}')) AS number, currency WHERE (account ~ "^Income" OR account ~ "^Expenses") AND date >= ${dateFrom} AND date <= ${dateTo}`;
-			const result = await fullLedgerService.query(bql);
-
-			if (result?.errors?.length) {
-				error = (result.errors as any[]).map((e) => e.message).join('; ');
-				return;
-			}
-
-			const cols = result?.columns ?? [];
-			const rows = result?.rows ?? [];
-			const dateIdx = cols.indexOf('date');
-			const accountIdx = cols.indexOf('account');
-			const numberIdx = cols.indexOf('number');
-			const currencyIdx = cols.indexOf('currency');
-
-			if (dateIdx === -1 || accountIdx === -1 || numberIdx === -1) {
-				error = 'Unexpected query result columns.';
-				return;
-			}
-
-			const incomeMap = new SvelteMap<string, Map<string, number>>();
-			const expenseMap = new SvelteMap<string, Map<string, number>>();
-			for (const { key } of monthList) {
-				incomeMap.set(key, new Map());
-				expenseMap.set(key, new Map());
-			}
-
-			for (const row of rows as any[]) {
-				// Skip commodity positions — their units (e.g. 100 AAPL) get multiplied by
-				// current market price by CONVERT, producing wildly inflated amounts.
-				// Fiat and crypto currencies are ≤4 chars; stock tickers are typically longer.
-				const origCurrency = currencyIdx !== -1 ? String(row[currencyIdx] ?? '') : currency ?? '';
-				if (origCurrency.length > 4) continue;
-
-				const dateStr = toDateStr(row[dateIdx]);
-				const monthKey = dateStr.slice(0, 7);
-				const account = String(row[accountIdx] ?? '');
-				const amount = parseFloat(String(row[numberIdx] ?? '0')) || 0;
-
-				if (account.startsWith('Income') && incomeMap.has(monthKey)) {
-					const dm = incomeMap.get(monthKey)!;
-					dm.set(dateStr, (dm.get(dateStr) ?? 0) + -amount); // negate: income is negative in beancount
-				} else if (account.startsWith('Expenses') && expenseMap.has(monthKey)) {
-					const dm = expenseMap.get(monthKey)!;
-					dm.set(dateStr, (dm.get(dateStr) ?? 0) + amount);
-				}
-			}
-
-			function buildDetails(
-				list: { key: string; label: string }[],
-				map: Map<string, Map<string, number>>
-			): MonthDetail[] {
-				return list.map(({ key, label }) => {
-					const dayMap = map.get(key) ?? new Map();
-					const days: DayEntry[] = [...dayMap.entries()]
-						.sort(([a], [b]) => b.localeCompare(a))
-						.map(([date, amount]) => {
-							const d = new Date(date + 'T00:00:00');
-							return {
-								date,
-								label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-								amount
-							};
-						});
-					return { key, label, total: days.reduce((s, d) => s + d.amount, 0), days, isOutlier: false };
-				});
-			}
-
-			const rawIncome = markOutliers(buildDetails(monthList, incomeMap));
-			const rawExpenses = markOutliers(buildDetails(monthList, expenseMap));
-
-			months = [...monthList].reverse().map((m) => m.label);
-			incomeData = [...rawIncome].reverse().map((m) => m.total);
-			expensesData = [...rawExpenses].reverse().map((m) => m.total);
-			incomeMonths = [...rawIncome].reverse();
-			expenseMonths = [...rawExpenses].reverse();
-		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
-		} finally {
-			isLoading = false;
-		}
+		return params;
 	}
 
-	onMount(() => loadData());
+	async function loadData(
+		monthList: { key: string; label: string }[],
+		dateTo: string,
+		version: number
+	) {
+		const currency = (await settings.get<string>(SettingKeys.currency)) ?? '';
+		await fullLedgerService.ensureLoaded();
+		if (!fullLedgerService.isLoaded)
+			throw new Error('Ledger analysis is unavailable. Configure a book and reload.');
+		const result = await queryReportPostings(fullLedgerService, {
+			scope: 'income-expense',
+			dateFrom: monthList[0].key + '-01',
+			dateTo,
+			currency
+		});
+
+		const incomeMap = new SvelteMap<string, Map<string, number>>();
+		const expenseMap = new SvelteMap<string, Map<string, number>>();
+		for (const { key } of monthList) {
+			incomeMap.set(key, new Map());
+			expenseMap.set(key, new Map());
+		}
+
+		for (const { date, account, amount } of result.postings) {
+			const dateStr = toDateStr(date);
+			const monthKey = dateStr.slice(0, 7);
+
+			if (account.startsWith('Income') && incomeMap.has(monthKey)) {
+				const dm = incomeMap.get(monthKey)!;
+				dm.set(dateStr, (dm.get(dateStr) ?? 0) + -amount); // negate: income is negative in beancount
+			} else if (account.startsWith('Expenses') && expenseMap.has(monthKey)) {
+				const dm = expenseMap.get(monthKey)!;
+				dm.set(dateStr, (dm.get(dateStr) ?? 0) + amount);
+			}
+		}
+
+		function buildDetails(
+			list: { key: string; label: string }[],
+			map: Map<string, Map<string, number>>
+		): MonthDetail[] {
+			return list.map(({ key, label }) => {
+				const dayMap = map.get(key) ?? new Map();
+				const days: DayEntry[] = [...dayMap.entries()]
+					.sort(([a], [b]) => b.localeCompare(a))
+					.map(([date, amount]) => {
+						const d = new Date(date + 'T00:00:00');
+						return {
+							date,
+							label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+							amount
+						};
+					});
+				return {
+					key,
+					label,
+					total: days.reduce((s, d) => s + d.amount, 0),
+					days,
+					isOutlier: false
+				};
+			});
+		}
+
+		const rawIncome = markOutliers(buildDetails(monthList, incomeMap));
+		const rawExpenses = markOutliers(buildDetails(monthList, expenseMap));
+
+		return {
+			result,
+			currency,
+			version,
+			dateTo,
+			months: [...monthList].reverse().map((m) => m.label),
+			incomeMonths: [...rawIncome].reverse(),
+			expenseMonths: [...rawExpenses].reverse()
+		};
+	}
+
+	$effect(() => {
+		const monthList = getMonthList();
+		const dateTo =
+			selectedPeriod === 'last12'
+				? new Date().toISOString().slice(0, 10)
+				: lastDayOfMonth(monthList[11].key);
+		const version = $workerVersion;
+		const reloading = $workerReloading;
+		untrack(() => {
+			if (reloading) request.cancel();
+			else
+				void request.run(
+					() => loadData(monthList, dateTo, version),
+					() => !$workerReloading && $workerVersion === version
+				);
+		});
+		return () => request.cancel();
+	});
 </script>
 
 <article class="flex h-screen flex-col" class:cursor-wait={isLoading}>
@@ -218,12 +238,7 @@
 
 	<div class="flex items-center gap-3 border-b border-base-300 px-4 py-2">
 		<span class="text-sm font-medium text-base-content/60">Period:</span>
-		<select
-			class="select select-bordered select-sm"
-			bind:value={selectedPeriod}
-			onchange={() => loadData()}
-			disabled={isLoading}
-		>
+		<select class="select select-bordered select-sm" bind:value={selectedPeriod}>
 			<option value="last12">Last 12 months</option>
 			{#each availableYears as year (year)}
 				<option value={String(year)}>{year}</option>
@@ -240,129 +255,145 @@
 			<div class="rounded-lg border border-error bg-error/10 p-3 text-error text-sm font-mono">
 				{error}
 			</div>
-		{:else}
-			{#if months.length > 0}
-				<IncomeExpenseChart {months} income={incomeData} expenses={expensesData} currency={displayCurrency} />
-			{:else}
-				<div class="py-12 text-center text-base-content/50 text-sm">No data available.</div>
-			{/if}
+		{:else if request.value}
+			<ReportCompleteness result={request.value.result} currency={displayCurrency} />
+			{#if request.value.result.complete}
+				{#if months.length > 0}
+					<IncomeExpenseChart
+						{months}
+						income={incomeData}
+						expenses={expensesData}
+						currency={displayCurrency}
+					/>
+				{:else}
+					<div class="py-12 text-center text-base-content/50 text-sm">No data available.</div>
+				{/if}
 
-			{#if incomeMonths.length > 0 || expenseMonths.length > 0}
-				<div class="mt-6 flex flex-col gap-3">
-					<!-- Income breakdown -->
-					<AccordionSection
-						title="Income"
-						badge={incomeTotal > 0 ? formatMoney(incomeTotal) : undefined}
-						expanded={incomeExpanded}
-						onToggle={() => (incomeExpanded = !incomeExpanded)}
-					>
-						<div class="flex flex-col divide-y divide-base-200">
-							{#each incomeMonths as month (month.key)}
-								<details class="group">
-									<summary
-										class="flex cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden"
-									>
-										<div class="flex items-center gap-2">
-											{#if month.isOutlier}
-												<span class="text-xs font-bold text-warning" title="Unusual amount">!</span>
-											{/if}
-											<span class="text-sm">{month.label}</span>
-										</div>
-										<div class="flex items-center gap-2">
-											<div class="h-1.5 w-12 overflow-hidden rounded-full bg-base-300">
-												<div
-													class="h-full rounded-full bg-success"
-													style="width: {((month.total / maxIncome) * 100).toFixed(0)}%"
-												></div>
-											</div>
-											<span
-												class="w-20 text-right font-mono text-sm tabular-nums"
-												class:text-warning={month.isOutlier}>{formatMoney(month.total)}</span
-											>
-											<span
-												class="text-xs text-base-content/40 transition-transform group-open:rotate-90"
-												>▶</span
-											>
-										</div>
-									</summary>
-									<div class="mb-2 ml-4 flex flex-col">
-										<a
-											href={resolve(`/reports/tx-search?${txSearchUrl('^Income', month.key)}`)}
-											class="px-2 py-1 text-xs text-primary hover:underline"
-											>All transactions — {month.label}</a
+				{#if incomeMonths.length > 0 || expenseMonths.length > 0}
+					<div class="mt-6 flex flex-col gap-3">
+						<!-- Income breakdown -->
+						<AccordionSection
+							title="Income"
+							badge={formatMoney(incomeTotal)}
+							expanded={incomeExpanded}
+							onToggle={() => (incomeExpanded = !incomeExpanded)}
+						>
+							<div class="flex flex-col divide-y divide-base-200">
+								{#each incomeMonths as month (month.key)}
+									<details class="group">
+										<summary
+											class="flex cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden"
 										>
-										{#each month.days as day (day.date)}
+											<div class="flex items-center gap-2">
+												{#if month.isOutlier}
+													<span class="text-xs font-bold text-warning" title="Unusual amount"
+														>!</span
+													>
+												{/if}
+												<span class="text-sm">{month.label}</span>
+											</div>
+											<div class="flex items-center gap-2">
+												<div class="h-1.5 w-12 overflow-hidden rounded-full bg-base-300">
+													<div
+														class="h-full rounded-full bg-success"
+														style="width: {((month.total / maxIncome) * 100).toFixed(0)}%"
+													></div>
+												</div>
+												<span
+													class="w-20 text-right font-mono text-sm tabular-nums"
+													class:text-warning={month.isOutlier}>{formatMoney(month.total)}</span
+												>
+												<span
+													class="text-xs text-base-content/40 transition-transform group-open:rotate-90"
+													>▶</span
+												>
+											</div>
+										</summary>
+										<div class="mb-2 ml-4 flex flex-col">
 											<a
-												href={resolve(`/reports/tx-search?${txSearchUrl('^Income', undefined, day.date)}`)}
-												class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
+												href={resolve(`/reports/tx-search?${txSearchUrl('^Income', month.key)}`)}
+												class="px-2 py-1 text-xs text-primary hover:underline"
+												>All transactions — {month.label}</a
 											>
-												<span class="text-base-content/70">{day.label}</span>
-												<span class="font-mono tabular-nums">{formatMoney(day.amount)}</span>
-											</a>
-										{/each}
-									</div>
-								</details>
-							{/each}
-						</div>
-					</AccordionSection>
+											{#each month.days as day (day.date)}
+												<a
+													href={resolve(
+														`/reports/tx-search?${txSearchUrl('^Income', undefined, day.date)}`
+													)}
+													class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
+												>
+													<span class="text-base-content/70">{day.label}</span>
+													<span class="font-mono tabular-nums">{formatMoney(day.amount)}</span>
+												</a>
+											{/each}
+										</div>
+									</details>
+								{/each}
+							</div>
+						</AccordionSection>
 
-					<!-- Expenses breakdown -->
-					<AccordionSection
-						title="Expenses"
-						badge={expensesTotal > 0 ? formatMoney(expensesTotal) : undefined}
-						expanded={expensesExpanded}
-						onToggle={() => (expensesExpanded = !expensesExpanded)}
-					>
-						<div class="flex flex-col divide-y divide-base-200">
-							{#each expenseMonths as month (month.key)}
-								<details class="group">
-									<summary
-										class="flex cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden"
-									>
-										<div class="flex items-center gap-2">
-											{#if month.isOutlier}
-												<span class="text-xs font-bold text-warning" title="Unusual amount">!</span>
-											{/if}
-											<span class="text-sm">{month.label}</span>
-										</div>
-										<div class="flex items-center gap-2">
-											<div class="h-1.5 w-12 overflow-hidden rounded-full bg-base-300">
-												<div
-													class="h-full rounded-full bg-error"
-													style="width: {((month.total / maxExpenses) * 100).toFixed(0)}%"
-												></div>
-											</div>
-											<span
-												class="w-20 text-right font-mono text-sm tabular-nums"
-												class:text-warning={month.isOutlier}>{formatMoney(month.total)}</span
-											>
-											<span
-												class="text-xs text-base-content/40 transition-transform group-open:rotate-90"
-												>▶</span
-											>
-										</div>
-									</summary>
-									<div class="mb-2 ml-4 flex flex-col">
-										<a
-											href={resolve(`/reports/tx-search?${txSearchUrl('^Expenses', month.key)}`)}
-											class="px-2 py-1 text-xs text-primary hover:underline"
-											>All transactions — {month.label}</a
+						<!-- Expenses breakdown -->
+						<AccordionSection
+							title="Expenses"
+							badge={formatMoney(expensesTotal)}
+							expanded={expensesExpanded}
+							onToggle={() => (expensesExpanded = !expensesExpanded)}
+						>
+							<div class="flex flex-col divide-y divide-base-200">
+								{#each expenseMonths as month (month.key)}
+									<details class="group">
+										<summary
+											class="flex cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden"
 										>
-										{#each month.days as day (day.date)}
+											<div class="flex items-center gap-2">
+												{#if month.isOutlier}
+													<span class="text-xs font-bold text-warning" title="Unusual amount"
+														>!</span
+													>
+												{/if}
+												<span class="text-sm">{month.label}</span>
+											</div>
+											<div class="flex items-center gap-2">
+												<div class="h-1.5 w-12 overflow-hidden rounded-full bg-base-300">
+													<div
+														class="h-full rounded-full bg-error"
+														style="width: {((month.total / maxExpenses) * 100).toFixed(0)}%"
+													></div>
+												</div>
+												<span
+													class="w-20 text-right font-mono text-sm tabular-nums"
+													class:text-warning={month.isOutlier}>{formatMoney(month.total)}</span
+												>
+												<span
+													class="text-xs text-base-content/40 transition-transform group-open:rotate-90"
+													>▶</span
+												>
+											</div>
+										</summary>
+										<div class="mb-2 ml-4 flex flex-col">
 											<a
-												href={resolve(`/reports/tx-search?${txSearchUrl('^Expenses', undefined, day.date)}`)}
-												class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
+												href={resolve(`/reports/tx-search?${txSearchUrl('^Expenses', month.key)}`)}
+												class="px-2 py-1 text-xs text-primary hover:underline"
+												>All transactions — {month.label}</a
 											>
-												<span class="text-base-content/70">{day.label}</span>
-												<span class="font-mono tabular-nums">{formatMoney(day.amount)}</span>
-											</a>
-										{/each}
-									</div>
-								</details>
-							{/each}
-						</div>
-					</AccordionSection>
-				</div>
+											{#each month.days as day (day.date)}
+												<a
+													href={resolve(
+														`/reports/tx-search?${txSearchUrl('^Expenses', undefined, day.date)}`
+													)}
+													class="flex items-center justify-between rounded px-2 py-1 text-sm hover:bg-base-200"
+												>
+													<span class="text-base-content/70">{day.label}</span>
+													<span class="font-mono tabular-nums">{formatMoney(day.amount)}</span>
+												</a>
+											{/each}
+										</div>
+									</details>
+								{/each}
+							</div>
+						</AccordionSection>
+					</div>
+				{/if}
 			{/if}
 		{/if}
 	</section>

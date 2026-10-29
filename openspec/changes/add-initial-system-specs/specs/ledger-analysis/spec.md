@@ -139,6 +139,34 @@ ledger-selection control.
 - **AND** its balance display includes every currency balance, not just the first one
 - **AND** any on-device marking applies to local overlay entries, not unrelated desktop entries
 
+#### Scenario: Account history on a cold page
+
+- **GIVEN** OPFS and IndexedDB retain the selected book and local overlay
+- **WHEN** account history is opened directly in a new page or reloaded, without visiting the account tree
+- **THEN** it waits for the full local analysis composition and returns the same account balances
+  and postings as navigation from the tree, without requiring network sync
+- **AND** this holds with analysis caching enabled or disabled and for an encoded account name
+- **AND** pending analysis and load/query failures are not displayed as a confirmed zero balance
+
+#### Scenario: Unresolved report posting amounts
+
+- **GIVEN** an expense or income posting in the selected period has no computed position,
+  whether in the local overlay or selected book, including after cache restoration
+- **WHEN** Expenses or Income vs Expenses is requested
+- **THEN** the report identifies the unresolved posting and keeps ledger diagnostics accessible
+- **AND** it does not invoke valuation on a missing position, substitute zero, or present a
+  partial total or chart as complete
+- **AND** completed transactions flagged `!` and successfully interpolated postings are not
+  excluded merely because of that flag
+
+#### Scenario: Recovery after completing a posting
+
+- **GIVEN** a report cannot produce a complete result because a posting is unresolved
+- **WHEN** that source entry is corrected and the analysis composition is refreshed
+- **THEN** the report reflects the corrected composition and current period, including after
+  a later cache restoration
+- **AND** outdated results or errors do not replace the current result
+
 ### Requirement: Currency Fidelity
 
 The system SHALL preserve original positions, amounts, and currencies and SHALL NOT exclude
