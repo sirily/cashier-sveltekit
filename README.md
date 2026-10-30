@@ -118,11 +118,10 @@ are managed separately.
 
 ## Documentation
 
+- [Fork architecture](docs/architecture.md) — server authority, local capture, offline calculations, and boundaries that cleanup must preserve.
 - [Visual design](docs/design.md) — theme colors, their roles, and palette reference.
 - [Release policy](docs/releasing.md) — repository and publication process.
 - [Project instructions](AGENTS.md) — lasting development conventions.
 - [OpenSpec](openspec/) — application behavior contracts and proposed changes. Use
   `openspec list --specs` and `openspec list` to distinguish main specs from active changes.
-- [Published behavior specifications](openspec/specs/) — owner-reviewed contracts for ledger sync,
-  manual-transaction writeback, offline transaction entry, and full-book analysis.
-- [Historical project records](docs/completed-projects/) — context, not automatically current requirements.
+- [Published behavior specifications](openspec/specs/) — owner-reviewed contracts.

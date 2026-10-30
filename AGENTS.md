@@ -7,16 +7,16 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
 
 ### Documentation and requirements
 
-| Location                                               | Contents                                                                             |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| [README.md](README.md)                                 | Project overview, setup, and development commands                                    |
-| [openspec/specs/](openspec/specs/)                     | Published application behavior contracts                                             |
-| [openspec/changes/](openspec/changes/)                 | Proposed changes and their planning artifacts                                        |
-| [openspec/changes/archive/](openspec/changes/archive/) | Historical change records                                                            |
-| [docs/releasing.md](docs/releasing.md)                 | Release branches, versions, candidates, publication, rollback, and automation status |
-| [docs/design.md](docs/design.md)                       | Visual design and palette reference                                                  |
-| [cashier-theme-daisy.css](cashier-theme-daisy.css)     | Theme tokens and their actual values                                                 |
-| [docs/completed-projects/](docs/completed-projects/)   | Historical project documents                                                         |
+| Location                                               | Contents                                                                               |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| [README.md](README.md)                                 | Project overview, setup, and development commands                                      |
+| [openspec/specs/](openspec/specs/)                     | Published application behavior contracts                                               |
+| [openspec/changes/](openspec/changes/)                 | Proposed changes and their planning artifacts                                          |
+| [openspec/changes/archive/](openspec/changes/archive/) | Historical change records                                                              |
+| [docs/releasing.md](docs/releasing.md)                 | Release branches, versions, candidates, publication, rollback, and automation status   |
+| [docs/design.md](docs/design.md)                       | Visual design and palette reference                                                    |
+| [cashier-theme-daisy.css](cashier-theme-daisy.css)     | Theme tokens and their actual values                                                   |
+| [docs/architecture.md](docs/architecture.md)           | Fork ownership, local/server boundaries, offline calculations, and cleanup constraints |
 
 ### Application code
 
@@ -51,8 +51,10 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
 
 - Behavior requirements belong in OpenSpec, not in this file. Check `openspec list --json`
   and `openspec list --specs --json` before selecting the relevant change or main capability.
-- Archived changes and completed-project documents provide history, not substitutes for
-  current specifications or automatically mandatory implementation plans.
+- Read [docs/architecture.md](docs/architecture.md) before changing storage, synchronization,
+  journal/account flows, or analysis. This is the owner's client-server fork, not upstream's CRDT architecture.
+- OpenSpec owns behavior requirements and change plans; Git and archived changes retain history.
+  Do not recreate `docs/completed-projects/` or treat upstream plans and generic feature lists as requirements.
 - Read the release policy before creating or merging release branches, preparing tags or
   images, publishing, or deploying. Do not substitute manual agent actions for the required
   release automation; its current implementation limits are documented there.
@@ -70,6 +72,9 @@ Core workflows:
 
 ## Architecture
 
+- The owner's Python Beancount server is authoritative for synchronized data. The PWA retains pending local entries and a downloaded book; it must keep on-device RustLedger WASM calculations and offline analysis.
+- Only the fork's explicit server synchronization is the target. Legacy voice/peer/WebDAV/filesystem sync and Ledger-cli support are pending removal under `remove-unsupported-client-features`, not already gone. Do not add CRDT/Yjs or S3 as replacements.
+- External accounting data enters through server Sync. Local book/transaction imports, OPFS uploads/drop, backup/scheduled-record restore, and bulk settings JSON ingestion are included in cleanup. Preserve manual entry, ordinary settings controls, export, outbound backup, journal/editor/account foundations, and local analytics. Post-sync mutations and account management are separate work.
 - The app is a PWA with a single page application (SPA) architecture, using SvelteKit and DaisyUI frameworks. SvelteKit configuration lives in `vite.config.ts`; `#lib` is a package-import alias declared in `package.json`.
 - Uses **Svelte 5** with runes syntax (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 store or `$:` reactive patterns.
 - Uses **TailwindCSS v4** and **DaisyUI v5** — class names and config differ from v3/v4 respectively.
@@ -85,7 +90,7 @@ Core workflows:
 - `ledgerService` handles the local transaction overlay and source-position-aware editing.
 - Active full-book reports use `ledgerWorkerClient`, backed by `ledger.worker.ts`, with
   asynchronous loading and queries. Some callers import that client under the local name
-  `fullLedgerService`; the separate `fullLedgerService.ts` class is not that worker client.
+  `fullLedgerService`; the old `fullLedgerService.ts` and `localLedgerService.ts` classes were removed, not renamed.
 - Keep local editing and full-book analysis responsibilities separate. Read the relevant
   OpenSpec contracts before changing synchronization, identity, reconciliation, or currency handling.
 
@@ -103,6 +108,10 @@ Core workflows:
 - **E2E tests**: Playwright — `npm run test:e2e`
 - Run `npm run format` to format, `npm run lint` to lint, `npm run check` to type-check (svelte-check + TypeScript).
 - Use Serena MCP for codebase navigation.
+- For every runtime cleanup commit, run the retained-workflow gate in the OpenSpec change:
+  offline journal capture/edit/delete, server Sync success/failure/retry, account/history/report calculations,
+  export and outbound backup, plus static/unit/build checks. Verify retired import/restore entry points leave stored data unchanged. A failed or unavailable required check
+  blocks the commit; mocked API tests are not real Python-server integration evidence.
 
 ### Code Intelligence (LSP)
 
