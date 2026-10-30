@@ -108,21 +108,21 @@ backend obligations. The PWA cannot select another destination or edit arbitrary
 
 Use source meaning and later corrections, not just timestamps:
 
-- **Pull** — [accepted sync record](../../../docs/cashier-beancount-sync-status.md) and
-  [snapshot contract](../../../docs/cashier-python-plugin-materialization-investigation.md):
+- **Pull** — [accepted sync record](../../../../docs/cashier-beancount-sync-status.md) and
+  [snapshot contract](../../../../docs/cashier-python-plugin-materialization-investigation.md):
   local overlay preservation, source-preserving ready-to-read book, zero parse errors.
 - **Writeback** — the owner's PWA manual-writeback plan dated 2026-05-28 and the writeback
-  procedure copied into [docs](../../../docs/), together with
-  [AGENTS.md](../../../AGENTS.md): explicit Sync, persisted identity, completed-only sending,
+  procedure copied into [docs](../../../../docs/), together with
+  [AGENTS.md](../../../../AGENTS.md): explicit Sync, persisted identity, completed-only sending,
   two meaningful states, partial success, concrete reasons, and confirmation before deletion.
   The procedure's identifier-less matching paragraphs are superseded, not current obligations.
-- **Identity correction** — [duplicate incident](../../../docs/cashier-sync-duplication.md):
+- **Identity correction** — [duplicate incident](../../../../docs/cashier-sync-duplication.md):
   desktop IDs are not required; structural matching and UI masking are not the fix. The
   compact-header incident is closed, not reopened by this documentation work.
-- **QA/operations** — [current QA](../../../docs/cashier-qa-algorithms.md) and
-  [deployment](../../../docs/cashier-deployment.md): visible per-phase evidence, retry/conflict/
+- **QA/operations** — [current QA](../../../../docs/cashier-qa-algorithms.md) and
+  [deployment](../../../../docs/cashier-deployment.md): visible per-phase evidence, retry/conflict/
   mixed-batch coverage, retained browser data, authentication, and repository boundaries.
-- **Currencies** — [finance-tool evaluation](../../../docs/personal-finance-tool-evaluation.md):
+- **Currencies** — [finance-tool evaluation](../../../../docs/personal-finance-tool-evaluation.md):
   original commodities and explicit valuation coverage. The archived multicurrency QA record
   explains earlier display fixes, but its entire screen/preflight list is not current scope.
 - **Owner clarification** — this review confirms the fork changes/wiki as baseline and
@@ -217,7 +217,7 @@ verification. Source anchors describe the reviewed commit and can move after lat
 
 ### Acceptance for later runtime changes
 
-Use [current QA](../../../docs/cashier-qa-algorithms.md) with deployment-shaped local
+Use [current QA](../../../../docs/cashier-qa-algorithms.md) with deployment-shaped local
 Compose/Caddy and retained browser storage. Create a local transaction through visible
 controls, click Sync, and corroborate the UI with POST, server-file, prepared-book, OPFS,
 parse, reconciliation, and single-operation evidence. Include lost responses/failed pulls,
