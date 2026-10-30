@@ -1,6 +1,7 @@
 # add-initial-system-specs
 
-Active, reopened initial specification change for the owner's Cashier workflows:
+Initial specification change, published and archived on 2026-10-30 at the owner's explicit
+request, for the owner's Cashier workflows:
 
 - server-ledger synchronization;
 - manual-transaction writeback;
@@ -15,5 +16,7 @@ known implementation gaps, and [tasks.md](tasks.md) for review status. Detailed 
 live in this change's `specs/` directory. They are required behavior, not proof that every
 scenario already passes in the application.
 
-The premature archive has been reversed, including its generated main specs. Continue within
-this change and do not archive or publish it again until the owner explicitly requests it.
+The earlier premature archive was reversed for review. After owner approval of all 14 tasks,
+the four capability deltas were published to [main specs](../../../specs/) and this change
+was archived. This supersedes the review-time publication hold in the planning artifacts.
+The recorded implementation gaps remain historical findings, not completed runtime fixes.

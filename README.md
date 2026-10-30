@@ -123,6 +123,6 @@ are managed separately.
 - [Project instructions](AGENTS.md) — lasting development conventions.
 - [OpenSpec](openspec/) — application behavior contracts and proposed changes. Use
   `openspec list --specs` and `openspec list` to distinguish main specs from active changes.
-- [Initial specification change](openspec/changes/add-initial-system-specs/README.md) —
-  owner-reviewed initial contracts, still awaiting explicit publication.
+- [Published behavior specifications](openspec/specs/) — owner-reviewed contracts for ledger sync,
+  manual-transaction writeback, offline transaction entry, and full-book analysis.
 - [Historical project records](docs/completed-projects/) — context, not automatically current requirements.

@@ -26,8 +26,9 @@
 - [x] 4.2 Check cross-spec consistency, relative links, capability inventory, and source-file isolation; verify there are no dangling WebDAV capability references, no main-spec publication, and no runtime changes.
 - [x] 4.3 Owner review of the revised requirement wording and scenario coverage; explicitly approved in this conversation on 2026-10-23, including preservation and editability of incomplete `!` entries during synchronization.
 
-## Workflow follow-up
+## Workflow completion
 
-- Keep this change active while review continues. Do not sync main specs or archive automatically.
-- After explicit owner approval and an archive request, publish the four reviewed initial capabilities through the standard OpenSpec archive workflow.
-- Scope runtime bug fixes and unused-feature removal separately. The known-gap inventory is not authorization to implement them or a requirement to fix all of them in this documentation change.
+- On 2026-10-30, the owner explicitly requested publication and archiving of this completed change.
+- Published all four reviewed capabilities to main specs, preserving all 33 requirements and their scenarios; strict OpenSpec validation passed.
+- Archived the change after confirming all 14 tasks were complete and all four main specs matched their deltas.
+- Runtime bug fixes and unused-feature removal remain separate work. The known-gap inventory is not authorization to implement them or a requirement to fix all of them in this documentation change.
