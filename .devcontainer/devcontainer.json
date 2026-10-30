@@ -9,12 +9,14 @@
 		"dockerfile": "Dockerfile"
 	},
 	"mounts": [
-		"source=${localWorkspaceFolderBasename}-devcontainer-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+		"source=${localWorkspaceFolderBasename}-devcontainer-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
+		"source=${localWorkspaceFolderBasename}-devcontainer-github-auth,target=/home/node/.config/gh,type=volume"
 	],
 	"remoteUser": "node",
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [5173],
@@ -22,7 +24,8 @@
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "mkcert -install && mkcert localhost 127.0.0.1 ::1 && npm install",
 	// Docker creates a fresh volume as root; allow the development user to install packages.
-	"postCreateCommand": "sudo chown node:node node_modules && npm install",
+	"postCreateCommand": "sudo chown node:node node_modules /home/node/.config/gh && chmod 700 /home/node/.config/gh && npm install",
+	"postStartCommand": "if gh auth status >/dev/null 2>&1; then gh auth setup-git; else printf '%s\\n' 'GitHub authentication is not available. In a container terminal, run: gh auth login --hostname github.com --git-protocol https --web && gh auth setup-git'; fi",
 
 	// Configure tool-specific properties.
 	"customizations": {

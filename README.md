@@ -20,6 +20,53 @@ npm run dev
 The development server normally runs at `http://localhost:5173/`. Agents should use the
 user-managed server rather than starting a second one without checking.
 
+### GitHub authentication in devcontainers
+
+The devcontainer installs GitHub CLI (`gh`) and stores its configuration in a named
+Docker volume, `<workspace-folder-name>-devcontainer-github-auth`, mounted at
+`/home/node/.config/gh`. This does not use a host-OS-specific credentials directory.
+
+Run these commands in a terminal **inside the container**:
+
+```sh
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+gh auth status
+```
+
+Follow the terminal instructions: open the displayed GitHub URL in your host browser
+and enter the one-time code. Never put a token in the repository or a remote URL.
+Authentication performed before the volume was mounted is not automatically migrated;
+log in again after rebuilding if necessary.
+
+Once authenticated, Git uses `gh` for HTTPS credentials without asking on every push.
+The volume preserves authentication across container restarts and rebuilds on the same
+Docker daemon. On startup, `postStartCommand` checks authentication and reconnects Git
+to `gh` when available. Otherwise it prints a login reminder in the lifecycle log;
+it does not open a browser or start an interactive login automatically. If Git asks
+for credentials, run `gh auth status` and repeat the login commands if needed.
+
+A different Docker host, a different workspace folder name, deletion of the auth volume,
+or an expired/revoked token requires a new login. Containers using the same volume name
+share its credentials, so use distinct workspace folder names for separate accounts.
+
+To remove the locally saved account credentials:
+
+```sh
+gh auth logout --hostname github.com
+```
+
+Logging out or deleting the volume does **not** revoke the token on GitHub. To revoke
+GitHub CLI access, use GitHub **Settings → Applications → Authorized OAuth Apps →
+GitHub CLI**; this can also affect other GitHub CLI logins.
+
+**Security:** without a system credential store, `gh` saves its token unencrypted in
+`/home/node/.config/gh/hosts.yml`. The volume is not a secret vault. Its directory is
+restricted to the container user, but processes running as `node`, container root, and
+anyone controlling the Docker daemon can access it. Other containers can access it if
+the same volume is mounted into them. Only run trusted code in this environment; do not
+share or publish the volume or its backups.
+
 ### Serena in Zed devcontainers
 
 The development image installs uv and Serena 2.1.0. Project settings in
