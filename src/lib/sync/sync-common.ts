@@ -2,7 +2,7 @@
  * Common synchronization logic shared by all sync sources.
  * Handles parsing, storage, and orchestration after raw data is fetched.
  */
-import appService from '$lib/services/appService';
+import appService from '#lib/services/appService';
 
 export interface SyncSteps {
 	syncAccounts?: boolean;

@@ -26,11 +26,11 @@ const mockState = vi.hoisted(() => {
 	};
 });
 
-vi.mock('$lib/utils/notifier', () => ({
+vi.mock('#lib/utils/notifier', () => ({
 	default: mockState.notifier
 }));
 
-vi.mock('$lib/settings', () => ({
+vi.mock('#lib/settings', () => ({
 	SettingKeys: {
 		syncServerUrl: 'syncServerUrl',
 		syncBeancountRootFile: 'syncBeancountRootFile',
@@ -48,7 +48,7 @@ vi.mock('$lib/settings', () => ({
 	}
 }));
 
-vi.mock('$lib/utils/opfslib', () => ({
+vi.mock('#lib/utils/opfslib', () => ({
 	readFile: vi.fn(async (path: string) => mockState.opfsFiles.get(path)),
 	saveFile: vi.fn(async (path: string, content: string) => {
 		mockState.opfsFiles.set(path, content);
@@ -67,7 +67,7 @@ vi.mock('$lib/utils/opfslib', () => ({
 	})
 }));
 
-vi.mock('$lib/services/ledgerWorkerClient', () => ({
+vi.mock('#lib/services/ledgerWorkerClient', () => ({
 	default: {
 		deleteCache: mockState.deleteCache,
 		invalidate: mockState.invalidate,
@@ -75,7 +75,7 @@ vi.mock('$lib/services/ledgerWorkerClient', () => ({
 	}
 }));
 
-vi.mock('$lib/services/rustledger', () => ({
+vi.mock('#lib/services/rustledger', () => ({
 	ensureInitialized: vi.fn(async () => {}),
 	createLedger: vi.fn((files: Record<string, string>, entryPoint: string) => {
 		mockState.createdLedgers.push({ files, entryPoint });
@@ -86,7 +86,7 @@ vi.mock('$lib/services/rustledger', () => ({
 	})
 }));
 
-vi.mock('$lib/sync/sync-common', () => ({
+vi.mock('#lib/sync/sync-common', () => ({
 	syncAccounts: mockState.syncAccounts,
 	syncPayees: mockState.syncPayees,
 	syncCurrentValues: vi.fn(async () => {
@@ -94,9 +94,9 @@ vi.mock('$lib/sync/sync-common', () => ({
 	})
 }));
 
-vi.mock('$lib/sync/manual-writeback', async () => {
-	const actual = await vi.importActual<typeof import('$lib/sync/manual-writeback')>(
-		'$lib/sync/manual-writeback'
+vi.mock('#lib/sync/manual-writeback', async () => {
+	const actual = await vi.importActual<typeof import('#lib/sync/manual-writeback')>(
+		'#lib/sync/manual-writeback'
 	);
 	return {
 		...actual,
@@ -104,17 +104,17 @@ vi.mock('$lib/sync/manual-writeback', async () => {
 	};
 });
 
-import * as opfs from '$lib/utils/opfslib';
-import * as manualWriteback from '$lib/sync/manual-writeback';
-import { SettingKeys, settings } from '$lib/settings';
+import * as opfs from '#lib/utils/opfslib';
+import * as manualWriteback from '#lib/sync/manual-writeback';
+import { SettingKeys, settings } from '#lib/settings';
 import { get } from 'svelte/store';
-import { syncProgress } from '$lib/stores/syncProgressStore';
+import { syncProgress } from '#lib/stores/syncProgressStore';
 import {
 	CashierSyncBeancount,
 	__test__,
 	getLastDiagnostics,
 	synchronize
-} from '$lib/sync/sync-beancount';
+} from '#lib/sync/sync-beancount';
 
 describe('Beancount sync path helpers', () => {
 	test('normalizes infrastructure paths and rejects traversal above root', () => {
@@ -424,14 +424,14 @@ describe('CashierSyncBeancount ledger file download', () => {
 		arrange: () => void;
 		message: string;
 		stage: 'accounts' | 'payees' | 'other';
+		error: Error;
 	}> = [
 		{
 			name: 'accounts',
 			options: { syncAccounts: true },
-			arrange: () => {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockRejectedValueOnce(
-					new Error('accounts unavailable')
-				);
+			error: new Error('accounts unavailable'),
+			arrange: function () {
+				vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockRejectedValueOnce(this.error);
 			},
 			message: 'accounts unavailable',
 			stage: 'accounts'
@@ -439,16 +439,16 @@ describe('CashierSyncBeancount ledger file download', () => {
 		{
 			name: 'payees',
 			options: { syncPayees: true },
-			arrange: () => {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockRejectedValueOnce(
-					new Error('payees unavailable')
-				);
+			error: new Error('payees unavailable'),
+			arrange: function () {
+				vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockRejectedValueOnce(this.error);
 			},
 			message: 'payees unavailable',
 			stage: 'payees'
 		},
 		{
 			name: 'asset-allocation',
+			error: new Error('Stage 1 sync does not support asset allocation definition import'),
 			options: { syncAssetAllocation: true },
 			arrange: () => {},
 			message: 'Stage 1 sync does not support asset allocation definition import',
@@ -457,9 +457,10 @@ describe('CashierSyncBeancount ledger file download', () => {
 		{
 			name: 'account-current-values',
 			options: { syncAaValues: true },
-			arrange: () => {
+			error: new Error('values unavailable'),
+			arrange: function () {
 				vi.spyOn(CashierSyncBeancount.prototype, 'readCurrentValues').mockRejectedValueOnce(
-					new Error('values unavailable')
+					this.error
 				);
 			},
 			message: 'values unavailable',
@@ -469,21 +470,25 @@ describe('CashierSyncBeancount ledger file download', () => {
 
 	for (const testCase of persistentFailureCases) {
 		test(`records a persistent ${testCase.name} failure`, async () => {
+			const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 			mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 			testCase.arrange();
 			await expect(synchronize(testCase.options)).resolves.toBe(false);
 			expect(getLastDiagnostics()?.syncErrors).toEqual([
 				{ stage: testCase.stage, message: testCase.message }
 			]);
+			expect(consoleError.mock.calls).toEqual([[testCase.error]]);
 		});
 	}
 
 	test('records pull, root-book-selection, and parse failures separately', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const pullError = new Error('pull unavailable');
+		const bookSelectionError = new Error('book selection unavailable');
+		const parseError = new Error('Full ledger parsed with 1 errors for main.bean');
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
-		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValueOnce(
-			new Error('pull unavailable')
-		);
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValueOnce(pullError);
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'pull', message: 'pull unavailable' }
@@ -494,7 +499,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		);
 		vi.spyOn(settings, 'set')
 			.mockImplementationOnce(async () => undefined)
-			.mockRejectedValueOnce(new Error('book selection unavailable'));
+			.mockRejectedValueOnce(bookSelectionError);
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'other', message: 'book selection unavailable' }
@@ -508,6 +513,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'parse', message: 'Full ledger parsed with 1 errors for main.bean' }
 		]);
+		expect(consoleError.mock.calls).toEqual([[pullError], [bookSelectionError], [parseError]]);
 	});
 
 	test('records multiple server rejections and clears them at the next run', async () => {
@@ -682,6 +688,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 	});
 
 	test('rolls back downloaded files and selected book on parse failure', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const error = new Error('Full ledger parsed with 1 errors for main.bean');
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 		mockState.settingsStore.set(SettingKeys.bookFilename, 'previous.bean');
@@ -708,9 +716,14 @@ describe('CashierSyncBeancount ledger file download', () => {
 			parseResult: 'error',
 			selectedRootBookFilename: 'main.bean'
 		});
+		expect(consoleError.mock.calls).toEqual([
+			[expect.objectContaining({ message: error.message })]
+		]);
 	});
 
 	test('rejects downloaded infrastructure that would overwrite cashier.bean', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const error = new Error('Invalid local OPFS path for /workspace/cashier.bean');
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/cashier.bean');
 		mockState.opfsFiles.set('cashier.bean', '2026-01-01 * "Local"');
@@ -726,6 +739,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 		);
 		expect(mockState.deleteCache).not.toHaveBeenCalled();
 		expect(getLastDiagnostics()).toMatchObject({ parseResult: 'error' });
+		expect(consoleError.mock.calls).toEqual([
+			[expect.objectContaining({ message: error.message })]
+		]);
 	});
 
 	test('metadata-only sync records skipped parse diagnostics and writes no files', async () => {
@@ -750,16 +766,17 @@ describe('CashierSyncBeancount ledger file download', () => {
 	});
 
 	test('failed include fetch rejects before OPFS writes', async () => {
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const error = new Error('missing /workspace/accounts.bean');
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 
-		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValue(
-			new Error('missing /workspace/accounts.bean')
-		);
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValue(error);
 
 		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
 
 		expect(vi.mocked(opfs.saveFile)).not.toHaveBeenCalled();
 		expect(getLastDiagnostics()).toMatchObject({ parseResult: 'error' });
+		expect(consoleError.mock.calls).toEqual([[error]]);
 	});
 });

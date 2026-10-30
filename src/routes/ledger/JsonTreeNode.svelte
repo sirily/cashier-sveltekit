@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { ChevronRight, ChevronDown } from '@lucide/svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Self from './JsonTreeNode.svelte';
 
 	type Props = {
@@ -63,7 +64,7 @@
 		</button>
 		{#if expanded}
 			<div class="ml-4 border-l border-base-300 pl-2">
-				{#each childEntries as { key, val }}
+				{#each childEntries as { key, val } (key)}
 					<Self label={key} value={val} depth={depth + 1} />
 				{/each}
 			</div>

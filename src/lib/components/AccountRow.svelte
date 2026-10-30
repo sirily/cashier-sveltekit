@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Account } from '$lib/data/model';
-	import { getBarWidth } from '$lib/utils/barWidthCalculator';
+	import { Account } from '#lib/data/model';
+	import { getBarWidth } from '#lib/utils/barWidthCalculator';
 	import MultiCurrencyBalance from './MultiCurrencyBalance.svelte';
 
 	type Props = {
@@ -33,7 +33,6 @@
 	});
 </script>
 
-<!-- svelte-ignore a11y_interactive_supports_focus -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
 	class={`border-base-content/15 flex w-full flex-row items-start border-b py-0.5 text-base ${isGrayed ? 'text-base-content/50' : ''} ${onclick ? 'cursor-pointer' : ''}`}

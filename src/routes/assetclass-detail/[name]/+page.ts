@@ -1,11 +1,11 @@
 import { goto } from '$app/navigation';
-import type { AssetClass, StockSymbol } from '$lib/assetAllocation/AssetClass';
-import { AaStocksStore, AssetAllocationStore } from '$lib/data/mainStore';
-import type { Account } from '$lib/data/model.js';
-import * as AccountService from '$lib/services/accountsService';
-import appService from '$lib/services/appService';
-import fullLedgerService from '$lib/services/ledgerWorkerClient';
-import { version as getWasmVersion } from '$lib/services/rustledger';
+import type { AssetClass, StockSymbol } from '#lib/assetAllocation/AssetClass';
+import { AaStocksStore, AssetAllocationStore } from '#lib/data/mainStore';
+import type { Account } from '#lib/data/model.js';
+import * as AccountService from '#lib/services/accountsService';
+import appService from '#lib/services/appService';
+import fullLedgerService from '#lib/services/ledgerWorkerClient';
+import { version as getWasmVersion } from '#lib/services/rustledger';
 import { get } from 'svelte/store';
 
 export type WasmQueryFn = (

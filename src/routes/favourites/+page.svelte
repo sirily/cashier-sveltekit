@@ -1,18 +1,25 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { selectionMetadata } from '$lib/data/mainStore';
-	import { Account, Money } from '$lib/data/model';
-	import { SelectionType } from '$lib/enums';
-	import appService from '$lib/services/appService';
-	import { SelectionModeMetadata, SettingKeys, settings } from '$lib/settings';
-	import AccountRow from '$lib/components/AccountRow.svelte';
-	import Notifier from '$lib/utils/notifier';
-	import { ArrowUpDownIcon, PlusCircleIcon, PlusIcon, Trash2Icon, TrashIcon } from '@lucide/svelte';
+
+	import { SvelteMap } from 'svelte/reactivity';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { selectionMetadata } from '#lib/data/mainStore';
+	import { Account, Money } from '#lib/data/model';
+	import { SelectionType } from '#lib/enums';
+	import appService from '#lib/services/appService';
+	import { SelectionModeMetadata, SettingKeys, settings } from '#lib/settings';
+	import AccountRow from '#lib/components/AccountRow.svelte';
+	import Notifier from '#lib/utils/notifier';
+	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+import PlusCircleIcon from '@lucide/svelte/icons/plus-circle';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	Notifier.init();
 
@@ -75,7 +82,7 @@
 	 * Query account balances from the ParsedLedger via BQL.
 	 */
 	async function queryFavouriteBalances(favNames: string[]): Promise<Map<string, Account>> {
-		const result = new Map<string, Account>();
+		const result = new SvelteMap<string, Account>();
 		if (favNames.length === 0) return result;
 
 		await fullLedgerService.ensureLoaded();
@@ -180,18 +187,18 @@
 	}
 
 	async function onAccountClick(accountName?: string) {
-		goto('/accounts/account-xacts/' + accountName);
+		goto(resolve('/accounts/account-xacts/[accountName]', { accountName: encodeURIComponent(accountName ?? '') }))
 	}
 
 	async function onAddClicked() {
 		$selectionMetadata = new SelectionModeMetadata();
 		$selectionMetadata.selectionType = SelectionType.ACCOUNT;
 
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	async function onDeleteClicked() {
-		await goto('/favourites/delete');
+		await goto(resolve('/favourites/delete'));
 	}
 
 	function onDeleteAllClicked() {
@@ -206,7 +213,7 @@
 	}
 
 	async function onReorderClick() {
-		await goto('/favourites/reorder');
+		await goto(resolve('/favourites/reorder'));
 	}
 </script>
 

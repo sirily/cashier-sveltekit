@@ -1,20 +1,26 @@
 <script lang="ts">
+	import { onDestroy, type Snippet } from 'svelte';
+
 	/**
 	 * @type {{
+	 *   children: Snippet
+	 *   drag?: Snippet
 	 *   classs?: string
 	 *   delay?: number
 	 *   ondragstart?: (event: DragEvent) => void
-	 *   setDragElement: (clientX: number, clientY: number, drag_element: HTMLElement) => void
+	 *   setDragElement: (clientX: number, clientY: number, preview: Snippet, rect: DOMRect) => void
 	 * }}
 	 */
-	const { classs = '', delay, ondragstart, setDragElement } = $props();
+	const { children, drag, classs = '', delay, ondragstart, setDragElement } = $props();
 
 	/** @type {HTMLDivElement} */
 	let container: HTMLDivElement | undefined = $state();
-	/** @type {HTMLDivElement} */
-	let drag_view: HTMLDivElement | undefined = $state();
+
 	/** @type {ReturnType<typeof setTimeout> | 0} */
 	let timeout: ReturnType<typeof setTimeout> | 0;
+	onDestroy(() => {
+		if (timeout) clearTimeout(timeout);
+	});
 
 	/** @param {{ clientX: number, clientY: number }} event */
 	const handle_mousedown = ({ clientX, clientY }: { clientX: number; clientY: number }) => {
@@ -39,20 +45,18 @@
 	 * @param {number} client_y
 	 */
 	const start_drag = (client_x: number, client_y: number) => {
-		if (!container || !drag_view) return;
-
-		const drag_element: HTMLDivElement =
-			/** @type {HTMLDivElement} */
-			((drag_view.children[0] || container).cloneNode(true) as HTMLDivElement); /**/
-		drag_element.style.position = 'absolute';
-		drag_element.style.top = container.offsetTop + 'px';
-		drag_element.style.left = container.offsetLeft + 'px';
-		setDragElement(client_x, client_y, drag_element);
+		if (!container) return;
+		timeout = 0;
+		setDragElement(client_x, client_y, drag ?? children, container.getBoundingClientRect());
 		ondragstart?.(new DragEvent('dragstart'));
 	};
 </script>
 
-<svelte:window onmouseup={handle_mouseup} ontouchend={handle_touchend} />
+<svelte:window
+	onmouseup={handle_mouseup}
+	ontouchend={handle_touchend}
+	ontouchcancel={handle_touchend}
+/>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
@@ -62,8 +66,5 @@
 	onmousedown={handle_mousedown}
 	ontouchstart={handle_touchstart}
 >
-	<slot />
-</div>
-<div bind:this={drag_view} style="display:none;">
-	<slot name="drag" />
+	{@render children()}
 </div>

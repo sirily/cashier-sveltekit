@@ -2,8 +2,8 @@
  * Common Data Access Layer (DAL) code.
  */
 
-import { LedgerDataSource } from '$lib/enums';
-import { SettingKeys, settings } from '$lib/settings';
+import { LedgerDataSource } from '#lib/enums';
+import { SettingKeys, settings } from '#lib/settings';
 import CashierDAL from './dbdal';
 import FSDAL from './fsdal';
 import type { Account, Payee } from './model';

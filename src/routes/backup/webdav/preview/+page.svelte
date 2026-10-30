@@ -1,12 +1,13 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { page } from '$app/state';
-    import Toolbar from '$lib/components/Toolbar.svelte';
-    import { settings, SettingKeys } from '$lib/settings';
-    import { filterBackupSettings } from '$lib/services/backupSettings';
-    import { readFile } from '$lib/utils/opfslib';
-    import { WebDavClient } from '$lib/utils/webdav';
-    import { CheckIcon, CopyIcon } from '@lucide/svelte';
+    import Toolbar from '#lib/components/Toolbar.svelte';
+    import { settings, SettingKeys } from '#lib/settings';
+    import { filterBackupSettings } from '#lib/services/backupSettings';
+    import { readFile } from '#lib/utils/opfslib';
+    import { WebDavClient } from '#lib/utils/webdav';
+    import CheckIcon from '@lucide/svelte/icons/check';
+import CopyIcon from '@lucide/svelte/icons/copy';
 
     type PreviewSection = { filename: string; content: string };
 
@@ -78,7 +79,7 @@
         {:else if error}
             <div class="alert alert-error text-sm">{error}</div>
         {:else}
-            {#each sections as section, i}
+            {#each sections as section, i (section.filename)}
                 <div>
                     <div class="flex items-center gap-2 mb-1">
                         <p class="font-mono text-sm font-semibold text-base-content/70 flex-1">{section.filename}</p>

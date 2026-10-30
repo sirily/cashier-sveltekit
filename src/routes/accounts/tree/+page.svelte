@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { ChevronDown, ChevronRight } from '@lucide/svelte';
+	import { SvelteMap } from 'svelte/reactivity';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import MultiCurrencyBalance from '$lib/components/MultiCurrencyBalance.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import appService from '$lib/services/appService';
+	import { resolve } from '$app/paths';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import MultiCurrencyBalance from '#lib/components/MultiCurrencyBalance.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import appService from '#lib/services/appService';
 
 	interface TreeNode {
 		name: string;
@@ -16,7 +19,7 @@
 		balances: Record<string, number>;
 	}
 
-	let nodeMap = $state(new Map<string, TreeNode>());
+	const nodeMap = new SvelteMap<string, TreeNode>();
 	let rootNames: string[] = $state([]);
 	let dataLoaded = $state(false);
 	let defaultCurrency = $state('');
@@ -37,7 +40,7 @@
 		const accountIdx = result.columns.indexOf('account');
 		const balanceIdx = result.columns.indexOf('balance');
 
-		const balanceMap = new Map<string, Record<string, number>>();
+		const balanceMap = new SvelteMap<string, Record<string, number>>();
 		for (const row of result.rows as any[][]) {
 			const name = row[accountIdx] as string;
 			if (name) balanceMap.set(name, extractBalances(row[balanceIdx]));
@@ -73,7 +76,10 @@
 			}
 		}
 
-		nodeMap = map;
+		nodeMap.clear();
+		for (const [name, node] of map) {
+			nodeMap.set(name, node);
+		}
 		rootNames = [...map.keys()].filter((n) => !n.includes(':')).sort();
 		dataLoaded = true;
 		document.body.style.cursor = 'default';
@@ -121,8 +127,7 @@
 	function toggleNode(name: string) {
 		const node = nodeMap.get(name);
 		if (node && node.children.length > 0) {
-			node.expanded = !node.expanded;
-			nodeMap = new Map(nodeMap);
+			nodeMap.set(name, { ...node, expanded: !node.expanded });
 		}
 	}
 
@@ -179,7 +184,7 @@
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<span
 								class="flex-1 whitespace-nowrap cursor-pointer {node.level === 0 ? 'font-semibold' : ''}"
-								onclick={() => goto('/accounts/account-xacts/' + encodeURIComponent(node.name))}
+								onclick={() => goto(resolve('/accounts/account-xacts/[accountName]', { accountName: encodeURIComponent(node.name) }))}
 							>
 								{node.label}
 							</span>

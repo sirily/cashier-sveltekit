@@ -1,10 +1,11 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { afterNavigate, goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { xact } from '$lib/data/mainStore';
-	import Notifier from '$lib/utils/notifier';
-	import { parseXact } from '$lib/utils/transactionParser';
-	import { ImportIcon } from '@lucide/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { xact } from '#lib/data/mainStore';
+	import Notifier from '#lib/utils/notifier';
+	import { parseXact } from '#lib/utils/transactionParser';
+	import ImportIcon from '@lucide/svelte/icons/import';
 	import { onMount } from 'svelte';
 
 	Notifier.init();
@@ -35,7 +36,7 @@
 		// set to store
 		xact.set(x);
 		// show the editor for any modifications
-		goto('/tx', { replaceState: true });
+		goto(resolve('/tx'), { replaceState: true });
 	}
 </script>
 

@@ -1,22 +1,21 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import ColorPicker from '$lib/components/ColorPicker.svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { selectionMetadata } from '$lib/data/mainStore';
-	import { SelectionType } from '$lib/enums';
-	import { SelectionModeMetadata, SettingKeys, settings, type AccountGroup } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import DragReorderList from '$lib/components/DragReorderList.svelte';
-	import {
-		CheckIcon,
-		PencilIcon,
-		PlusIcon,
-		Trash2Icon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import ColorPicker from '#lib/components/ColorPicker.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { selectionMetadata } from '#lib/data/mainStore';
+	import { SelectionType } from '#lib/enums';
+	import { SelectionModeMetadata, SettingKeys, settings, type AccountGroup } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import DragReorderList from '#lib/components/DragReorderList.svelte';
+	import CheckIcon from '@lucide/svelte/icons/check';
+import PencilIcon from '@lucide/svelte/icons/pencil';
+import PlusIcon from '@lucide/svelte/icons/plus';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
+import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();
@@ -99,7 +98,7 @@
 	async function onAddClicked() {
 		$selectionMetadata = new SelectionModeMetadata();
 		$selectionMetadata.selectionType = SelectionType.ACCOUNT;
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	function openRenameModal() {

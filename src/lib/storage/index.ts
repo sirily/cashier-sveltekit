@@ -1,4 +1,4 @@
-import { settings, SettingKeys } from '$lib/settings';
+import { settings, SettingKeys } from '#lib/settings';
 import type { StorageBackend, StorageBackendType } from './storageBackend';
 import { OPFSBackend } from './opfsBackend';
 import { FileSystemAccessBackend } from './fileSystemAccessBackend';

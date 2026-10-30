@@ -9,15 +9,15 @@
  * callers only need to update the import path, not the variable name.
  */
 
-import { writable, derived, get, type Readable } from 'svelte/store';
-import { Account } from '$lib/data/model';
-import { settings, SettingKeys } from '$lib/settings';
+import { writable, derived, type Readable } from 'svelte/store';
+import { Account } from '#lib/data/model';
+import { settings, SettingKeys } from '#lib/settings';
 import type {
 	WorkerRequestPayload,
 	WorkerResponse,
 	WorkerResponsePayload
-} from '$lib/workers/ledger.worker';
-import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '$lib/constants';
+} from '#lib/workers/ledger.worker';
+import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 
 // Extract the response shape for a given `type` discriminant.
 type ResponseOf<T extends WorkerResponsePayload['type']> = Extract<
@@ -34,6 +34,8 @@ class LedgerWorkerClient {
 	private _nextId = 0;
 
 	private _isLoaded = false;
+	private _loading: Promise<unknown> | null = null;
+	private _revision = 0;
 	private _loaded = writable(false);
 	private _isConfigured = writable(false);
 	private _version = writable(0);
@@ -51,7 +53,7 @@ class LedgerWorkerClient {
 
 	private get worker(): Worker {
 		if (!this._worker) {
-			this._worker = new Worker(new URL('$lib/workers/ledger.worker.ts', import.meta.url), {
+			this._worker = new Worker(new URL('../workers/ledger.worker.ts', import.meta.url), {
 				type: 'module'
 			});
 			this._worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
@@ -70,6 +72,8 @@ class LedgerWorkerClient {
 				for (const p of this._pending.values()) p.reject(err);
 				this._pending.clear();
 				this._worker = null;
+				this.setLoaded(false);
+				this._version.update((v) => v + 1);
 			};
 		}
 		return this._worker;
@@ -120,61 +124,60 @@ class LedgerWorkerClient {
 
 	/** Parse all .bean files from OPFS, replace the cached ledger. */
 	async load(): Promise<void> {
-		try {
-			await this.send<'load-done'>({
-				type: 'load',
-				mainFileName: await this.mainFileName(),
-				userBookFilename: await this.userBookFilename()
-			});
-			this.setLoaded(true);
-			this._isConfigured.set(true);
-			this._version.update((v) => v + 1);
-		} catch (err) {
-			if (String(err).includes('No .bean files found')) {
-				// App not yet configured — stay unloaded but don't crash callers.
-				this.setLoaded(false);
-				this._isConfigured.set(false);
-				return;
+		return this.updateLedger(async () => {
+			try {
+				await this.send<'load-done'>({
+					type: 'load',
+					mainFileName: await this.mainFileName(),
+					userBookFilename: await this.userBookFilename()
+				});
+			} catch (err) {
+				if (String(err).includes('No .bean files found')) {
+					this._isConfigured.set(false);
+					return false;
+				}
+				throw err;
 			}
-			this.setLoaded(false);
-			throw err;
-		}
+			return true;
+		});
 	}
 
-	/** Load only if not already loaded; no-op otherwise.
-	 *  Tries the binary cache first, falling back to a full file parse.
-	 *  Also skips if an invalidate() is already in progress — the version bump
-	 *  at the end of invalidation will retrigger any reactive subscribers. */
+	/** Share initial loading and wait for any pending refresh before returning. */
 	async ensureLoaded(): Promise<void> {
-		if (this._isLoaded) return;
-		if (get(this._isReloading)) return;
-		try {
-			const useCaching = (await settings.get<boolean>(SettingKeys.ledgerCacheEnabled)) ?? true;
-			await this.send<'load-done'>({
-				type: 'ensure-loaded',
-				mainFileName: await this.mainFileName(),
-				userBookFilename: await this.userBookFilename(),
-				useCaching
-			});
-			this.setLoaded(true);
-			this._isConfigured.set(true);
-			this._version.update((v) => v + 1);
-		} catch (err) {
-			if (String(err).includes('No .bean files found')) {
-				this.setLoaded(false);
-				this._isConfigured.set(false);
-				return;
+		if (!this._loading && !this._isLoaded) {
+			this.updateLedger(async () => {
+				try {
+					const useCaching = (await settings.get<boolean>(SettingKeys.ledgerCacheEnabled)) ?? true;
+					await this.send<'load-done'>({
+						type: 'ensure-loaded',
+						mainFileName: await this.mainFileName(),
+						userBookFilename: await this.userBookFilename(),
+						useCaching
+					});
+				} catch (err) {
+					if (String(err).includes('No .bean files found')) {
+						this._isConfigured.set(false);
+						return false;
+					}
+					throw err;
+				}
+				return true;
+			}, false);
+		}
+		while (this._loading) {
+			const loading = this._loading;
+			try {
+				await loading;
+			} catch (error) {
+				if (this._loading && this._loading !== loading) continue;
+				throw error;
 			}
-			this.setLoaded(false);
-			throw err;
 		}
 	}
 
 	/** Free and re-parse — picks up source file changes. */
 	async invalidate(): Promise<void> {
-		this._isReloading.set(true);
-		this.setLoaded(false); // prevent queries from reaching the worker while re-parsing
-		try {
+		return this.updateLedger(async () => {
 			const useCaching = (await settings.get<boolean>(SettingKeys.ledgerCacheEnabled)) ?? true;
 			await this.send<'load-done'>({
 				type: 'invalidate',
@@ -182,18 +185,49 @@ class LedgerWorkerClient {
 				userBookFilename: await this.userBookFilename(),
 				useCaching
 			});
-			this.setLoaded(true);
-			this._version.update((v) => v + 1);
-		} finally {
-			this._isReloading.set(false);
-		}
+			return true;
+		});
 	}
 
-	/** Run a BQL query against the cached ledger. Returns empty results if not loaded. */
+	/** Serialize source loads; an earlier load must not mark a pending refresh as ready. */
+	private updateLedger(task: () => Promise<boolean>, reloading = true): Promise<void> {
+		const previous = this._loading;
+		const revision = ++this._revision;
+		const loading = (async () => {
+			if (previous) await previous.catch(() => {});
+			const available = await task();
+			if (revision === this._revision) {
+				this.setLoaded(available);
+				if (available) this._isConfigured.set(true);
+				if (available || reloading) this._version.update((v) => v + 1);
+			}
+		})().finally(() => {
+			if (this._loading === loading) {
+				this._loading = null;
+				this._isReloading.set(false);
+			}
+		});
+		this._loading = loading;
+		this.setLoaded(false);
+		if (reloading) this._isReloading.set(true);
+		return loading;
+	}
+
+	/** Query only a ready composition; retry if sources change during execution. */
 	async query(bql: string): Promise<{ columns: string[]; rows: unknown[]; errors: unknown[] }> {
-		if (!this._isLoaded) return { columns: [], rows: [], errors: [] };
-		const resp = await this.send<'query-done'>({ type: 'query', bql });
-		return { columns: resp.columns, rows: resp.rows, errors: resp.errors };
+		for (;;) {
+			await this.ensureLoaded();
+			if (!this._isLoaded) throw new Error('Ledger analysis is unavailable: no local book loaded.');
+			const revision = this._revision;
+			try {
+				const resp = await this.send<'query-done'>({ type: 'query', bql });
+				if (revision === this._revision && this._isLoaded) {
+					return { columns: resp.columns, rows: resp.rows, errors: resp.errors };
+				}
+			} catch (error) {
+				if (revision === this._revision) throw error;
+			}
+		}
 	}
 
 	/** Return all parsed directives. */
@@ -204,6 +238,8 @@ class LedgerWorkerClient {
 
 	/** Return all parse / validation errors. */
 	async getErrors(): Promise<unknown[]> {
+		await this.ensureLoaded();
+		if (!this._isLoaded) throw new Error('Ledger analysis is unavailable: no local book loaded.');
 		const resp = await this.send<'errors-done'>({ type: 'get-errors' });
 		return resp.errors;
 	}
@@ -222,10 +258,13 @@ class LedgerWorkerClient {
 	 * Returns directive count and elapsed milliseconds.
 	 */
 	async loadFromCache(): Promise<{ directiveCount: number; ms: number }> {
-		const resp = await this.send<'load-from-cache-done'>({ type: 'load-from-cache' });
-		this.setLoaded(true);
-		this._version.update((v) => v + 1);
-		return { directiveCount: resp.directiveCount, ms: resp.ms };
+		let result!: { directiveCount: number; ms: number };
+		await this.updateLedger(async () => {
+			const resp = await this.send<'load-from-cache-done'>({ type: 'load-from-cache' });
+			result = { directiveCount: resp.directiveCount, ms: resp.ms };
+			return true;
+		});
+		return result;
 	}
 
 	/** Return all open accounts (from #accounts where close is null). */
@@ -248,7 +287,10 @@ class LedgerWorkerClient {
 	 */
 	async getAccountWithBalances(accountName: string): Promise<Account | null> {
 		const bql = `SELECT sum(number) AS balance, currency, account WHERE account = '${accountName}' ORDER BY currency`;
-		const { columns, rows } = await this.query(bql);
+		const { columns, rows, errors } = await this.query(bql);
+		if (errors.length) {
+			throw new Error(errors.map((error: any) => error.message ?? String(error)).join('; '));
+		}
 		if (!rows || rows.length === 0) return null;
 
 		const balanceIdx = columns.indexOf('balance');
@@ -273,9 +315,10 @@ class LedgerWorkerClient {
 
 	/** Free the cached ledger without reloading. */
 	async reset(): Promise<void> {
-		await this.send<'reset-done'>({ type: 'reset' });
-		this.setLoaded(false);
-		this._version.update((v) => v + 1);
+		await this.updateLedger(async () => {
+			await this.send<'reset-done'>({ type: 'reset' });
+			return false;
+		});
 	}
 
 	/**
@@ -284,9 +327,10 @@ class LedgerWorkerClient {
 	 * re-parses fresh data instead of serving a stale cache.
 	 */
 	async deleteCache(): Promise<void> {
-		await this.send<'delete-cache-done'>({ type: 'delete-cache' });
-		this.setLoaded(false);
-		this._version.update((v) => v + 1);
+		await this.updateLedger(async () => {
+			await this.send<'delete-cache-done'>({ type: 'delete-cache' });
+			return false;
+		});
 	}
 }
 

@@ -1,12 +1,15 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import OpfsFilePicker from '$lib/components/OpfsFilePicker.svelte';
-	import { FilePlusIcon, UploadIcon, Trash2Icon } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import OpfsFilePicker from '#lib/components/OpfsFilePicker.svelte';
+	import FilePlusIcon from '@lucide/svelte/icons/file-plus';
+import UploadIcon from '@lucide/svelte/icons/upload';
+import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
-	import * as OpfsLib from '$lib/utils/opfslib.js';
-	import type { FileTreeEntry } from '$lib/utils/opfslib.js';
-	import Notifier from '$lib/utils/notifier';
+	import * as OpfsLib from '#lib/utils/opfslib.js';
+	import type { FileTreeEntry } from '#lib/utils/opfslib.js';
+	import Notifier from '#lib/utils/notifier';
 
 	Notifier.init();
 
@@ -40,7 +43,7 @@
 	});
 
 	function onFileSelect(entry: FileTreeEntry) {
-		goto(`/opfs/edit-file?file=${encodeURIComponent(entry.path)}`);
+		goto(resolve(`/opfs/edit-file?${new URLSearchParams({ file: entry.path })}`));
 	}
 
 	function confirmDelete(filePath: string) {

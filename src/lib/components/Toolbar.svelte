@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { EllipsisVertical, Menu } from '@lucide/svelte';
+	import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
+import Menu from '@lucide/svelte/icons/menu';
 	import type { Snippet } from 'svelte';
-	import { drawerState } from '$lib/data/mainStore';
+	import { drawerState } from '#lib/data/mainStore';
 
 	// Props
 	type Props = {
@@ -46,7 +47,7 @@
 					>
 						<EllipsisVertical size={18} />
 					</button>
-					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+
 					<ul
 						role="menu"
 						class="menu menu-sm dropdown-content bg-primary rounded-box z-1 mt-1 w-52 p-2 shadow"

@@ -2,10 +2,13 @@
     Account Transactions
 */
 
-import { Account, Money, type Xact } from '$lib/data/model.js';
-import ledgerService from '$lib/services/ledgerService.js';
-import fullLedgerService from '$lib/services/ledgerWorkerClient';
-import type { DirectiveSpan } from '$lib/rledger/sourceEditor';
+import { Account, type Xact } from '#lib/data/model.js';
+import ledgerService from '#lib/services/ledgerService.js';
+import fullLedgerService from '#lib/services/ledgerWorkerClient';
+import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
+import { ensureInitialized } from '#lib/data/initializer';
+import { get } from 'svelte/store';
+import type { PageLoad } from './$types';
 
 export type UnifiedXact = {
 	date: string;
@@ -18,37 +21,50 @@ export type UnifiedXact = {
 	span?: DirectiveSpan;
 };
 
-export async function load({ params }) {
+export const load = (({ params, depends }) => {
 	if (!params.accountName) {
 		throw new Error('Account must be specified!');
 	}
 
-	const account =
-		(await fullLedgerService.getAccountWithBalances(params.accountName)) ??
-		new Account(params.accountName);
+	depends('ledger:account-history');
+	return {
+		accountName: params.accountName,
+		history: loadHistory(params.accountName).then(
+			(data) => ({ data, error: null }),
+			(error: unknown) => ({
+				data: null,
+				error: error instanceof Error ? error.message : String(error)
+			})
+		)
+	};
+}) satisfies PageLoad;
 
-	// take the first balance
-	const total: Money = new Money();
-	const balanceKeys = account.balances ? Object.keys(account.balances) : [];
-	total.quantity = balanceKeys.length ? account.balances![balanceKeys[0]] : 0;
-	total.currency = balanceKeys[0] ?? '';
+async function loadHistory(accountName: string) {
+	// Route loads can run before the root layout's onMount initialization.
+	await ensureInitialized();
+	await fullLedgerService.ensureLoaded();
+	const version = get(fullLedgerService.version);
+	const account =
+		(await fullLedgerService.getAccountWithBalances(accountName)) ?? new Account(accountName);
 
 	// On-device transactions
 	await ledgerService.load();
 	const xactsWithSpans = await ledgerService.getXactsWithSpans();
 	const deviceXacts = xactsWithSpans.filter(({ xact }) =>
-		xact.postings?.some((p) => p.account === params.accountName)
+		xact.postings?.some((p) => p.account === accountName)
 	);
 
 	// Full ledger transactions for this account
 	const bql = `SELECT date, payee, narration, number, currency \
-WHERE account = '${params.accountName}'`;
+WHERE account = '${accountName}'`;
 	const { columns, rows, errors } = await fullLedgerService.query(bql);
-	if (errors?.length) console.warn('Ledger xact query errors:', errors);
+	if (errors?.length) {
+		throw new Error(errors.map((error: any) => error.message ?? String(error)).join('; '));
+	}
 
 	// Normalize device xacts
 	const deviceRows: UnifiedXact[] = deviceXacts.map(({ xact, span }) => {
-		const posting = xact.postings?.find((p) => p.account === params.accountName);
+		const posting = xact.postings?.find((p) => p.account === accountName);
 		return {
 			date: xact.date ?? '',
 			payee: xact.payee ?? '',
@@ -105,5 +121,8 @@ WHERE account = '${params.accountName}'`;
 
 	const hasDeviceXacts = deviceRows.length > 0;
 
-	return { account, total, unifiedRows, hasDeviceXacts };
+	if (!fullLedgerService.isLoaded || version !== get(fullLedgerService.version)) {
+		return loadHistory(accountName);
+	}
+	return { account, unifiedRows, hasDeviceXacts, version };
 }

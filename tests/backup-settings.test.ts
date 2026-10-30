@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { filterBackupSettings, settingsForRestore } from '$lib/services/backupSettings';
+import { filterBackupSettings, settingsForRestore } from '#lib/services/backupSettings';
 test('shared filtering removes token from local or remote settings', () => {
 	expect(
 		filterBackupSettings([

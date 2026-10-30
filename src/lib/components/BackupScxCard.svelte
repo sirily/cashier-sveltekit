@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { CalendarClockIcon } from '@lucide/svelte';
+	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { onMount } from 'svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
 	import { goto } from '$app/navigation';
-	import db from '$lib/data/db';
-	import { CloudBackupService } from '$lib/services/cloudBackupService';
-	import { BackupType } from '$lib/enums';
+	import { resolve } from '$app/paths';
+	import db from '#lib/data/db';
+	import { CloudBackupService } from '#lib/services/cloudBackupService';
+	import { BackupType } from '#lib/enums';
 
 	Notifier.init();
 	let backupSvc: CloudBackupService;
@@ -24,7 +25,7 @@
 		const serverUrl = await settings.get<string>(SettingKeys.backupServerUrl);
 		if (!serverUrl) {
 			Notifier.info('Backup server URL not set.');
-			await goto('/settings/webdav-cfg');
+			await goto(resolve('/settings/webdav-cfg'));
 			return;
 		}
 
@@ -68,9 +69,7 @@
 	{/snippet}
 	{#snippet footer()}
 		<div class="grid grid-cols-2 place-items-center gap-4">
-			<button type="button" class="btn btn-primary" onclick={onBackupClick}>
-				Backup</button
-			>
+			<button type="button" class="btn btn-primary" onclick={onBackupClick}> Backup</button>
 			<button type="button" class="btn btn-warning" onclick={onRestoreClick} disabled>
 				Restore</button
 			>

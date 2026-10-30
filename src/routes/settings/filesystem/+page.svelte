@@ -5,24 +5,22 @@
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import {
-		RefreshCcwIcon,
-		FolderOpenIcon,
-		FileIcon,
-		FolderIcon,
-		BookOpenIcon,
-		XIcon,
-		TriangleAlertIcon
-	} from '@lucide/svelte';
-	import Notifier from '$lib/utils/notifier';
-	import { settings, SettingKeys } from '$lib/settings';
-	import Fab from '$lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
+import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+import FileIcon from '@lucide/svelte/icons/file';
+import FolderIcon from '@lucide/svelte/icons/folder';
+import BookOpenIcon from '@lucide/svelte/icons/book-open';
+import XIcon from '@lucide/svelte/icons/x';
+import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import Notifier from '#lib/utils/notifier';
+	import { settings, SettingKeys } from '#lib/settings';
+	import Fab from '#lib/components/FAB.svelte';
 	import {
 		loadPersistedHandle,
 		persistHandle,
 		requestReadPermission
-	} from '$lib/utils/fsHandleStore';
+	} from '#lib/utils/fsHandleStore';
 
 	Notifier.init();
 
@@ -390,7 +388,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each entries as entry}
+						{#each entries as entry (entry.path)}
 							<tr
 								class="cursor-pointer hover"
 								class:bg-secondary={selectedEntry?.path === entry.path}
@@ -507,7 +505,7 @@
 								<div class="mb-4">
 									<table class="table table-sm w-auto">
 										<tbody>
-											{#each Object.entries(fileMeta) as [key, value]}
+											{#each Object.entries(fileMeta) as [key, value] (key)}
 												<tr>
 													<td class="font-semibold opacity-70 pr-4">{key}</td>
 													<td class="font-mono text-sm">{value}</td>

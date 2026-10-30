@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import { settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import { Check, CircleAlert, CircleCheck } from '@lucide/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import { settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import Check from '@lucide/svelte/icons/check';
+import CircleAlert from '@lucide/svelte/icons/circle-alert';
+import CircleCheck from '@lucide/svelte/icons/circle-check';
 
 	Notifier.init();
 

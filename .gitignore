@@ -21,13 +21,10 @@ Thumbs.db
 
 # Tests
 test-results
-.aider*
+/.playwright-mcp/
 
 # Assistants
 vite.config.*.timestamp-*
-.codex
-.claude/settings.local.json
-.claude/worktrees/
 
 # SSL keys
 /**/localhost*.pem

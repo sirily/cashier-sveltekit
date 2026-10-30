@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import { xact, selectionMetadata } from '$lib/data/mainStore';
-	import { Posting, Xact } from '$lib/data/model';
-	import { SelectionModeMetadata } from '$lib/settings';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import appService from '$lib/services/appService';
-	import { CheckIcon, CalculatorIcon } from '@lucide/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import { xact, selectionMetadata } from '#lib/data/mainStore';
+	import { Posting, Xact } from '#lib/data/model';
+	import { SelectionModeMetadata } from '#lib/settings';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import appService from '#lib/services/appService';
+	import CheckIcon from '@lucide/svelte/icons/check';
+import CalculatorIcon from '@lucide/svelte/icons/calculator';
 	import { onMount } from 'svelte';
 
 	const accountName = $derived(page.url.searchParams.get('account') ?? '');
@@ -75,7 +77,7 @@
 		meta.origin = 'bal-adj';
 		meta.selectionType = 'account';
 		selectionMetadata.set(meta);
-		await goto('/accounts');
+		await goto(resolve('/accounts'));
 	}
 
 	async function openCalculator() {
@@ -85,7 +87,7 @@
 		meta.selectionType = 'amount';
 		meta.initialValue = parseFloat(enteredBalance) || 0;
 		selectionMetadata.set(meta);
-		await goto('/calculator');
+		await goto(resolve('/calculator'));
 	}
 
 	async function onFab() {
@@ -97,7 +99,7 @@
 		$xact.postings[0].amount = -(entered - ledgerBalance);
 		$xact.postings[1].account = accountName;
 
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 </script>
 

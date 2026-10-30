@@ -1,11 +1,14 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { ArrowDownToLineIcon, SaveIcon, XIcon } from '@lucide/svelte';
-	import * as OpfsLib from '$lib/utils/opfslib.js';
-	import Notifier from '$lib/utils/notifier';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ArrowDownToLineIcon from '@lucide/svelte/icons/arrow-down-to-line';
+import SaveIcon from '@lucide/svelte/icons/save';
+import XIcon from '@lucide/svelte/icons/x';
+	import * as OpfsLib from '#lib/utils/opfslib.js';
+	import Notifier from '#lib/utils/notifier';
 
 	Notifier.init();
 
@@ -20,7 +23,7 @@
 
 	onMount(async () => {
 		if (!filePath) {
-			goto('/opfs');
+			goto(resolve('/opfs'));
 			return;
 		}
 
@@ -52,7 +55,7 @@
 	}
 
 	function close() {
-		goto('/opfs');
+		goto(resolve('/opfs'));
 	}
 
 	function scrollToBottom() {

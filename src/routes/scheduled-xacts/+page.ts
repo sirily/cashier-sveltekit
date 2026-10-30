@@ -1,7 +1,7 @@
 /*
     Scheduled Transactions list
 */
-import db from '$lib/data/db';
+import db from '#lib/data/db';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async () => {

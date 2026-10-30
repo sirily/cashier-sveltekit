@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { ChartLineIcon, Settings2Icon } from '@lucide/svelte';
+	import ChartLineIcon from '@lucide/svelte/icons/chart-line';
+import Settings2Icon from '@lucide/svelte/icons/settings-2';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
-	import { Constants, SettingKeys, settings } from '$lib/settings';
+	import { Constants, SettingKeys, settings } from '#lib/settings';
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import DailyForecastChart from './DailyForecastChart.svelte';
 
 	let _accountNames: string[] = $state([]);
@@ -22,7 +24,7 @@
 
 		_accountNames = accountNames;
 
-		_days = await settings.get(SettingKeys.forecastDays) as number;
+		_days = (await settings.get(SettingKeys.forecastDays)) as number;
 		if (_days === 0) {
 			_days = Constants.ForecastDays;
 		}
@@ -39,8 +41,8 @@
 		Financial Forecast
 	{/snippet}
 	{#snippet menu()}
-		<a href="/forecast-settings">
-			<Settings2Icon  />
+		<a href={resolve('/forecast-settings')}>
+			<Settings2Icon />
 		</a>
 	{/snippet}
 	{#snippet content()}

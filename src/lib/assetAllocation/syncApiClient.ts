@@ -1,6 +1,6 @@
 import ky from 'ky';
 import { settings, SettingKeys } from '../settings';
-import { ApiError, TimeoutError } from '$lib/utils/errors';
+import { ApiError, TimeoutError } from '#lib/utils/errors';
 
 const DEFAULT_TIMEOUT = 15000; // 15 seconds
 const MAX_RETRIES = 2;

@@ -3,8 +3,8 @@
     Parsing a Ledger transaction record.
 */
 import { expect, test } from 'vitest';
-import { parseXact } from '$lib/utils/transactionParser';
-import { Posting, Xact } from '$lib/data/model';
+import { parseXact } from '#lib/utils/transactionParser';
+import { Posting, Xact } from '#lib/data/model';
 
 test('parsing a typical xact', () => {
 	// arrange
