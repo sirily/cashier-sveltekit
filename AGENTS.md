@@ -73,7 +73,7 @@ Core workflows:
 ## Architecture
 
 - The owner's Python Beancount server is authoritative for synchronized data. The PWA retains pending local entries and a downloaded book; it must keep on-device RustLedger WASM calculations and offline analysis.
-- Only the fork's explicit server synchronization is the target. Legacy voice/peer/WebDAV/filesystem sync and Ledger-cli support are pending removal under `remove-unsupported-client-features`, not already gone. Do not add CRDT/Yjs or S3 as replacements.
+- Only the fork's explicit server synchronization is the target. Legacy peer/WebDAV/filesystem sync and Ledger-cli support are pending removal under `remove-unsupported-client-features`, not already gone. Do not add CRDT/Yjs or S3 as replacements.
 - External accounting data enters through server Sync. Local book/transaction imports, OPFS uploads/drop, backup/scheduled-record restore, and bulk settings JSON ingestion are included in cleanup. Preserve manual entry, ordinary settings controls, export, outbound backup, journal/editor/account foundations, and local analytics. Post-sync mutations and account management are separate work.
 - The app is a PWA with a single page application (SPA) architecture, using SvelteKit and DaisyUI frameworks. SvelteKit configuration lives in `vite.config.ts`; `#lib` is a package-import alias declared in `package.json`.
 - Uses **Svelte 5** with runes syntax (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 store or `$:` reactive patterns.

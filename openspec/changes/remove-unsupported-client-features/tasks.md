@@ -19,10 +19,10 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 1. Remove voice entry — commit 1
 
-- [ ] 1.1 Establish baseline G for retained workflows and current source/graph boundaries; verify browser/OS dependencies and formatting. Complete section 0's local `cashier_id` fix and regression within this change, in its own commit before feature removal. Retiring restore's known G12 defect is not a prerequisite and receives no repair/testing task here.
-- [ ] 1.2 Fill retained-workflow test gaps: local delete with neighbor preservation/reload, journal copy/download without mutation, outbound settings/scheduled backup with token exclusion and offline full-book analysis. Verify supported editor identity/field behavior and distinguish local checks from server acceptance.
-- [ ] 1.3 Remove Voice Entry route, parser, parser-only tests, navigation and exclusive imports; verify normal entry/save works and former URLs cannot initialize microphone code.
-- [ ] 1.4 Update affected navigation docs/assertions; run G and commit gate, then create only `chore: remove voice entry` with its tests/docs.
+- [x] 1.1 Establish baseline G for retained workflows and current source/graph boundaries; verify browser/OS dependencies and formatting. Complete section 0's local `cashier_id` fix and regression within this change, in its own commit before feature removal. Retiring restore's known G12 defect is not a prerequisite and receives no repair/testing task here.
+- [x] 1.2 Fill retained-workflow test gaps: local delete with neighbor preservation/reload, journal copy/download without mutation, outbound settings/scheduled backup with token exclusion and offline full-book analysis. Verify supported editor identity/field behavior and distinguish local checks from server acceptance.
+- [x] 1.3 Remove Voice Entry route, parser, parser-only tests, navigation and exclusive imports; verify normal entry/save works and former URLs cannot initialize microphone code.
+- [x] 1.4 Update affected navigation docs/assertions; run G and commit gate, then create only `chore: remove voice entry` with its tests/docs.
 
 ## 2. Remove peer-sync demo — commit 2
 
@@ -85,6 +85,12 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Fresh container-local GitNexus index and structured `detect_changes(scope=all)` passed without partial/truncated results: 7 changed files, 47 symbols, 3 edit/storage/parser flows, medium risk. Focused independent regression review passed. Real Python-server integration not run: no disposable environment/credentials supplied.
 - Broader pre-existing rich-source preservation remains separate: document-symbol spans can include an inter-transaction comment in the edited range. This fix covers identity; it does not claim complete lossless editing.
 - Commit: `fix: preserve local transaction identity on edit` (recorded in Git history).
+
+### Voice retirement
+
+- Identity fix committed as `5fbca27`. Removed voice route, parser, exclusive tests and drawer entry, plus stale voice documentation references. Baseline and missing retained-workflow coverage completed in the preceding fix commit.
+- Gate G passed: specs, lint, Svelte lint, types and warning-gated build; retained units 149 passed / 6 retiring cases excluded; retained browsers 39 passed / cross-list prototype excluded. Unit command now excludes only `tests/xactParser.test.ts` plus the same restore/WebDAV name filter. Browser command unchanged. Three new removal checks cover former URLs, microphone inactivity, unchanged OPFS/IndexedDB and drawer access.
+- Pre-edit UNKNOWN voice graph results were resolved with source/reference inspection. Independent regression review found no blockers. Fresh index and structured change gate checked before `chore: remove voice entry`; no real-server integration claimed.
 
 ## Workflow follow-up
 

@@ -24,7 +24,6 @@ import ChartNoAxesCombinedIcon from '@lucide/svelte/icons/chart-no-axes-combined
 import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
 import CalculatorIcon from '@lucide/svelte/icons/calculator';
 import CalendarIcon from '@lucide/svelte/icons/calendar';
-import MicIcon from '@lucide/svelte/icons/mic';
 import ListTreeIcon from '@lucide/svelte/icons/list-tree';
 import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 import CloudUploadIcon from '@lucide/svelte/icons/cloud-upload';
@@ -93,16 +92,6 @@ import CloudUploadIcon from '@lucide/svelte/icons/cloud-upload';
 				>
 					<CalendarClockIcon />
 					<span>Scheduled Transactions</span>
-				</a>
-			</li>
-			<li>
-				<a
-					href={resolve('/tools/voice-entry')}
-					class="flex w-full items-center gap-2 py-2"
-					onclick={closeDrawer}
-				>
-					<MicIcon />
-					<span>Voice Entry</span>
 				</a>
 			</li>
 		</ul>
