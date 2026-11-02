@@ -26,7 +26,6 @@ import CalculatorIcon from '@lucide/svelte/icons/calculator';
 import CalendarIcon from '@lucide/svelte/icons/calendar';
 import ListTreeIcon from '@lucide/svelte/icons/list-tree';
 import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
-import CloudUploadIcon from '@lucide/svelte/icons/cloud-upload';
 
 	function closeDrawer(): void {
 		// the new drawer
@@ -238,18 +237,7 @@ import CloudUploadIcon from '@lucide/svelte/icons/cloud-upload';
 								<span>Backup</span>
 							</a>
 						</li>
-						<li>
-							<a
-								href={resolve('/backup/webdav')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/backup/webdav'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<CloudUploadIcon />
-								<span>WebDAV Backup</span>
-							</a>
-						</li>
+
 						<li>
 							<a
 								href={resolve('/opfs')}

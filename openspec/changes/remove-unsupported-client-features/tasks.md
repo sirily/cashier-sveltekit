@@ -31,10 +31,10 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 3. Remove legacy remote backups — commit 3
 
-- [ ] 3.1 Move shared backup filename generation into retained export/backup code; verify journal/scheduled copy/download before removing its former module.
-- [ ] 3.2 Remove WebDAV configuration/backup/preview/diff, cloud-backup page/card, remote clients, menus and `webdav` with lockfile updates; verify retained routes and old URLs initiate no remote-backup request.
-- [ ] 3.3 Purge only retired remote credentials locally and filter outbound backup. Verify removal/migration preserves the active token and existing data/settings; retain outbound-export and applicable diagnostic secrecy coverage. Skip restore functionality tests: that input retires in commit 4.
-- [ ] 3.4 Correct Backup's claim to contain transactions: verify settings/scheduled outbound payload scope and separate journal/book export; document retired-credential rollback limits, run G and commit gate, then create only `chore: remove legacy remote backups`.
+- [x] 3.1 Move shared backup filename generation into retained export/backup code; verify journal/scheduled copy/download before removing its former module.
+- [x] 3.2 Remove WebDAV configuration/backup/preview/diff, cloud-backup page/card, remote clients, menus and `webdav` with lockfile updates; verify retained routes and old URLs initiate no remote-backup request.
+- [x] 3.3 Purge only retired remote credentials locally and filter outbound backup. Verify removal/migration preserves the active token and existing data/settings; retain outbound-export and applicable diagnostic secrecy coverage. Skip restore functionality tests: that input retires in commit 4.
+- [x] 3.4 Correct Backup's claim to contain transactions: verify settings/scheduled outbound payload scope and separate journal/book export; document retired-credential rollback limits, run G and commit gate, then create only `chore: remove legacy remote backups`.
 
 ## 4. Remove local import and restore entry points — commit 4
 
@@ -97,6 +97,13 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Voice removal committed as `402b8ca`. Removed peer demo, exclusive connection manager and commented menu; retained all server-selection settings and consumers.
 - Gate G passed: specs, lint, Svelte lint, types, warning-gated build, 149 retained unit tests (6 retiring cases excluded) and 41 browser tests. Commands unchanged from voice retirement. Added old peer URL/reload checks for no WebRTC/media initialization and unchanged stored data/server selections.
 - Independent regression review found no blockers; graph results were checked against source consumers. Fresh structured graph-change check precedes `chore: remove peer sync demo`. Real-server integration not run.
+
+### Remote backup retirement
+
+- Peer removal committed as `26addce`. Removed WebDAV/cloud routes, clients, card, links and package; retained filename helper moved to `backupFilename.ts` with existing extension behavior. Backup copy describes its actual settings/scheduled payload.
+- Settings-load cleanup deletes only `webdav-settings`, `pCloudToken`, `backupServerUrl`; outbound backups filter those keys and the active token. Cleanup failures leave retained reads operational, hide retired keys and retry deletion later; concurrent initialization and persistent/transient failures tested.
+- Gate G passed: specs, lint, Svelte lint, types, warning-gated build; 159 retained unit tests (5 restore cases excluded), 55 browsers. Unit selection: `npm run test:unit -- --run --exclude tests/xactParser.test.ts -t '^(?!.*restore).*$'`; browser selection unchanged. Covers actual copy/download/share, no retired requests, narrow cleanup and unchanged data.
+- Shared-settings graph reach is CRITICAL; independent review exposed and verified repair of failure propagation. Fresh structured graph check precedes the separate commit. Reverting cannot recover deleted remote credentials; reintroduction requires re-entry and dependency-aware restoration of the relocated filename helper. Real-server integration not run. npm reports 10 remaining vulnerabilities; no unrelated audit updates applied.
 
 ## Workflow follow-up
 

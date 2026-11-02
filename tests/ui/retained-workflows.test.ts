@@ -229,7 +229,7 @@ test('journal export copies and downloads actual content without changing source
 	const downloading = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Download', exact: true }).click();
 	const download = await downloading;
-	expect(download.suggestedFilename()).not.toBe('');
+	expect(download.suggestedFilename()).toMatch(/^journal_.+\.ledger$/);
 	const downloaded = await downloadText(download);
 	expect(downloaded).toBe(journal);
 	for (const text of [copied, downloaded, await readJournal(page)]) {
@@ -259,6 +259,9 @@ test('outbound local Backup downloads settings and scheduled content without the
 	await page.goto('/backup');
 	await expect(page.getByRole('heading', { name: 'Create Backup', exact: true })).toBeVisible();
 	await expect(page.getByRole('textbox')).toHaveValue(/^cashier-backup_.+\.json$/);
+	await expect(
+		page.getByText('Journal transactions and book files are not included. Export them separately.')
+	).toBeVisible();
 	const recordsBefore = await readLocalRecords(page);
 	expect(recordsBefore.scheduled).toEqual(scheduled);
 	for (const [key, value] of Object.entries(seedSettings)) {
@@ -278,11 +281,76 @@ test('outbound local Backup downloads settings and scheduled content without the
 	expect(backup.scx).toEqual(scheduled);
 	expect(text).not.toContain('syncApiToken');
 	expect(text).not.toContain(apiToken);
+	for (const key of ['webdav-settings', 'pCloudToken', 'backupServerUrl'])
+		expect(text).not.toContain(key);
 	expect(await readLocalRecords(page)).toEqual(recordsBefore);
 	expect(await readJournal(page)).toBe(journal);
 
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Create Backup', exact: true })).toBeVisible();
+	expect(await readLocalRecords(page)).toEqual(recordsBefore);
+	expect(await readJournal(page)).toBe(journal);
+	expect(browserErrors).toEqual([]);
+});
+
+test('scheduled export copies and downloads JSON without changing local data', async ({
+	page,
+	context
+}) => {
+	const browserErrors = await seedLocalData(page);
+	const recordsBefore = await readLocalRecords(page);
+	await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+		origin: new URL(page.url()).origin
+	});
+	await page.goto('/export/scheduled');
+	await expect(page.getByText('Export scheduled', { exact: true })).toBeVisible();
+	await expect(page.getByRole('textbox')).toHaveValue(JSON.stringify(scheduled));
+	await page.getByRole('button', { name: 'Copy', exact: true }).click();
+	await expect(page.getByText('Data copied to clipboard', { exact: true })).toBeVisible();
+	expect(JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))).toEqual(scheduled);
+	const downloading = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Download', exact: true }).click();
+	const download = await downloading;
+	expect(download.suggestedFilename()).toMatch(/^scheduled_.+\.json$/);
+	expect(JSON.parse(await downloadText(download))).toEqual(scheduled);
+	expect(await readLocalRecords(page)).toEqual(recordsBefore);
+	expect(await readJournal(page)).toBe(journal);
+	expect(browserErrors).toEqual([]);
+});
+
+test('outbound Backup share contains only credential-free settings and scheduled records', async ({
+	page
+}) => {
+	const browserErrors = await seedLocalData(page);
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'share', {
+			configurable: true,
+			value: async (data: ShareData) => {
+				(window as unknown as { sharedBackup: ShareData }).sharedBackup = data;
+			}
+		});
+	});
+	await page.goto('/backup');
+	await expect(page.getByRole('heading', { name: 'Create Backup', exact: true })).toBeVisible();
+	const recordsBefore = await readLocalRecords(page);
+	await page.getByRole('button', { name: 'Share', exact: true }).click();
+	await expect
+		.poll(() =>
+			page.evaluate(() => (window as unknown as { sharedBackup?: ShareData }).sharedBackup)
+		)
+		.toBeTruthy();
+	const shared = await page.evaluate(
+		() => (window as unknown as { sharedBackup: ShareData }).sharedBackup
+	);
+	expect(shared.title).toBe('Cashier Backup');
+	expect(JSON.parse(shared.text as string)).toEqual({
+		settings: recordsBefore.settings.filter(
+			({ key }) =>
+				!['syncApiToken', 'webdav-settings', 'pCloudToken', 'backupServerUrl'].includes(key)
+		),
+		scx: scheduled
+	});
+	expect(shared.text).not.toContain(apiToken);
 	expect(await readLocalRecords(page)).toEqual(recordsBefore);
 	expect(await readJournal(page)).toBe(journal);
 	expect(browserErrors).toEqual([]);

@@ -85,13 +85,13 @@ import Share2Icon from '@lucide/svelte/icons/share-2';
 	<section class="p-1">
 		<h3 class="text-3xl font-semibold">Create Backup</h3>
 
-		<p>You can backup all local data:</p>
+		<p>This local backup contains:</p>
 		<ul class="list mx-8">
-			<li>transactions</li>
 			<li>scheduled transactions</li>
-			<li>settings</li>
+			<li>settings, excluding credentials</li>
 		</ul>
-		<p>into</p>
+		<p>Journal transactions and book files are not included. Export them separately.</p>
+		<p>Save the backup as:</p>
 
 		<div class="flex flex-row">
 			<input type="text" class="input" bind:value={_filename} readonly />

@@ -13,7 +13,7 @@
 	import BoxIcon from '@lucide/svelte/icons/box';
 import Check from '@lucide/svelte/icons/check';
 import FileBraces from '@lucide/svelte/icons/file-braces';
-import NetworkIcon from '@lucide/svelte/icons/network';
+
 import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Fab from '#lib/components/FAB.svelte';
 	import { page } from '$app/state';
@@ -182,7 +182,7 @@ import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	{#snippet menuItems()}
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
 		<ToolbarMenuItem text="JSON Editor" Icon={FileBraces} targetNav={resolve('/settings/json-editor')} />
-		<ToolbarMenuItem text="WebDAV Config" Icon={NetworkIcon} targetNav={resolve('/settings/webdav-cfg')} />
+
 	{/snippet}
 </Toolbar>
 

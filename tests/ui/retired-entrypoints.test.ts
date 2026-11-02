@@ -259,3 +259,118 @@ test('drawer omits Voice Entry and Peer Sync while keeping Journal reachable', a
 	await expect(page).toHaveURL(/\/journal$/);
 	await expect(page.locator('#drawer-modal')).not.toBeChecked();
 });
+
+const retiredRemotePaths = [
+	'/settings/webdav-cfg',
+	'/backup/webdav',
+	'/backup/webdav/preview?source=remote&filename=settings.json',
+	'/backup/webdav/diff?filename=settings.json',
+	'/cloud-backup'
+];
+
+for (const path of retiredRemotePaths.flatMap((path) => {
+	const [pathname, query] = path.split('?');
+	return [path, `${pathname}/${query ? `?${query}` : ''}`];
+})) {
+	test(`retired remote backup URL ${path} cannot contact a server or mutate stored data`, async ({
+		page
+	}) => {
+		await seedStoredData(page);
+		const before = await readStoredData(page);
+		const remoteRequests: string[] = [];
+		const origin = new URL(page.url()).origin;
+		page.on('request', (request) => {
+			if (
+				new URL(request.url()).origin !== origin ||
+				['PROPFIND', 'MKCOL', 'PUT', 'DELETE'].includes(request.method())
+			) {
+				remoteRequests.push(`${request.method()} ${request.url()}`);
+			}
+		});
+		await page.route(/^https?:\/\/(?!localhost(?::|\/)|127\.0\.0\.1(?::|\/))/, (route) =>
+			route.abort()
+		);
+
+		await page.goto(path);
+		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
+		expect(await readStoredData(page)).toEqual(before);
+		await page.reload();
+		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
+		expect(await readStoredData(page)).toEqual(before);
+		expect(remoteRequests).toEqual([]);
+	});
+}
+
+test('legacy remote credential cleanup preserves all other IndexedDB and OPFS data without a request', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	await page.evaluate(async () => {
+		const db = await new Promise<IDBDatabase>((resolve, reject) => {
+			const request = indexedDB.open('Cashier');
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const tx = db.transaction('settings', 'readwrite');
+				for (const [key, value] of Object.entries({
+					'webdav-settings': {
+						url: 'https://retired-backup.invalid/dav',
+						username: 'old-user',
+						password: 'old-password'
+					},
+					pCloudToken: 'old-cloud-token',
+					backupServerUrl: 'https://retired-backup.invalid/cloud'
+				}))
+					tx.objectStore('settings').put({ key, value: JSON.stringify(value) });
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+				tx.onabort = () => reject(tx.error);
+			});
+		} finally {
+			db.close();
+		}
+	});
+	const before = await readStoredData(page);
+	const remoteRequests: string[] = [];
+	await page.route('https://retired-backup.invalid/**', (route) => {
+		remoteRequests.push(route.request().url());
+		return route.abort();
+	});
+	await page.reload();
+	await expect(page.getByRole('main')).toContainText('Pending journal stays intact');
+	const expected = structuredClone(before);
+	expected.records.settings = expected.records.settings.filter(
+		(row) =>
+			!['webdav-settings', 'pCloudToken', 'backupServerUrl'].includes((row as { key: string }).key)
+	);
+	expect(await readStoredData(page)).toEqual(expected);
+	await page.reload();
+	await expect(page.getByRole('main')).toContainText('Pending journal stays intact');
+	expect(await readStoredData(page)).toEqual(expected);
+	expect(remoteRequests).toEqual([]);
+});
+
+test('remote backup links are absent while local Backup and export remain reachable', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/');
+	await expect(page.getByText('The device journal is empty')).toBeVisible();
+	await page.locator('main .navbar button').first().click();
+	const drawer = page.locator('.drawer-side');
+	const tools = drawer.locator('details').filter({ has: page.locator('a[href="/backup"]') });
+	await tools.locator('summary').click();
+	await expect(drawer.getByRole('link', { name: 'Backup', exact: true })).toBeVisible();
+	await expect(page.locator('a[href*="webdav"], a[href^="/cloud-backup"]')).toHaveCount(0);
+	await drawer.getByRole('link', { name: 'Backup', exact: true }).click();
+	await expect(page).toHaveURL(/\/backup$/);
+	await expect(page.getByRole('button', { name: 'Backup', exact: true })).toBeVisible();
+	await page.goto('/settings');
+	await expect(page.locator('a[href*="webdav"], a[href^="/cloud-backup"]')).toHaveCount(0);
+	for (const type of ['journal', 'scheduled']) {
+		await page.goto(`/export/${type}`);
+		await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
+	}
+});
