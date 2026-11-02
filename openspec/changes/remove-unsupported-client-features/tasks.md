@@ -26,8 +26,8 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 2. Remove peer-sync demo — commit 2
 
-- [ ] 2.1 Remove the demo route, PeerConnectionManager and dead navigation; remove only proven-exclusive peer settings, preserving server selections despite nearby peer comments. Verify no peer initialization or financial-data mutation.
-- [ ] 2.2 Cover old URLs/navigation and update affected docs; run G and commit gate, then create only `chore: remove peer sync demo`.
+- [x] 2.1 Remove the demo route, PeerConnectionManager and dead navigation; remove only proven-exclusive peer settings, preserving server selections despite nearby peer comments. Verify no peer initialization or financial-data mutation.
+- [x] 2.2 Cover old URLs/navigation and update affected docs; run G and commit gate, then create only `chore: remove peer sync demo`.
 
 ## 3. Remove legacy remote backups — commit 3
 
@@ -91,6 +91,12 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Identity fix committed as `5fbca27`. Removed voice route, parser, exclusive tests and drawer entry, plus stale voice documentation references. Baseline and missing retained-workflow coverage completed in the preceding fix commit.
 - Gate G passed: specs, lint, Svelte lint, types and warning-gated build; retained units 149 passed / 6 retiring cases excluded; retained browsers 39 passed / cross-list prototype excluded. Unit command now excludes only `tests/xactParser.test.ts` plus the same restore/WebDAV name filter. Browser command unchanged. Three new removal checks cover former URLs, microphone inactivity, unchanged OPFS/IndexedDB and drawer access.
 - Pre-edit UNKNOWN voice graph results were resolved with source/reference inspection. Independent regression review found no blockers. Fresh index and structured change gate checked before `chore: remove voice entry`; no real-server integration claimed.
+
+### Peer demo retirement
+
+- Voice removal committed as `402b8ca`. Removed peer demo, exclusive connection manager and commented menu; retained all server-selection settings and consumers.
+- Gate G passed: specs, lint, Svelte lint, types, warning-gated build, 149 retained unit tests (6 retiring cases excluded) and 41 browser tests. Commands unchanged from voice retirement. Added old peer URL/reload checks for no WebRTC/media initialization and unchanged stored data/server selections.
+- Independent regression review found no blockers; graph results were checked against source consumers. Fresh structured graph-change check precedes `chore: remove peer sync demo`. Real-server integration not run.
 
 ## Workflow follow-up
 

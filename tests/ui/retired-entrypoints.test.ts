@@ -34,6 +34,14 @@ async function seedStoredData(page: Page) {
 						ledgerCacheEnabled: false,
 						currency: 'USD',
 						syncServerUrl: 'https://cashier.test/api',
+						syncServers: [
+							{
+								id: 'retained-server',
+								name: 'Retained server',
+								url: 'https://cashier.test/api'
+							}
+						],
+						syncActiveServerId: 'retained-server',
 						syncApiToken: 'retired-entrypoint-test-only-secret'
 					};
 					for (const [key, value] of Object.entries(settings)) {
@@ -189,7 +197,53 @@ for (const path of ['/tools/voice-entry', '/tools/voice-entry/']) {
 	});
 }
 
-test('drawer omits Voice Entry while keeping Journal reachable', async ({ page }) => {
+async function watchPeerInitialization(page: Page) {
+	// Keep observations across navigation/reload without opening a real peer connection.
+	const calls: string[] = [];
+	await page.exposeFunction('recordPeerAttempt', (api: string) => calls.push(api));
+	await page.addInitScript(() => {
+		for (const api of ['RTCPeerConnection', 'webkitRTCPeerConnection']) {
+			Object.defineProperty(window, api, {
+				configurable: true,
+				value: class {
+					constructor() {
+						void (
+							window as unknown as { recordPeerAttempt: (api: string) => Promise<void> }
+						).recordPeerAttempt(api);
+						throw new Error('Peer connections are forbidden in retirement tests');
+					}
+				}
+			});
+		}
+	});
+	return calls;
+}
+
+for (const path of ['/demo/peer-sync', '/demo/peer-sync/']) {
+	test(`retired peer URL ${path} cannot initialize WebRTC or media or mutate stored data`, async ({
+		page
+	}) => {
+		const peerCalls = await watchPeerInitialization(page);
+		const mediaCalls = await watchMicrophoneInitialization(page);
+		await seedStoredData(page);
+		const before = await readStoredData(page);
+		expect(before.files['cashier.bean']).toEqual(Array.from(Buffer.from(journal)));
+		expect(before.files['server.bean']).toEqual(Array.from(Buffer.from(book)));
+
+		await page.goto(path);
+		await expect(page).toHaveURL(/\/demo\/peer-sync\/?$/);
+		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
+		expect(await readStoredData(page)).toEqual(before);
+
+		await page.reload();
+		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
+		expect(await readStoredData(page)).toEqual(before);
+		expect(peerCalls).toEqual([]);
+		expect(mediaCalls).toEqual([]);
+	});
+}
+
+test('drawer omits Voice Entry and Peer Sync while keeping Journal reachable', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
@@ -199,6 +253,8 @@ test('drawer omits Voice Entry while keeping Journal reachable', async ({ page }
 	await expect(drawer.getByRole('link', { name: 'Journal', exact: true })).toBeVisible();
 	await expect(drawer.getByRole('link', { name: /voice entry/i })).toHaveCount(0);
 	await expect(page.locator('a[href^="/tools/voice-entry"]')).toHaveCount(0);
+	await expect(drawer.getByRole('link', { name: /peer sync/i })).toHaveCount(0);
+	await expect(page.locator('a[href^="/demo/peer-sync"]')).toHaveCount(0);
 	await drawer.getByRole('link', { name: 'Journal', exact: true }).click();
 	await expect(page).toHaveURL(/\/journal$/);
 	await expect(page.locator('#drawer-modal')).not.toBeChecked();
