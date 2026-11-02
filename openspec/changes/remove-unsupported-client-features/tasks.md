@@ -12,10 +12,10 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 0. Preserve identity when editing a local journal transaction — separate fix commit
 
-- [ ] 0.1 Add a regression using an existing local `cashier_id`: load through the real journal/editor conversion, change narration, save and reopen; verify the test fails on the current code because the ID disappears, and assert one entry plus unchanged neighboring source.
-- [ ] 0.2 Preserve the original ID through model conversion, editor state and serialization/source replacement; verify the regression passes and a second save retains the same ID without a network request or extra entry.
-- [ ] 0.3 Verify writeback preparation/retry uses the preserved ID after accepted-send/failed-pull, while new and duplicated transactions get independent identities through the existing flow; keep the server's same-ID content-conflict behavior unchanged.
-- [ ] 0.4 Run focused editor/identity/writeback unit and browser tests, G and the commit gate; deliver only `fix: preserve local transaction identity on edit` before the removal commits. Record actual checks and results. Retiring restore/import functionality is outside verification scope.
+- [x] 0.1 Add a regression using an existing local `cashier_id`: load through the real journal/editor conversion, change narration, save and reopen; verify the test fails on the current code because the ID disappears, and assert one entry plus unchanged neighboring source.
+- [x] 0.2 Preserve the original ID through model conversion, editor state and serialization/source replacement; verify the regression passes and a second save retains the same ID without a network request or extra entry.
+- [x] 0.3 Verify writeback preparation/retry uses the preserved ID after accepted-send/failed-pull, while new and duplicated transactions get independent identities through the existing flow; keep the server's same-ID content-conflict behavior unchanged.
+- [x] 0.4 Run focused editor/identity/writeback unit and browser tests, G and the commit gate; deliver only `fix: preserve local transaction identity on edit` before the removal commits. Record actual checks and results. Retiring restore/import functionality is outside verification scope.
 
 ## 1. Remove voice entry — commit 1
 
@@ -73,6 +73,18 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - [ ] 9.1 Reconfirm no direct/dynamic/config/peer consumers of @floating-ui/dom, @rollup/wasm-node, autoprefixer and vite-plugin-mkcert; remove them and regenerate the lockfile, verifying framework/test dependencies and installed metadata remain consistent.
 - [ ] 9.2 Remove disconnected tailwind.config.js and src/manifest.json; verify CSS themes/plugins, generated manifest/icons, static routes, worker and offline production behavior; update affected configuration docs.
 - [ ] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize the identity-fix and nine removal commit hashes/checks with real-server evidence distinct from mocks.
+
+## Verification record
+
+### Identity fix
+
+- Source preservation at `LedgerService.editTransaction` retains the stored transaction-level ID; the editor model and new/duplicate identity assignment remain unchanged. Regression-first evidence: the initial three real-WASM tests failed because saving dropped/reassigned the ID. Final focused suite: 11 passed, including multiline text, annotations and Unicode posting boundaries.
+- Gate G passed: `npm run check:specs` (5/5), `npm run lint`, `npm run lint:svelte`, `npm run check` (0 errors/warnings), `npm run check:build` (no warnings).
+- Retained unit command: `npm run test:unit -- --run --exclude tests/voiceNlp.test.ts --exclude tests/xactParser.test.ts -t '^(?!.*(?:restore|WebDAV)).*$'` — 149 passed, 6 retiring cases excluded. Retained browser command: `npm run test:e2e -- --workers=2 --grep-invert 'cross-list preview'` — 36 passed. Includes offline capture/edit/delete/reload, server mock success/rejection/failed-pull/retry/conflict, local reports/history, live reorder, actual export and credential-free outbound backup.
+- Browser tooling installed; `.serena/project.yml` indentation formatted for lint. Build checks run sequentially because concurrent builds share `.svelte-kit` output.
+- Fresh container-local GitNexus index and structured `detect_changes(scope=all)` passed without partial/truncated results: 7 changed files, 47 symbols, 3 edit/storage/parser flows, medium risk. Focused independent regression review passed. Real Python-server integration not run: no disposable environment/credentials supplied.
+- Broader pre-existing rich-source preservation remains separate: document-symbol spans can include an inter-transaction comment in the edited range. This fix covers identity; it does not claim complete lossless editing.
+- Commit: `fix: preserve local transaction identity on edit` (recorded in Git history).
 
 ## Workflow follow-up
 

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 
 async function openReadyJournal(page: Page) {
 	const browserErrors: string[] = [];
@@ -35,40 +35,68 @@ async function readLocalJournal(page: Page) {
 	});
 }
 
-test('edits an existing local transaction and survives journal reload', async ({ page }) => {
+test('editing a local transaction preserves its cashier_id across saves and reloads', async ({
+	page,
+	context
+}) => {
 	const browserErrors = await openReadyJournal(page);
 	const originalNote = `UI create ${Date.now()}`;
-	const editedNote = `UI edit ${Date.now()}`;
-	const book = `option "operating_currency" "USD"\n2000-01-01 open Assets:Cash USD\n2000-01-01 open Expenses:Food USD\n2025-01-01 * "Cafe" "${originalNote}"\n  Expenses:Food  12.50 USD\n  Assets:Cash  -12.50 USD\n`;
+	const cashierId = 'existing-local-ui-id';
+	const prefix = `option "operating_currency" "USD"\n2000-01-01 open Assets:Cash USD\n2000-01-01 open Expenses:Food USD\n`;
+	const transaction = `2025-01-01 * "Cafe" "${originalNote}"\n  cashier_id: "${cashierId}"\n  Expenses:Food  12.50 USD\n  Assets:Cash  -12.50 USD\n`;
+	const neighbor = `\n2025-01-02 ! "Neighbor" "Untouched"\n  cashier_id: "neighbor-ui-id"\n  Expenses:Food  3.00 USD\n  Assets:Cash  -3.00 USD\n`;
 
-	await writeLocalJournal(page, book);
+	await writeLocalJournal(page, prefix + transaction + neighbor);
 	await page.reload();
-	await expect(page.locator('body')).toContainText(originalNote);
+	await expect(page.getByRole('main')).toContainText(originalNote);
 
-	await page.getByText(originalNote, { exact: false }).click();
-	await expect(page).toHaveURL(/\/xact-actions$/);
-	await page.getByRole('button', { name: 'Edit' }).click();
-	await expect(page).toHaveURL(/\/tx$/);
-	await page.getByTitle('Note').fill(editedNote);
-	await page.locator('button.fixed').click();
-	await expect(page).toHaveURL(/\/xact-actions$/);
-	await expect(page.locator('body')).toContainText(editedNote);
+	let previousNote = originalNote;
+	for (const editedNote of [`UI first edit ${Date.now()}`, `UI second edit ${Date.now()}`]) {
+		await page.getByText(previousNote, { exact: false }).click();
+		await expect(page).toHaveURL(/\/xact-actions$/);
+		await page.getByRole('button', { name: 'Edit' }).click();
+		await expect(page).toHaveURL(/\/tx$/);
+		await expect(page.getByTitle('Note')).toHaveValue(previousNote);
+		await page.getByTitle('Note').fill(editedNote);
 
-	await page.getByRole('link', { name: 'Journal' }).click();
-	await expect(page).toHaveURL(/\/journal$/);
-	await expect(page.getByRole('main')).toContainText(editedNote);
-	await expect(page.getByRole('main')).not.toContainText(originalNote);
-	await page.reload();
-	await expect(page.locator('body')).toContainText(editedNote);
-	await expect(page.locator('body')).not.toContainText(originalNote);
-	const source = await readLocalJournal(page);
-	expect(source).toContain(editedNote);
-	expect(source.match(new RegExp(editedNote, 'g'))).toHaveLength(1);
-	expect(source).not.toContain(originalNote);
-	expect(source).toContain('2000-01-01 open Assets:Cash USD');
-	expect(source).toContain('2000-01-01 open Expenses:Food USD');
-	expect(source).toContain('Expenses:Food  12.5 USD');
-	expect(source).toContain('Assets:Cash  -12.5 USD');
+		const saveRequests: string[] = [];
+		const recordRequest = (request: Request) => {
+			if (['fetch', 'xhr'].includes(request.resourceType())) {
+				saveRequests.push(`${request.method()} ${request.url()}`);
+			}
+		};
+		await context.setOffline(true);
+		page.on('request', recordRequest);
+		await page.locator('button.fixed').click();
+		await expect(page).toHaveURL(/\/xact-actions$/);
+		await expect(page.locator('body')).toContainText(editedNote);
+		page.off('request', recordRequest);
+		expect(saveRequests).toEqual([]);
+		await context.setOffline(false);
+
+		const saved = await readLocalJournal(page);
+		expect(saved.startsWith(prefix)).toBe(true);
+		expect(saved.endsWith(neighbor)).toBe(true);
+		expect(saved.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(2);
+		expect(saved.match(/^[ \t]+cashier_id:.*$/gm)).toEqual([
+			`  cashier_id: "${cashierId}"`,
+			'  cashier_id: "neighbor-ui-id"'
+		]);
+		expect(saved.match(new RegExp(editedNote, 'g'))).toHaveLength(1);
+		expect(saved).not.toContain(previousNote);
+		expect(saved).toContain('Expenses:Food  12.5 USD');
+		expect(saved).toContain('Assets:Cash  -12.5 USD');
+
+		await page.getByRole('link', { name: 'Journal' }).click();
+		await expect(page).toHaveURL(/\/journal$/);
+		await expect(page.getByRole('main')).toContainText(editedNote);
+		await expect(page.getByRole('main')).not.toContainText(previousNote);
+		await page.reload();
+		await expect(page.getByRole('main')).toContainText(editedNote);
+		await expect(page.getByRole('main')).not.toContainText(previousNote);
+		expect(await readLocalJournal(page)).toBe(saved);
+		previousNote = editedNote;
+	}
 	if (browserErrors.length) throw new Error(browserErrors.join('\n'));
 });
 

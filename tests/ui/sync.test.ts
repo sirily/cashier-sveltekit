@@ -245,3 +245,97 @@ test('mock API: accepted transaction survives a failed pull and retries with the
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 	expect(mock.unexpectedRequests).toEqual([]);
 });
+
+test('mock API: editing after accepted send and failed pull keeps the ID and shows the retry conflict', async ({
+	page
+}) => {
+	const note = `UI accepted before edit ${Date.now()}`;
+	const editedNote = `UI edited after acceptance ${Date.now()}`;
+	const conflict = 'Same ID with changed content';
+	const mock = await mockServer(page, { failPullOnce: true });
+	await seedApp(
+		page,
+		`${baseBook}2025-01-06 * "Cafe" "${note}"\n  Expenses:Food  14.00 USD\n  Assets:Cash  -14.00 USD\n`
+	);
+
+	await synchronize(page, undefined, 'pull: Error reading infrastructure file: main.bean');
+	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
+	const localAfterFailure = await readCashierFile(page);
+	const cashierId = localAfterFailure.match(/^[ \t]+cashier_id:\s*"([^"]*)"/m)?.[1];
+	expect(cashierId).toBeTruthy();
+	expect(localAfterFailure).toContain(note);
+	expect(mock.posts).toHaveLength(1);
+	expect(mock.posts[0]).toHaveLength(1);
+	expect(mock.posts[0][0]).toContain(`cashier_id: "${cashierId}"`);
+	expect(mock.accepted).toEqual(mock.posts[0]);
+
+	await page.getByRole('link', { name: 'Journal' }).click();
+	await expect(page).toHaveURL(/\/journal$/);
+	await expect(page.getByRole('main')).toContainText(note);
+	await page.getByText(note, { exact: false }).click();
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	await page.getByRole('button', { name: 'Edit' }).click();
+	await expect(page).toHaveURL(/\/tx$/);
+	await expect(page.getByTitle('Note')).toHaveValue(note);
+	await page.getByTitle('Note').fill(editedNote);
+	await page.locator('button.fixed').click();
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	await expect(page.locator('body')).toContainText(editedNote);
+
+	const localAfterEdit = await readCashierFile(page);
+	expect(localAfterEdit).toContain(editedNote);
+	expect(localAfterEdit).not.toContain(note);
+	expect(localAfterEdit.match(/^[ \t]+cashier_id:.*$/gm)?.map((line) => line.trim())).toEqual([
+		`cashier_id: "${cashierId}"`
+	]);
+	expect(localAfterEdit.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(1);
+	expect(mock.posts).toHaveLength(1);
+
+	// Only the changed-content retry is rejected; GET still serves the originally accepted record.
+	await page.route(`${apiBase}/xact`, async (route) => {
+		const request = route.request();
+		if (request.method() !== 'POST') return route.fallback();
+		expect(request.headers().authorization).toBe(`Bearer ${token}`);
+		const body = request.postDataJSON() as { transactions: string[] };
+		mock.posts.push(body.transactions);
+		await route.fulfill({
+			json: {
+				synchronized: [],
+				rejected: [{ cashier_id: cashierId, reason: conflict }]
+			}
+		});
+	});
+
+	await page.goto('/sync');
+	await expect(page).toHaveURL(/\/sync$/);
+	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
+	await synchronize(page, undefined, conflict);
+	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
+	await expect(page.getByRole('alert')).toContainText(`send: ${conflict}`);
+	expect(mock.posts).toHaveLength(2);
+	expect(mock.posts[1]).toHaveLength(1);
+	expect(mock.posts[1][0]).toContain(editedNote);
+	expect(mock.posts[1][0]).not.toContain(note);
+	expect(mock.posts[1][0].match(/^[ \t]+cashier_id:.*$/gm)?.map((line) => line.trim())).toEqual([
+		`cashier_id: "${cashierId}"`
+	]);
+	expect(mock.acceptedById.size).toBe(1);
+	expect(mock.acceptedById.get(cashierId!)).toBe(mock.posts[0][0]);
+	expect(await readCashierFile(page)).toBe(localAfterEdit);
+
+	const downloaded = await page.evaluate(async () => {
+		const root = await navigator.storage.getDirectory();
+		const handle = await root.getFileHandle('main.bean');
+		return (await handle.getFile()).text();
+	});
+	expect(downloaded).toBe(`${baseBook}${mock.posts[0][0]}\n`);
+	expect(downloaded).not.toContain(editedNote);
+
+	await page.getByRole('link', { name: 'Journal' }).click();
+	await expect(page).toHaveURL(/\/journal$/);
+	await expect(page.getByRole('main')).toContainText(editedNote);
+	await page.reload();
+	await expect(page.getByRole('main')).toContainText(editedNote);
+	expect(await readCashierFile(page)).toBe(localAfterEdit);
+	expect(mock.unexpectedRequests).toEqual([]);
+});
