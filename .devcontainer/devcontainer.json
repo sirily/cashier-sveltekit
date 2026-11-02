@@ -24,8 +24,9 @@
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "mkcert -install && mkcert localhost 127.0.0.1 ::1 && npm install",
 	// Docker creates a fresh volume as root; allow the development user to install packages.
-	"postCreateCommand": "sudo chown node:node node_modules /home/node/.config/gh && chmod 700 /home/node/.config/gh && npm install",
-	"postStartCommand": "if gh auth status >/dev/null 2>&1; then gh auth setup-git; else printf '%s\\n' 'GitHub authentication is not available. In a container terminal, run: gh auth login --hostname github.com --git-protocol https --web && gh auth setup-git'; fi",
+	// Zed 1.26.2 joins shell arguments without quoting; keep the real commands after &&.
+	"postCreateCommand": "true && sudo chown node:node node_modules /home/node/.config/gh && chmod 700 /home/node/.config/gh && npm install",
+	"postStartCommand": "true && if gh auth status >/dev/null 2>&1; then gh auth setup-git; else printf '%s\\n' 'GitHub authentication is not available. In a container terminal, run: gh auth login --hostname github.com --git-protocol https --web && gh auth setup-git'; fi",
 
 	// Configure tool-specific properties.
 	"customizations": {
