@@ -4,15 +4,22 @@
 
 Use published `transaction-entry`, `manual-transaction-writeback`, `ledger-sync`, and `ledger-analysis` as the business regression baseline. Their requirements remain unchanged; this change uses proposal, design and tasks with spec generation skipped.
 
-Nine separately tested runtime commits follow. The eight orphan-file deletions already landed in `7dc6bfad`. Manual transaction/schedule entry, ordinary settings, local editing, export, outbound backup and offline RustLedger analysis remain. External accounting data enters through server Sync. Import, upload/drop, pasted-record ingestion and restore are removal scope. Post-sync mutations, account management and analytics redesign are separate work.
+One separately tested identity-fix commit precedes nine separately tested removal commits, all within this change. The eight orphan-file deletions already landed in `7dc6bfad`. Manual transaction/schedule entry, ordinary settings, local editing, export, outbound backup and offline RustLedger analysis remain. External accounting data enters through server Sync. Import, upload/drop, pasted-record ingestion and restore are removal scope. Post-sync mutations, account management and analytics redesign are separate work.
 
 **Gate G before every runtime commit:** run `npm run check:specs`, `npm run lint`, `npm run lint:svelte`, `npm run check`, `npm run check:build`, and retained-workflow unit/browser suites through the repository test runners. Select and record test files/name filters so tests dedicated solely to retiring functions are excluded; split mixed tests to preserve their retained assertions. Use `npm run test:unit -- --run` and `npm run test:e2e -- --workers=2` once that selection is reflected in the invocation/configuration; unfiltered execution of retiring behavior is not required. Exercise offline journal create/edit/delete/reload; server Sync success/rejection/incomplete/failed-pull retry with stable IDs; accounts/history/reports and offline calculations; actual export content and outbound backup credential filtering. Test retained business workflows and the safety of removal. Do not test, repair or require correct operation of retiring voice/peer/backup-restore/import/filesystem/Ledger paths, including while they still exist in earlier slices. Tests whose sole purpose is exercising those paths leave the required cleanup suite; keep shared assertions for retained behavior. After retirement, check that former entry points leave stored data unchanged and positively verify data arrival through server Sync. Seed test fixtures directly in OPFS/IndexedDB, not through a production importer.
 
 **Commit gate:** verify the graph covers current relevant source, inspect staged scope, run GitNexus `detect_changes` without partial/truncated results, account for affected flows and complete a regression review. Record commands/results and commit hash. Failed or unavailable mandatory checks block the commit. A failure in a retained business workflow requires separately authorized remediation; do not weaken assertions. Mocked HTTP is not real Python-server integration; never run tests against the owner's real book.
 
+## 0. Preserve identity when editing a local journal transaction — separate fix commit
+
+- [ ] 0.1 Add a regression using an existing local `cashier_id`: load through the real journal/editor conversion, change narration, save and reopen; verify the test fails on the current code because the ID disappears, and assert one entry plus unchanged neighboring source.
+- [ ] 0.2 Preserve the original ID through model conversion, editor state and serialization/source replacement; verify the regression passes and a second save retains the same ID without a network request or extra entry.
+- [ ] 0.3 Verify writeback preparation/retry uses the preserved ID after accepted-send/failed-pull, while new and duplicated transactions get independent identities through the existing flow; keep the server's same-ID content-conflict behavior unchanged.
+- [ ] 0.4 Run focused editor/identity/writeback unit and browser tests, G and the commit gate; deliver only `fix: preserve local transaction identity on edit` before the removal commits. Record actual checks and results. Retiring restore/import functionality is outside verification scope.
+
 ## 1. Remove voice entry — commit 1
 
-- [ ] 1.1 Establish baseline G for retained workflows and current source/graph boundaries; verify browser/OS dependencies and formatting. Track the local `cashier_id` loss separately in `preserve-local-transaction-identity`; keep that regression distinct from feature-removal commits. Retiring restore's known G12 defect is not a prerequisite and receives no repair/testing task here.
+- [ ] 1.1 Establish baseline G for retained workflows and current source/graph boundaries; verify browser/OS dependencies and formatting. Complete section 0's local `cashier_id` fix and regression within this change, in its own commit before feature removal. Retiring restore's known G12 defect is not a prerequisite and receives no repair/testing task here.
 - [ ] 1.2 Fill retained-workflow test gaps: local delete with neighbor preservation/reload, journal copy/download without mutation, outbound settings/scheduled backup with token exclusion and offline full-book analysis. Verify supported editor identity/field behavior and distinguish local checks from server acceptance.
 - [ ] 1.3 Remove Voice Entry route, parser, parser-only tests, navigation and exclusive imports; verify normal entry/save works and former URLs cannot initialize microphone code.
 - [ ] 1.4 Update affected navigation docs/assertions; run G and commit gate, then create only `chore: remove voice entry` with its tests/docs.
@@ -65,7 +72,7 @@ Nine separately tested runtime commits follow. The eight orphan-file deletions a
 
 - [ ] 9.1 Reconfirm no direct/dynamic/config/peer consumers of @floating-ui/dom, @rollup/wasm-node, autoprefixer and vite-plugin-mkcert; remove them and regenerate the lockfile, verifying framework/test dependencies and installed metadata remain consistent.
 - [ ] 9.2 Remove disconnected tailwind.config.js and src/manifest.json; verify CSS themes/plugins, generated manifest/icons, static routes, worker and offline production behavior; update affected configuration docs.
-- [ ] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize nine commit hashes/checks with real-server evidence distinct from mocks.
+- [ ] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize the identity-fix and nine removal commit hashes/checks with real-server evidence distinct from mocks.
 
 ## Workflow follow-up
 
