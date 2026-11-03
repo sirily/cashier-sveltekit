@@ -11,11 +11,6 @@ export const HomeCardNames = {
 	SYNC: 'SyncCard'
 } as const;
 
-export enum LedgerDataSource {
-	filesystem = 'filesystem',
-	beancount = 'beancount'
-}
-
 export const RecurrencePeriods = {
 	Days: 'days',
 	Weeks: 'weeks',

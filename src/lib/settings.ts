@@ -81,7 +81,6 @@ export const SettingKeys = {
 	syncActiveServerId: 'syncActiveServerId',
 	syncServerSelectionCleared: 'syncServerSelectionCleared',
 
-	storageBackend: 'storageBackend',
 	bookFilename: 'userBookFilename',
 	// SHA-256 hash of source files at last serialization, stored alongside the OPFS binary cache
 	ledgerCacheHash: 'ledgerCacheHash',

@@ -60,9 +60,9 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 7. Remove unused storage-selection layers — commit 7
 
-- [ ] 7.1 Remove createDAL/FSDAL and unused backend selection/cache/non-OPFS implementations, updating live DAL types/barrel consumers atomically; verify type-check and direct OPFS readers/writers need no later fix.
-- [ ] 7.2 Remove helpers only after checking retained OPFS selection, settings, editor and analytics consumers; preserve existing databases/data and verify server pull, journal, export/backup and local analysis.
-- [ ] 7.3 Update storage references, run G and commit gate, then create only `chore: remove unused storage selection layers`.
+- [x] 7.1 Remove createDAL/FSDAL and unused backend selection/cache/non-OPFS implementations, updating live DAL types/barrel consumers atomically; verify type-check and direct OPFS readers/writers need no later fix.
+- [x] 7.2 Remove helpers only after checking retained OPFS selection, settings, editor and analytics consumers; preserve existing databases/data and verify server pull, journal, export/backup and local analysis.
+- [x] 7.3 Update storage references, run G and commit gate, then create only `chore: remove unused storage selection layers`.
 
 ## 8. Remove cross-list drag prototype — commit 8
 
@@ -131,6 +131,11 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Server-only Sync committed as `1fb17e9`. Removed Ledger-cli query/parser/formatter/enums and investment HTTP fallback; production investment caller injects worker queries. Journal downloads use `.bean`; actual copy/share/download preserves source and IDs.
 - Gate G passed: specs, lint, Svelte lint, types, 180 unit tests (`--run tests`), warning-gated build and 88 retained browser tests. Local investment/no-network, reference replacement/original currencies, real WASM/cache and distinct posting identities covered. Independent review found no blockers; HIGH/CRITICAL shared-path graph impact investigated, with fresh structured gate before commit.
 - Allocation definition still uses existing selected TOML in OPFS; server definition delivery remains separately scoped per design. Rollback must resolve the earlier filename-helper relocation and shared query/enum/caller dependencies and rerun G; code reversal restores neither purged remote credentials nor new data. Real-server integration not run.
+
+### Storage-selection cleanup
+
+- Beancount cleanup committed as `ec520e8`. Removed unused DAL factory/FSDAL, selectable backend cache/factory, filesystem singleton and non-OPFS backends; retained DAL/CashierDAL types, OPFS public exports, shared databases and data.
+- Gate G passed: specs, lint, Svelte lint, types, 186 unit tests, warning-gated build and 88 retained browsers. Positive DAL persistence and public-barrel OPFS read/write/list/delete coverage added. Independent review checked dynamic/barrel consumers and constructor initialization; no blockers. UNKNOWN graph results supplemented with source checks; fresh structured gate precedes commit 7. No real-server integration.
 
 ## Workflow follow-up
 

@@ -19,7 +19,9 @@ The client stores pending transactions and a downloaded copy of the server book.
 
 **OPFS** (Origin Private File System) is disk storage managed by the browser for a particular website origin. It holds files that the application reads and writes. Its lifetime follows browser site data: clearing site data removes local files.
 
-**IndexedDB** is the browser's structured local database. Cashier accesses it through Dexie.
+`src/lib/storage/` exports `OPFSBackend` and its `StorageBackend` file-operation interface. The serialization tool uses this backend directly. Journal editing, server book persistence, and OPFS browsing and selection use the shared utilities in `src/lib/utils/opfslib.ts`. The analysis worker reads source files and its binary cache directly through browser OPFS handles.
+
+**IndexedDB** is the browser's structured local database. Cashier accesses it through Dexie. `CashierDAL` in `src/lib/data/dbdal.ts` provides account and payee access and implements the `DAL` interface in `src/lib/data/dal.ts`. Scheduled records and settings use the same application database.
 
 The Python server supplies the accounting book and reference data through explicit Sync. The client persists the downloaded snapshot in OPFS and reference data in IndexedDB. Manual entry creates pending journal records on the device.
 

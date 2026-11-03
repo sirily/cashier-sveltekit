@@ -164,8 +164,6 @@
 			await appService.writeBookFilename(bookFilename);
 		}
 
-		// invalidateStorageBackendCache();
-
 		// Clear pending store now that everything is saved
 		PendingSettingsStore.set(undefined);
 
