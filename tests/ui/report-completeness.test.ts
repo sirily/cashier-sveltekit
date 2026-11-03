@@ -226,7 +226,11 @@ for (const source of ['overlay', 'selected'] as const) {
 			// Reverse first-open order as well as source/cache coverage.
 			const order = source === 'overlay' ? reports : [...reports].reverse();
 			await page.goto(`/reports/${order[0]}`);
-			const documentId = await page.evaluate(() => performance.timeOrigin);
+			const documentId = await page.evaluate(() => {
+				const id = crypto.randomUUID();
+				document.documentElement.dataset.reportDocument = id;
+				return id;
+			});
 			await expectIncomplete(page, order[0]);
 			await openReport(page, order[1]);
 			await expectIncomplete(page, order[1]);
@@ -245,29 +249,32 @@ for (const source of ['overlay', 'selected'] as const) {
 			await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
 
 			await navigate(page, 'Utilities', 'Validation');
-			// Saving raw OPFS alone must not be mistaken for refreshed full-book analysis.
-			await expect(page.getByText('Invalid', { exact: true })).toBeVisible();
-			await page.getByRole('button', { name: 'Reload & Validate', exact: true }).click();
+			// Save already refreshes the full book: verify before any manual reload can mask staleness.
 			await expect(page.getByText('All clear!', { exact: true })).toBeVisible();
 			await expect(page.getByText('Valid', { exact: true })).toBeVisible();
+			await expect(page.getByText('Invalid', { exact: true })).toHaveCount(0);
 			for (const report of order) {
 				await openReport(page, report);
 				await expectComplete(page, report);
 			}
-			expect(await page.evaluate(() => performance.timeOrigin)).toBe(documentId);
+			expect(await page.evaluate(() => document.documentElement.dataset.reportDocument)).toBe(
+				documentId
+			);
 			expect(workers).toHaveLength(1);
 
-			const persisted = await page.evaluate(async () => {
-				const root = await navigator.storage.getDirectory();
-				const files: Record<string, string> = {};
-				for (const name of ['cashier.bean', 'selected.bean', 'included.bean']) {
-					files[name] = await (await (await root.getFileHandle(name)).getFile()).text();
-				}
-				const cache = await (
-					await (await root.getFileHandle('ledger-cache.bin')).getFile()
-				).arrayBuffer();
-				return { files, cache: Array.from(new Uint8Array(cache)) };
-			});
+			const readPersisted = () =>
+				page.evaluate(async () => {
+					const root = await navigator.storage.getDirectory();
+					const files: Record<string, string> = {};
+					for (const name of ['cashier.bean', 'selected.bean', 'included.bean']) {
+						files[name] = await (await (await root.getFileHandle(name)).getFile()).text();
+					}
+					const cache = await (
+						await (await root.getFileHandle('ledger-cache.bin')).getFile()
+					).arrayBuffer();
+					return { files, cache: Array.from(new Uint8Array(cache)) };
+				});
+			const persisted = await readPersisted();
 			expect(persisted.files).toEqual(sources(source, true));
 			if (caching) {
 				// Real invalidation must replace the old incomplete binary, not just the rendered UI.
@@ -279,9 +286,27 @@ for (const source of ['overlay', 'selected'] as const) {
 					restored.free();
 				}
 			}
+			// Explicit refresh is still supported and must be idempotent after the save-owned refresh.
+			await navigate(page, 'Utilities', 'Validation');
+			await page.getByRole('button', { name: 'Reload & Validate', exact: true }).click();
+			await expect(page.getByText('All clear!', { exact: true })).toBeVisible();
+			await expect(page.getByText('Valid', { exact: true })).toBeVisible();
+			for (const report of order) {
+				await openReport(page, report);
+				await expectComplete(page, report);
+			}
+			const afterReload = await readPersisted();
+			expect(afterReload).toEqual(persisted);
+			expect(await page.evaluate(() => document.documentElement.dataset.reportDocument)).toBe(
+				documentId
+			);
+			expect(workers).toHaveLength(1);
 			// A new document/worker must also recover from the persisted sources or refreshed cache.
 			await page.reload();
 			await expectComplete(page, order[1]);
+			expect(
+				await page.evaluate(() => document.documentElement.dataset.reportDocument)
+			).toBeUndefined();
 			expect(workers).toHaveLength(2);
 			expect(apiRequests).toEqual([]);
 			expect(errors).toEqual([]);

@@ -90,9 +90,9 @@ The original identity fix and nine removal commits are complete; their checked t
 
 ## 12. Refresh analysis after OPFS book saves — separate fix commit
 
-- [ ] 12.1 Reproduce edited root/include data remaining stale in reports/cache. Cover cache-enabled same-length edits, selected root and included files, warm navigation/cold reload, valid-invalid-valid recovery, and the combined OPFS edit → incomplete drafts → Delete All sequence.
-- [ ] 12.2 On successful relevant source save, refresh/invalidate full-book calculations and persisted cache through their existing owner while preserving the pending overlay. Failed writes preserve source and show failure; post-write analysis failure remains distinguishable from storage failure. Keep non-book text editing and manual/server boundaries unchanged.
-- [ ] 12.3 Run G and fresh graph/review checks; verify actual balances/report values, original currencies, current diagnostics and unchanged unrelated files/settings. Record results and create only `fix: refresh analysis after OPFS book edits`.
+- [x] 12.1 Reproduce edited root/include data remaining stale in reports/cache. Cover cache-enabled same-length edits, selected root and included files, warm navigation/cold reload, valid-invalid-valid recovery, and the combined OPFS edit → incomplete drafts → Delete All sequence.
+- [x] 12.2 On successful relevant source save, refresh/invalidate full-book calculations and persisted cache through their existing owner while preserving the pending overlay. Failed writes preserve source and show failure; post-write analysis failure remains distinguishable from storage failure. Keep non-book text editing and manual/server boundaries unchanged.
+- [x] 12.3 Run G and fresh graph/review checks; verify actual balances/report values, original currencies, current diagnostics and unchanged unrelated files/settings. Record results and create only `fix: refresh analysis after OPFS book edits`.
 
 ## 13. Remove scheduled transactions and schedule-based forecast — separate removal commit
 
@@ -207,6 +207,12 @@ The original identity fix and nine removal commits are complete; their checked t
 - Source-bound cache committed as `67ac33d`. Delete All now awaits durable empty-journal storage, then refreshes local journal and full-book owners. Storage failure retains data; post-save refresh failure reports durable deletion separately. Shared missing-journal startup initialization is inside the existing error boundary.
 - Regression-first component/storage/startup cases failed before fixes. G passed: specs, lint, Svelte lint, types, 234 unit tests, warning-gated build, 101 retained browsers (same retiring scheduled-export exclusion). Four new browser cases cover cache on/off, warm/cold reports, genuine remaining errors, USD/RUB postings and unchanged book/settings/token/no API requests.
 - Independent review's startup-error blocker resolved and rechecked. Browser setup waits for actual route completion; journal identity scenario dismisses the offline-ready toast blocking its FAB. Fresh graph/review gate precedes `fix: refresh reports after clearing local journal`. Real-server integration not run.
+
+### OPFS source-save verification
+
+- Delete All fix committed as `e2fa8f0`. OPFS `.bean` saves now refresh the existing full-book owner after durable write; non-book text saves skip refresh. Strict route-local writer aborts failed writes, retains editable text and distinguishes post-save analysis failure. Save snapshots path/content before awaiting IO so navigation cannot skip required refresh.
+- Regression-first editor cases reproduced storage/refresh failures; reviewer navigation-race probe became three unit cases. G passed: specs, lint, Svelte lint, types, 250 unit tests, warning-gated build and 104 retained browsers. Root/include same-length edits, warm/cold results, actual amounts/currencies/balances, invalid-valid recovery and QA edit/drafts/Delete All sequence covered with real WASM and cache enabled.
+- Four previous report tests were updated from expecting obsolete results until manual validation to requiring fresh results before it, then verifying explicit reload idempotence. Independent review rechecked saved-path race and found no remaining blocker. Fresh structured graph gate precedes `fix: refresh analysis after OPFS book edits`. Real-server integration not run.
 
 ## Workflow follow-up
 
