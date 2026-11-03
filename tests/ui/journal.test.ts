@@ -39,6 +39,11 @@ test('editing a local transaction preserves its cashier_id across saves and relo
 	page,
 	context
 }) => {
+	// PWA readiness can arrive after reload and cover the mobile Save FAB.
+	const offlineToast = page.locator('.toast').filter({ hasText: 'App ready to work offline' });
+	await page.addLocatorHandler(offlineToast, async (toast) => {
+		await toast.getByRole('button', { name: 'Close', exact: true }).click();
+	});
 	const browserErrors = await openReadyJournal(page);
 	const originalNote = `UI create ${Date.now()}`;
 	const cashierId = 'existing-local-ui-id';

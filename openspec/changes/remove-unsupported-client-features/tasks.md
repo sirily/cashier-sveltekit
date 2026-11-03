@@ -84,9 +84,9 @@ The original identity fix and nine removal commits are complete; their checked t
 
 ## 11. Refresh full-book analysis after Journal Delete All — separate fix commit
 
-- [ ] 11.1 Reproduce cached report diagnostics from incomplete local drafts alongside a valid selected book, then Delete All. Test warm report navigation and browser reload with cache both enabled and disabled, without manual validation/cache toggles. Verify downloaded book, settings/token, currencies and server-origin records remain intact.
-- [ ] 11.2 Refresh/invalidate the analysis worker after durable journal clearing, propagate loading/version changes to dependent views, and preserve actual remaining-book diagnostics. Cover journal-write failure and post-save refresh failure separately: do not claim a durable deletion was rolled back or expose stale results as current. Delete All remains local and makes no server mutation/request.
-- [ ] 11.3 Run G and fresh graph/review checks, record results and create only `fix: refresh reports after clearing local journal`.
+- [x] 11.1 Reproduce cached report diagnostics from incomplete local drafts alongside a valid selected book, then Delete All. Test warm report navigation and browser reload with cache both enabled and disabled, without manual validation/cache toggles. Verify downloaded book, settings/token, currencies and server-origin records remain intact.
+- [x] 11.2 Refresh/invalidate the analysis worker after durable journal clearing, propagate loading/version changes to dependent views, and preserve actual remaining-book diagnostics. Cover journal-write failure and post-save refresh failure separately: do not claim a durable deletion was rolled back or expose stale results as current. Delete All remains local and makes no server mutation/request.
+- [x] 11.3 Run G and fresh graph/review checks, record results and create only `fix: refresh reports after clearing local journal`.
 
 ## 12. Refresh analysis after OPFS book saves — separate fix commit
 
@@ -201,6 +201,12 @@ The original identity fix and nine removal commits are complete; their checked t
 - G passed: specs, lint, Svelte lint, types, 222 unit tests (`--run tests src`), warning-gated build and 97 retained browsers (`--grep-invert 'scheduled export copies'`). Nine new cache browsers cover cold source/root/include changes, invalid caches, persistence failure and QA-order source/data preservation. The schedule-export success case retires; passive legacy backup checks remain.
 - Independent source review found no introduced blockers; shared worker graph reach CRITICAL investigated, fresh structured gate precedes `fix: validate ledger cache against current sources`. No real Python-server evidence claimed.
 - Test setup initially exposed the existing serialization tool's uninitialized main-thread hash call. Setup now uses the real worker Reload & Validate path; tool repair is outside this slice. Warm mutation hooks remain sections 11/12.
+
+### Journal Delete All verification
+
+- Source-bound cache committed as `67ac33d`. Delete All now awaits durable empty-journal storage, then refreshes local journal and full-book owners. Storage failure retains data; post-save refresh failure reports durable deletion separately. Shared missing-journal startup initialization is inside the existing error boundary.
+- Regression-first component/storage/startup cases failed before fixes. G passed: specs, lint, Svelte lint, types, 234 unit tests, warning-gated build, 101 retained browsers (same retiring scheduled-export exclusion). Four new browser cases cover cache on/off, warm/cold reports, genuine remaining errors, USD/RUB postings and unchanged book/settings/token/no API requests.
+- Independent review's startup-error blocker resolved and rechecked. Browser setup waits for actual route completion; journal identity scenario dismisses the offline-ready toast blocking its FAB. Fresh graph/review gate precedes `fix: refresh reports after clearing local journal`. Real-server integration not run.
 
 ## Workflow follow-up
 

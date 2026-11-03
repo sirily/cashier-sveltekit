@@ -9,6 +9,7 @@
 	import { Xact } from '#lib/data/model';
 	import { xact, xactSpan } from '#lib/data/mainStore';
 	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 	import Notifier from '#lib/utils/notifier';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
@@ -19,6 +20,7 @@
 	Notifier.init();
 
 	let isDeleteAllConfirmationOpen = $state(false);
+	let isDeletingAll = $state(false);
 	let listContainer: HTMLElement | undefined = $state();
 
 	const lsVersion = ledgerService.version;
@@ -44,9 +46,35 @@
 
 	async function onDeleteAllConfirmed() {
 		closeModal();
-		await appService.createDefaultCashierFile();
-		await ledgerService.invalidate();
-		Notifier.success('All local transactions deleted.');
+		if (isDeletingAll) return;
+		isDeletingAll = true;
+		try {
+			try {
+				await appService.createDefaultCashierFile();
+			} catch (error) {
+				Notifier.error(`Could not delete local transactions: ${String(error)}. Please try again.`);
+				return;
+			}
+
+			xactsWithSpans = [];
+			// Both owners must refresh after the durable write, even if one refresh fails.
+			const refreshes = await Promise.allSettled([
+				fullLedgerService.invalidate(),
+				ledgerService.invalidate()
+			]);
+			const failures = refreshes
+				.filter((result) => result.status === 'rejected')
+				.map((result) => String(result.reason));
+			if (failures.length) {
+				Notifier.error(
+					`Local transactions deleted, but refreshing views failed: ${failures.join('; ')}. Reload the app to retry analysis.`
+				);
+				return;
+			}
+			Notifier.success('All local transactions deleted.');
+		} finally {
+			isDeletingAll = false;
+		}
 	}
 
 	async function onExportClick() {

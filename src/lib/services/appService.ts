@@ -10,7 +10,7 @@ import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
 import * as BeancountParser from '#lib/utils/beancountParser';
 import { formatAmount } from '#lib/utils/formatter';
-import { readFile, saveFile } from '#lib/utils/opfslib';
+import { readFile } from '#lib/utils/opfslib';
 import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 import { ensureInitialized, createParsedLedger } from './rustledger';
 import { mapDirectiveSpans } from '#lib/rledger/sourceEditor';
@@ -503,7 +503,12 @@ class AppService {
 	 * parse time by the ledger worker, so it is never written to disk.
 	 */
 	async createDefaultCashierFile(): Promise<void> {
-		await saveFile(CASHIER_XACT_FILE, '');
+		// Unlike optional OPFS reads, clearing the journal must propagate storage failures.
+		const root = await navigator.storage.getDirectory();
+		const file = await root.getFileHandle(CASHIER_XACT_FILE, { create: true });
+		const stream = await file.createWritable();
+		await stream.write('');
+		await stream.close();
 	}
 
 	/**

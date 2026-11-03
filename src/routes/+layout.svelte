@@ -31,10 +31,9 @@
 	});
 
 	async function initializeApp(): Promise<boolean> {
-		// Check if the main ledger file exists?
-		await ensureInitialized();
-
 		try {
+			// Check if the main ledger file exists?
+			await ensureInitialized();
 			await fullLedgerService.ensureLoaded();
 			console.log('FullLedgerService loaded and ready');
 			return true;
