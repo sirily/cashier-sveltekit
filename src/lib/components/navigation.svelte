@@ -201,14 +201,14 @@
 					<ul>
 						<li>
 							<a
-								href={resolve('/opfs/sync')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/opfs/sync'
+								href={resolve('/sync')}
+								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/sync'
 									? 'active bg-secondary text-secondary-content'
 									: ''}"
 								onclick={closeDrawer}
 							>
 								<ArrowLeftRightIcon />
-								<span>Sync</span>
+								<span>Server Sync</span>
 							</a>
 						</li>
 						<li>

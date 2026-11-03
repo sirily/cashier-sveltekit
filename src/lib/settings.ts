@@ -63,8 +63,8 @@ export const SettingKeys = {
 	syncServerUrl: 'syncServerUrl',
 	syncApiToken: 'syncApiToken',
 	syncBeancountRootFile: 'syncBeancountRootFile',
-	// External data source system
-	ledgerDataSource: 'ledgerDataSource', // beancount, ledger, filesystem
+	// Server source; legacy values are normalized when read.
+	ledgerDataSource: 'ledgerDataSource',
 	// synchronization choices
 	syncAccounts: 'syncAccounts',
 	syncAaValues: 'syncAaValues',
@@ -76,12 +76,11 @@ export const SettingKeys = {
 	visibleCards: 'homeCardNames',
 	// Peer sync
 	peerId: 'peerId',
+	// Server selection
 	syncServers: 'syncServers',
 	syncActiveServerId: 'syncActiveServerId',
 	syncServerSelectionCleared: 'syncServerSelectionCleared',
-	// import book from filesystem via File System API
-	importBookDirectory: 'importBookDirectory',
-	importBookFileSpec: 'importBookFileSpec',
+
 	storageBackend: 'storageBackend',
 	bookFilename: 'userBookFilename',
 	// SHA-256 hash of source files at last serialization, stored alongside the OPFS binary cache
@@ -125,7 +124,7 @@ class Settings {
 		if (retiredRemoteSettingKeys.some((retiredKey) => retiredKey === key)) return null;
 		const setting = await db.settings.get(key);
 
-		if (!setting) return null;
+		if (!setting) return (key === SettingKeys.ledgerDataSource ? 'beancount' : null) as T | null;
 
 		let value = null;
 		try {
@@ -134,6 +133,10 @@ class Settings {
 			value = setting.value;
 		}
 
+		// Normalize only recognized retired sources. Reads do not rewrite configuration or sync.
+		if (key === SettingKeys.ledgerDataSource && (value === 'filesystem' || value === 'ledger')) {
+			return 'beancount' as T;
+		}
 		return value;
 	}
 

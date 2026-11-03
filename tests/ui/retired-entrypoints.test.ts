@@ -381,7 +381,9 @@ const retiredLocalPaths = [
 	'/restore/scheduled',
 	'/restore/settings',
 	'/restore/arbitrary-item',
-	'/settings/json-editor'
+	'/settings/json-editor',
+	'/opfs/sync',
+	'/settings/filesystem'
 ];
 
 async function watchRetiredIngress(page: Page) {
@@ -481,6 +483,35 @@ for (const path of retiredLocalPaths.flatMap((path) => [path, `${path}/`])) {
 	}) => {
 		await seedStoredData(page);
 		const observations = await watchRetiredIngress(page);
+		const writes: string[] = [];
+		await page.exposeFunction('recordRetiredWrite', (operation: string) => writes.push(operation));
+		await page.addInitScript(() => {
+			const record = (operation: string) => {
+				void (
+					window as unknown as { recordRetiredWrite: (operation: string) => Promise<void> }
+				).recordRetiredWrite(operation);
+			};
+			for (const method of ['put', 'add', 'delete', 'clear'] as const) {
+				const original = IDBObjectStore.prototype[method];
+				Object.defineProperty(IDBObjectStore.prototype, method, {
+					configurable: true,
+					value: function (this: IDBObjectStore, ...args: unknown[]) {
+						// Settings reads may delete absent retired remote credentials; those are not data writes.
+						const absentRetiredKey =
+							this.name === 'settings' &&
+							method === 'delete' &&
+							['webdav-settings', 'pCloudToken', 'backupServerUrl'].includes(String(args[0]));
+						if (!absentRetiredKey) record(`IndexedDB.${this.name}.${method}`);
+						return Reflect.apply(original, this, args);
+					}
+				});
+			}
+			const original = FileSystemFileHandle.prototype.createWritable;
+			FileSystemFileHandle.prototype.createWritable = function (...args) {
+				record(`OPFS.${this.name}.createWritable`);
+				return original.apply(this, args);
+			};
+		});
 		const before = await readStoredData(page);
 		await page.goto(path);
 		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
@@ -491,6 +522,7 @@ for (const path of retiredLocalPaths.flatMap((path) => [path, `${path}/`])) {
 		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
 		expect(await readStoredData(page)).toEqual(before);
 		expect(observations).toEqual({ permissions: [], requests: [] });
+		expect(writes).toEqual([]);
 	});
 }
 
@@ -708,4 +740,226 @@ test('OPFS browsing, settings file selection and existing source editing remain 
 	await expect(page.locator('textarea')).toHaveValue(edited);
 	expect(await readStoredData(page)).toEqual(expected);
 	expect(observations).toEqual({ permissions: [], requests: [] });
+});
+
+async function updateSyncSettings(
+	page: Page,
+	values: Record<string, unknown>,
+	remove: string[] = []
+) {
+	await page.evaluate(
+		async ({ values, remove }) => {
+			const db = await new Promise<IDBDatabase>((resolve, reject) => {
+				const request = indexedDB.open('Cashier');
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			});
+			try {
+				await new Promise<void>((resolve, reject) => {
+					const tx = db.transaction('settings', 'readwrite');
+					const store = tx.objectStore('settings');
+					for (const key of remove) store.delete(key);
+					for (const [key, value] of Object.entries(values))
+						store.put({ key, value: JSON.stringify(value) });
+					tx.oncomplete = () => resolve();
+					tx.onerror = () => reject(tx.error);
+				});
+			} finally {
+				db.close();
+			}
+		},
+		{ values, remove }
+	);
+}
+
+for (const source of ['filesystem', 'ledger', 'beancount']) {
+	for (const syncLedgerFiles of [false, true]) {
+		test(`server Sync loads ${source} configuration (book sync ${syncLedgerFiles}) without requests, permissions or data changes`, async ({
+			page
+		}) => {
+			await seedStoredData(page);
+			await updateSyncSettings(page, {
+				ledgerDataSource: source,
+				syncBeancountRootFile: 'books/personal.bean',
+				syncAccounts: true,
+				syncPayees: false,
+				syncLedgerFiles,
+				syncOpeningBalances: true,
+				syncAaValues: true,
+				syncAssetAllocation: true
+			});
+			const observations = await watchRetiredIngress(page);
+			const before = await readStoredData(page);
+			for (let visit = 0; visit < 2; visit++) {
+				await page.goto('/sync');
+				await expect(page.getByLabel('Cashier Server URL')).toHaveValue('https://cashier.test/api');
+				await expect(page.getByLabel('API token')).toHaveValue(
+					'retired-entrypoint-test-only-secret'
+				);
+				await expect(page.getByLabel('Remote root book file')).toHaveValue('books/personal.bean');
+				await expect(page.getByLabel('Accounts', { exact: true })).toBeChecked();
+				await expect(page.getByLabel('Payees', { exact: true })).not.toBeChecked();
+				await expect(page.getByLabel('Send → pull → reconcile')).toBeChecked({
+					checked: syncLedgerFiles
+				});
+				await expect(
+					page.getByText('Send completed local transactions', { exact: true })
+				).toHaveCount(syncLedgerFiles ? 1 : 0);
+				await expect(page.locator('main select')).toHaveCount(0);
+				await expect(page.getByLabel('Opening balances', { exact: true })).toHaveCount(0);
+				expect(await readStoredData(page)).toEqual(before);
+			}
+			expect(observations).toEqual({ permissions: [], requests: [] });
+		});
+	}
+}
+
+for (const partial of [false, true]) {
+	test(`${partial ? 'partial' : 'fresh'} Sync configuration offers Beancount directly without inventing credentials or automatically syncing`, async ({
+		page
+	}) => {
+		await seedStoredData(page);
+		await updateSyncSettings(
+			page,
+			{ syncAccounts: partial, syncLedgerFiles: false, syncPayees: false },
+			[
+				'ledgerDataSource',
+				'syncServerUrl',
+				'syncApiToken',
+				'syncBeancountRootFile',
+				...(partial ? [] : ['syncServers', 'syncActiveServerId'])
+			]
+		);
+		const observations = await watchRetiredIngress(page);
+		const before = await readStoredData(page);
+		await page.goto('/sync');
+		await expect(page.getByLabel('Cashier Server URL')).toHaveValue(
+			partial ? 'https://cashier.test/api' : ''
+		);
+		await expect(page.getByLabel('API token')).toHaveValue('');
+		await expect(page.getByLabel('Remote root book file')).toHaveValue('main.bean');
+		await expect(page.getByLabel('Send → pull → reconcile')).not.toBeChecked();
+		await expect(page.getByLabel('Accounts', { exact: true })).toBeChecked({ checked: partial });
+		await expect(page.locator('main select')).toHaveCount(0);
+		expect(await readStoredData(page)).toEqual(before);
+		await page.reload();
+		await expect(page.getByLabel('API token')).toHaveValue('');
+		expect(await readStoredData(page)).toEqual(before);
+		if (!partial) {
+			await page.getByLabel('Accounts', { exact: true }).check();
+			const beforeSync = await readStoredData(page);
+			await page.getByRole('button', { name: 'Synchronize', exact: true }).click();
+			await expect(page.locator('#toast-container')).toContainText(
+				'Cashier Server URL is required'
+			);
+			expect(await readStoredData(page)).toEqual(beforeSync);
+		}
+		expect(observations).toEqual({ permissions: [], requests: [] });
+	});
+}
+
+test('drawer and home card both open server Sync and expose no filesystem links', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	const observations = await watchRetiredIngress(page);
+	const before = await readStoredData(page);
+	await page.goto('/');
+	const cardLink = page.getByRole('main').getByRole('link', { name: 'Server Sync', exact: true });
+	await expect(cardLink).toHaveAttribute('href', '/sync');
+	await page.locator('main .navbar button').first().click();
+	await expect(page.locator('#drawer-modal')).toBeChecked();
+	const drawer = page.locator('.drawer-side');
+	await drawer
+		.locator('details')
+		.filter({ has: page.getByText('Data', { exact: true }) })
+		.evaluate((node) => node.setAttribute('open', ''));
+	const drawerLink = drawer.getByRole('link', { name: 'Server Sync', exact: true });
+	await expect(drawerLink).toHaveAttribute('href', '/sync');
+	await expect(page.locator('a[href="/opfs/sync"], a[href="/settings/filesystem"]')).toHaveCount(0);
+	await drawerLink.click();
+	await expect(page).toHaveURL(/\/sync$/);
+	await expect(page.getByLabel('Cashier Server URL')).toHaveValue('https://cashier.test/api');
+	expect(await readStoredData(page)).toEqual(before);
+	expect(observations).toEqual({ permissions: [], requests: [] });
+});
+
+test('Reload server data calls only the authenticated server reload, without pulling or changing local data', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	await updateSyncSettings(page, {
+		syncBeancountRootFile: 'main.bean',
+		syncLedgerFiles: true,
+		syncServerSelectionCleared: false
+	});
+	const observations = await watchRetiredIngress(page);
+	const reloads: string[] = [];
+	await page.route('https://cashier.test/api/reload', async (route) => {
+		expect(route.request().method()).toBe('GET');
+		expect(route.request().headers().authorization).toBe(
+			'Bearer retired-entrypoint-test-only-secret'
+		);
+		reloads.push(route.request().url());
+		await route.fulfill({ status: 200, body: 'reloaded' });
+	});
+	await page.goto('/sync');
+	await expect(page.getByLabel('Cashier Server URL')).toHaveValue('https://cashier.test/api');
+	const before = await readStoredData(page);
+	await page.getByRole('button', { name: 'Reload server data', exact: true }).click();
+	await expect(page.locator('#toast-container')).toContainText(
+		'Server data reloaded. Synchronize to download'
+	);
+	expect(reloads).toEqual(['https://cashier.test/api/reload']);
+	expect(await readStoredData(page)).toEqual(before);
+	expect(observations).toEqual({
+		permissions: [],
+		requests: ['GET https://cashier.test/api/reload']
+	});
+});
+
+test('metadata-only server Sync refreshes selected references without sending, pulling or reconciling the journal', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	await updateSyncSettings(page, {
+		ledgerDataSource: 'filesystem',
+		syncBeancountRootFile: 'main.bean',
+		syncServerSelectionCleared: false,
+		syncAccounts: true,
+		syncPayees: false,
+		syncLedgerFiles: false,
+		syncOpeningBalances: true,
+		syncAaValues: true,
+		syncAssetAllocation: true
+	});
+	const observations = await watchRetiredIngress(page);
+	const queries: string[] = [];
+	await page.route('https://cashier.test/api?**', async (route) => {
+		const request = route.request();
+		const query = new URL(request.url()).searchParams.get('query');
+		expect(request.method()).toBe('GET');
+		expect(request.headers().authorization).toBe('Bearer retired-entrypoint-test-only-secret');
+		expect(query).toBe('SELECT sum(number), currency, account ORDER BY account');
+		queries.push(request.url());
+		await route.fulfill({ json: { rows: [['0', 'USD', 'Assets:Cash']] } });
+	});
+	await page.goto('/sync');
+	await expect(page.getByLabel('Accounts', { exact: true })).toBeChecked();
+	await expect(page.getByLabel('Send → pull → reconcile')).not.toBeChecked();
+	await expect(page.getByText('Send completed local transactions', { exact: true })).toHaveCount(0);
+	const before = await readStoredData(page);
+	await page.getByRole('button', { name: 'Synchronize', exact: true }).click();
+	await expect(page.locator('#toast-container')).toContainText(
+		'Metadata synchronization completed successfully'
+	);
+	await expect(page.getByText('metadata-only', { exact: true })).toBeVisible();
+	expect(queries).toHaveLength(1);
+	const after = await readStoredData(page);
+	expect(after.files).toEqual(before.files);
+	for (const name of Object.keys(before.records).filter((name) => name !== 'accounts')) {
+		expect(after.records[name]).toEqual(before.records[name]);
+	}
+	expect(observations).toEqual({ permissions: [], requests: [`GET ${queries[0]}`] });
 });

@@ -52,7 +52,7 @@ async function seedApp(page: Page, localTransactions: string) {
 	await page.reload();
 	await page.goto('/sync');
 	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
-	await expect(page.getByLabel('Ledger files to OPFS')).toBeChecked();
+	await expect(page.getByLabel('Send → pull → reconcile')).toBeChecked();
 }
 
 async function readCashierFile(page: Page) {

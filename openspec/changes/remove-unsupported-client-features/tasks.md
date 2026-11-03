@@ -46,10 +46,10 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 5. Keep only server synchronization — commit 5
 
-- [ ] 5.1 Remove sync-fs, `/opfs/sync`, `/settings/filesystem` and navigation. Recheck fsScan/fsHandleStore final consumers and remove exclusive helpers only now; keep importManifest while OpfsFilePicker uses its marker or remove that marker atomically. Preserve shared databases and analytics concurrency helpers; verify existing stored data and OPFS consumers survive.
-- [ ] 5.2 Simplify Sync to the fork's Beancount flow; normalize recognized legacy source strings at settings load, preserving URL/token/root/selection and metadata-only choices. Test fresh/partial configuration and existing filesystem/Ledger settings without data reset, invented credentials or automatic synchronization.
-- [ ] 5.3 Keep server Sync discoverable in navigation; describe the ledger-file option as send/pull/reconcile and Reload as server-only reload. Test old URLs, same-ID retry, rejection/incomplete entries, pull/parse rollback, overlay protection and token forwarding; update affected docs.
-- [ ] 5.4 Verify server pull is the supported external accounting-data input, existing local analysis still runs offline and no hidden import path was kept as a workaround; run G and commit gate, then create only `chore: keep only server synchronization`.
+- [x] 5.1 Remove sync-fs, `/opfs/sync`, `/settings/filesystem` and navigation. Recheck fsScan/fsHandleStore final consumers and remove exclusive helpers only now; keep importManifest while OpfsFilePicker uses its marker or remove that marker atomically. Preserve shared databases and analytics concurrency helpers; verify existing stored data and OPFS consumers survive.
+- [x] 5.2 Simplify Sync to the fork's Beancount flow; normalize recognized legacy source strings at settings load, preserving URL/token/root/selection and metadata-only choices. Test fresh/partial configuration and existing filesystem/Ledger settings without data reset, invented credentials or automatic synchronization.
+- [x] 5.3 Keep server Sync discoverable in navigation; describe the ledger-file option as send/pull/reconcile and Reload as server-only reload. Test old URLs, same-ID retry, rejection/incomplete entries, pull/parse rollback, overlay protection and token forwarding; update affected docs.
+- [x] 5.4 Verify server pull is the supported external accounting-data input, existing local analysis still runs offline and no hidden import path was kept as a workaround; run G and commit gate, then create only `chore: keep only server synchronization`.
 
 ## 6. Remove Ledger-cli compatibility — commit 6
 
@@ -119,6 +119,12 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Task 4.0 fixes the pre-existing return URL with `replaceState(resolve('/settings'), {})`. Both book and allocation-definition selection preserve pending values, require explicit save and survive reload without changing unrelated records, tokens or OPFS bytes.
 - Removed import/upload/drop/restore/bulk-settings inputs and exclusive helpers/tests; retained source editing, OPFS browse/select, manual controls and outbound exports. Gate G passed: specs 5/5; lint, Svelte lint, types; `npm run test:unit -- --run tests` (160 passed); warning-gated build; retained browser selection (73 passed). Unit scope excludes temporary investigation artifacts outside `tests/`; retiring correctness tests have been deleted.
 - Independent slice and picker reviews passed. Fresh structured graph-change analysis precedes commit 4. Real Python-server integration remains not run. The previous blocker record above documents the baseline failure, now resolved by the authorized task.
+
+### Server-only synchronization
+
+- Slice 4 committed as `af4a6d9`. Removed filesystem sync/routes and exclusive scan/handle helpers. Navigation/home card both open `/sync`; source selection is Beancount-only with read-time legacy normalization. Existing connection details, server selection, sync choices and financial data remain unchanged; no automatic sync or default-root write on load.
+- Gate G passed: specs, lint, Svelte lint, types, `npm run test:unit -- --run tests` (170 passed), warning-gated build, retained browser selection (88 passed). Same-ID retry/rollback/rejection, metadata-only references, authenticated server-only Reload and fresh/partial/legacy configuration covered. Retired filesystem correctness not exercised.
+- Shared-settings impact CRITICAL, investigated through direct consumers; independent review found no blockers. Fresh structured graph gate precedes commit 5. `importManifest` and analytics concurrency retained. Real-server integration not run.
 
 ## Workflow follow-up
 
