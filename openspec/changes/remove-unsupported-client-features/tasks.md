@@ -66,8 +66,8 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 8. Remove cross-list drag prototype — commit 8
 
-- [ ] 8.1 Remove five prototype components and their cross-list assertions; rewrite the combined string-built harness to retain live DragReorderList coverage and verify its imports compile.
-- [ ] 8.2 Exercise live reorder with duplicate labels and parent bindings across retained callers; keep esbuild-wasm, update references, run G and commit gate, then create only `chore: remove cross list drag prototype`.
+- [x] 8.1 Remove five prototype components and their cross-list assertions; rewrite the combined string-built harness to retain live DragReorderList coverage and verify its imports compile.
+- [x] 8.2 Exercise live reorder with duplicate labels and parent bindings across retained callers; keep esbuild-wasm, update references, run G and commit gate, then create only `chore: remove cross list drag prototype`.
 
 ## 9. Remove unused build dependencies and configurations — commit 9
 
@@ -136,6 +136,11 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 - Beancount cleanup committed as `ec520e8`. Removed unused DAL factory/FSDAL, selectable backend cache/factory, filesystem singleton and non-OPFS backends; retained DAL/CashierDAL types, OPFS public exports, shared databases and data.
 - Gate G passed: specs, lint, Svelte lint, types, 186 unit tests, warning-gated build and 88 retained browsers. Positive DAL persistence and public-barrel OPFS read/write/list/delete coverage added. Independent review checked dynamic/barrel consumers and constructor initialization; no blockers. UNKNOWN graph results supplemented with source checks; fresh structured gate precedes commit 7. No real-server integration.
+
+### Cross-list prototype retirement
+
+- Storage cleanup committed as `2ba3752`. Removed five prototype components and cross-list-only assertions; extracted a retained-only live reorder compilation harness. Live component, production callers and `esbuild-wasm` unchanged. Added duplicate-label bound-order/persistence checks across favourites, home cards, postings and account groups.
+- Gate G passed: specs, lint, Svelte lint, types, 191 unit tests, warning-gated build, all 88 browser tests (`npm run test:e2e -- --workers=2`; no retired-case filter now needed). Independent review checked string-built imports and retained DOM/parent-binding assertions; no blockers. New files staged before fresh structured graph gate. No real-server integration.
 
 ## Workflow follow-up
 
