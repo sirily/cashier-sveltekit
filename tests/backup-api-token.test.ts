@@ -37,7 +37,9 @@ test('outbound backup contains only credential-free settings and scheduled paylo
 		{ key: 'backupServerUrl', value: '"https://retired-backup.test"' },
 		{ key: 'syncServers', value: '[{"id":"retained-server"}]' },
 		{ key: 'syncActiveServerId', value: '"retained-server"' },
-		{ key: 'currency', value: '"USD"' }
+		{ key: 'currency', value: '"USD"' },
+		{ key: 'forecast.accounts', value: '["Assets:Cash"]' },
+		{ key: 'forecast.days', value: '28' }
 	];
 	state.scheduled = [{ id: 41, nextDate: '2099-01-15', transaction: { note: 'Keep schedule' } }];
 	const before = structuredClone({ settings: state.settings, scheduled: state.scheduled });

@@ -42,7 +42,9 @@ async function seedStoredData(page: Page) {
 							}
 						],
 						syncActiveServerId: 'retained-server',
-						syncApiToken: 'retired-entrypoint-test-only-secret'
+						syncApiToken: 'retired-entrypoint-test-only-secret',
+						'forecast.accounts': ['Assets:Cash'],
+						'forecast.days': 28
 					};
 					for (const [key, value] of Object.entries(settings)) {
 						tx.objectStore('settings').put({ key, value: JSON.stringify(value) });
@@ -260,6 +262,99 @@ test('drawer omits Voice Entry and Peer Sync while keeping Journal reachable', a
 	await expect(page.locator('#drawer-modal')).not.toBeChecked();
 });
 
+test('retired schedule action and navigation leave manual journal data intact', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	const observations = await watchRetiredIngress(page);
+	const before = await readStoredData(page);
+	await page.getByText('Pending journal stays intact', { exact: false }).click();
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Schedule', exact: true })).toHaveCount(0);
+	await expect(
+		page.locator('a[href*="scheduled-xacts"], a[href*="scx-"], a[href*="forecast-settings"]')
+	).toHaveCount(0);
+	await page.evaluate(() => {
+		const staleAction = document.createElement('button');
+		staleAction.textContent = 'Schedule';
+		staleAction.id = 'onScheduleClick';
+		document.querySelector('main')!.appendChild(staleAction);
+		staleAction.click();
+		staleAction.remove();
+	});
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	expect(await readStoredData(page)).toEqual(before);
+	await page.getByRole('button', { name: 'Edit', exact: true }).click();
+	await expect(page).toHaveURL(/\/tx$/);
+	expect(await readStoredData(page)).toEqual(before);
+	expect(observations).toEqual({ permissions: [], requests: [] });
+});
+
+for (const { name, saved, visible } of [
+	{ name: 'missing setting', saved: null, visible: ['FavouritesCard', 'JournalCard', 'SyncCard'] },
+	{
+		name: 'upgraded order',
+		saved: ['SyncCard', 'ForecastCard', 'JournalCard', 'ScheduledXactCard', 'FavouritesCard'],
+		visible: ['SyncCard', 'JournalCard', 'FavouritesCard']
+	},
+	{ name: 'explicit empty', saved: [], visible: [] },
+	{ name: 'filtered empty', saved: ['ForecastCard', 'ScheduledXactCard'], visible: [] }
+]) {
+	test(`home card ${name} survives navigation and reload without configuration writes`, async ({
+		page
+	}) => {
+		await seedStoredData(page);
+		await page.evaluate(async (saved) => {
+			const db = await new Promise<IDBDatabase>((resolve, reject) => {
+				const request = indexedDB.open('Cashier');
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			});
+			try {
+				await new Promise<void>((resolve, reject) => {
+					const tx = db.transaction('settings', 'readwrite');
+					if (saved === null) tx.objectStore('settings').delete('homeCardNames');
+					else
+						tx.objectStore('settings').put({ key: 'homeCardNames', value: JSON.stringify(saved) });
+					tx.oncomplete = () => resolve();
+					tx.onerror = () => reject(tx.error);
+				});
+			} finally {
+				db.close();
+			}
+		}, saved);
+		const observations = await watchRetiredIngress(page);
+		const before = await readStoredData(page);
+		const titles: Record<string, string> = {
+			FavouritesCard: 'Favourites',
+			JournalCard: 'Device Journal',
+			SyncCard: 'Server Sync'
+		};
+		for (const path of ['/', '/home-settings', '/home-reorder']) {
+			await page.goto(path);
+			for (let attempt = 0; attempt < 2; attempt++) {
+				if (path === '/') {
+					await expect(page.locator('.card-body > div > span.grow')).toHaveText(
+						visible.map((card) => titles[card])
+					);
+				} else if (path === '/home-settings') {
+					const checkboxes = page.locator('section input[type="checkbox"]');
+					await expect(checkboxes).toHaveCount(3);
+					for (const [index, card] of ['FavouritesCard', 'JournalCard', 'SyncCard'].entries()) {
+						await expect(checkboxes.nth(index)).toBeChecked({ checked: visible.includes(card) });
+					}
+				} else {
+					await expect(page.locator('[data-item]')).toHaveText(visible);
+				}
+				expect(await readStoredData(page)).toEqual(before);
+				if (attempt === 0) await page.reload();
+			}
+		}
+		expect(observations).toEqual({ permissions: [], requests: [] });
+	});
+}
+
 const retiredRemotePaths = [
 	'/settings/webdav-cfg',
 	'/backup/webdav',
@@ -369,7 +464,7 @@ test('remote backup links are absent while local Backup and export remain reacha
 	await expect(page.getByRole('button', { name: 'Backup', exact: true })).toBeVisible();
 	await page.goto('/settings');
 	await expect(page.locator('a[href*="webdav"], a[href^="/cloud-backup"]')).toHaveCount(0);
-	for (const type of ['journal', 'scheduled']) {
+	for (const type of ['journal']) {
 		await page.goto(`/export/${type}`);
 		await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
 	}
@@ -383,7 +478,14 @@ const retiredLocalPaths = [
 	'/restore/arbitrary-item',
 	'/settings/json-editor',
 	'/opfs/sync',
-	'/settings/filesystem'
+	'/settings/filesystem',
+	'/scheduled-xacts',
+	'/scheduled-xacts/calendar',
+	'/scx-editor',
+	'/scx-editor/41',
+	'/scx-actions/41',
+	'/forecast-settings',
+	'/export/scheduled'
 ];
 
 async function watchRetiredIngress(page: Page) {
@@ -560,12 +662,12 @@ for (const path of ['/opfs', '/backup']) {
 	});
 }
 
-test('import and restore links are absent while manual journal, schedule and settings controls remain', async ({
+test('import and restore links are absent while manual journal and settings controls remain', async ({
 	page
 }) => {
 	await seedStoredData(page);
 	const before = await readStoredData(page);
-	for (const path of ['/journal', '/scheduled-xacts', '/settings']) {
+	for (const path of ['/journal', '/settings']) {
 		await page.goto(path);
 		await expect(
 			page.locator(

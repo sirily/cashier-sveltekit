@@ -39,13 +39,13 @@
 
 		<p>This local backup contains:</p>
 		<ul class="list mx-8">
-			<li>scheduled transactions</li>
+			<li>legacy scheduled records stored on this device</li>
 			<li>settings, excluding credentials</li>
 		</ul>
-		<p>Journal transactions and book files are not included. Export them separately.</p>
+		<p>Export journal transactions and book files separately.</p>
 		<p>
 			Use <a href={resolve('/sync')} class="link">server Sync</a> to download your accounting book and
-			reference data. Manage schedules and settings with their ordinary controls.
+			reference data. Configure the app through Settings.
 		</p>
 		<p>Save the backup as:</p>
 

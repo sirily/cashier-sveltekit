@@ -2,7 +2,7 @@
  * State store for the app
  */
 import { writable, type Writable } from 'svelte/store';
-import { ScheduledTransaction, Xact } from './model';
+import { Xact } from './model';
 import type { SelectionModeMetadata } from '#lib/settings';
 import type { AssetClass, StockCache } from '#lib/assetAllocation/AssetClass';
 import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
@@ -27,7 +27,7 @@ export const DefaultCurrencyStore: Writable<string> = writable();
 export const xact: Writable<Xact> = writable();
 /** The DirectiveSpan of the transaction currently being edited. Undefined for new transactions. */
 export const xactSpan: Writable<DirectiveSpan | undefined> = writable(undefined);
-export const ScheduledXact: Writable<ScheduledTransaction> = writable();
+
 // asset allocation
 export const AssetAllocationStore: Writable<AssetClass[] | undefined> = writable();
 export const AaStocksStore: Writable<StockCache | undefined> = writable();

@@ -26,11 +26,6 @@ export class SelectionModeMetadata {
 	initialValue?: number;
 }
 
-export const Constants = {
-	CacheName: 'cashier',
-	ForecastDays: 7
-};
-
 export interface AccountGroup {
 	title: string;
 	accounts: string[];
@@ -54,10 +49,6 @@ export const SettingKeys = {
 	currency: 'currency',
 	rememberLastTransaction: 'rememberLastTransaction',
 	favouriteAccounts: 'favouriteAccounts',
-	// forecast
-	forecastAccounts: 'forecast.accounts',
-	forecastDays: 'forecast.days',
-	//
 
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
@@ -95,9 +86,9 @@ export const SettingKeys = {
 
 export const CardNames = {
 	FavouritesCard: 'FavouritesCard',
-	ForecastCard: 'ForecastCard',
+
 	JournalCard: 'JournalCard',
-	ScheduledXactCard: 'ScheduledXactCard',
+
 	SyncCard: 'SyncCard'
 };
 

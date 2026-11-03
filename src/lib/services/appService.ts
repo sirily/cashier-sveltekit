@@ -2,10 +2,10 @@
 	Provide service layer for the application.
 */
 import db from '#lib/data/db';
-import { Account, LastXact, Money, Payee, ScheduledTransaction, Xact } from '#lib/data/model';
+import { Account, LastXact, Money, Payee, Xact } from '#lib/data/model';
 import { settings, SettingKeys } from '#lib/settings';
 import { HomeCardNames } from '#lib/enums';
-import { DefaultCurrencyStore, ScheduledXact, xact } from '#lib/data/mainStore';
+import { DefaultCurrencyStore } from '#lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
 import * as BeancountParser from '#lib/utils/beancountParser';
@@ -200,18 +200,13 @@ class AppService {
 	}
 
 	async getVisibleCards(): Promise<string[]> {
-		let visibleCardNames: string[] = (await settings.get(SettingKeys.visibleCards)) as string[];
-		if (!visibleCardNames) {
-			// create the default cards list here
-			visibleCardNames = [
-				HomeCardNames.FAVOURITES,
-				HomeCardNames.JOURNAL,
-				HomeCardNames.SCHEDULED,
-				HomeCardNames.SYNC,
-				HomeCardNames.FORECAST
-			];
+		const visibleCardNames = await settings.get<string[]>(SettingKeys.visibleCards);
+		if (visibleCardNames === null) {
+			return [HomeCardNames.FAVOURITES, HomeCardNames.JOURNAL, HomeCardNames.SYNC];
 		}
-		return visibleCardNames;
+		return visibleCardNames.filter(
+			(name) => name !== 'ForecastCard' && name !== 'ScheduledXactCard'
+		);
 	}
 
 	/**
@@ -339,16 +334,6 @@ class AppService {
 	}
 
 	/**
-	 *
-	 * @returns All Scheduled Xacts, serialized to JSON.
-	 */
-	async getScheduledXactsForExport(): Promise<string> {
-		const records: ScheduledTransaction[] = await db.scheduled.toArray();
-		const output = this.serialize(records);
-		return output;
-	}
-
-	/**
 	 * Updates accounts from Beancount balance query rows.
 	 * @param response Rows of amount, original currency, and account name.
 	 * @returns The promise resolving to the id of the last record updated (Dexie default)
@@ -453,21 +438,6 @@ class AppService {
 	// 	return accounts;
 	// }
 
-	async loadScheduledXact(id: number): Promise<ScheduledTransaction> {
-		const scx = await db.scheduled.get(id);
-		if (!scx) {
-			throw new Error('Scheduled transaction not found!');
-		}
-		if (!scx.transaction) {
-			throw new Error('Scheduled transaction is missing transaction data!');
-		}
-
-		ScheduledXact.set(scx);
-		xact.set(scx.transaction);
-
-		return scx;
-	}
-
 	// saveAccount(account: Account) {
 	// 	return db.accounts.put(account);
 	// }
@@ -491,10 +461,6 @@ class AppService {
 		await this.db.lastXact.put(lastTx);
 
 		return true;
-	}
-
-	serialize(content: unknown) {
-		return JSON.stringify(content);
 	}
 
 	/**

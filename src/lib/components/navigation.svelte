@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	// Icons
-	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
+
 	import ChartLineIcon from '@lucide/svelte/icons/chart-line';
 	import ChartPieIcon from '@lucide/svelte/icons/chart-pie';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
@@ -22,7 +22,7 @@
 	import ChartNoAxesCombinedIcon from '@lucide/svelte/icons/chart-no-axes-combined';
 	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
 	import CalculatorIcon from '@lucide/svelte/icons/calculator';
-	import CalendarIcon from '@lucide/svelte/icons/calendar';
+
 	import ListTreeIcon from '@lucide/svelte/icons/list-tree';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 
@@ -80,18 +80,6 @@
 					<span>Journal</span>
 				</a>
 			</li>
-			<li>
-				<a
-					href={resolve('/scheduled-xacts')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/scheduled-xacts'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<CalendarClockIcon />
-					<span>Scheduled Transactions</span>
-				</a>
-			</li>
 		</ul>
 
 		<div class="divider divider-primary m-1"></div>
@@ -141,16 +129,7 @@
 								<span>Favourites</span>
 							</a>
 						</li>
-						<li>
-							<a
-								href={resolve('/scheduled-xacts/calendar')}
-								class="flex w-full items-center gap-2 py-2"
-								onclick={closeDrawer}
-							>
-								<CalendarIcon />
-								<span>Calendar</span>
-							</a>
-						</li>
+
 						<li>
 							<a
 								href={resolve('/accounts')}

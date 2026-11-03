@@ -2,16 +2,15 @@
 	import { resolve } from '$app/paths';
 	import JournalCard from '#lib/components/JournalCard.svelte';
 	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
-import PlusIcon from '@lucide/svelte/icons/plus';
-import SettingsIcon from '@lucide/svelte/icons/settings';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Toolbar from '../lib/components/Toolbar.svelte';
 	import { goto } from '$app/navigation';
 	import { xact } from '#lib/data/mainStore';
 	import { Xact } from '#lib/data/model';
 	import FavouritesCard from '#lib/components/FavouritesCard.svelte';
 	import SyncCard from '#lib/components/SyncCard.svelte';
-	import ForecastCard from '#lib/components/ForecastCard.svelte';
-	import ScheduledXactsCard from '#lib/components/ScheduledXactsCard.svelte';
+
 	import { onMount, type Component } from 'svelte';
 	import Fab from '#lib/components/FAB.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
@@ -34,15 +33,11 @@ import SettingsIcon from '@lucide/svelte/icons/settings';
 				case CardNames.FavouritesCard:
 					card = FavouritesCard;
 					break;
-				case CardNames.ForecastCard:
-					card = ForecastCard;
-					break;
+
 				case CardNames.JournalCard:
 					card = JournalCard;
 					break;
-				case CardNames.ScheduledXactCard:
-					card = ScheduledXactsCard;
-					break;
+
 				case CardNames.SyncCard:
 					card = SyncCard;
 					break;
@@ -65,8 +60,16 @@ import SettingsIcon from '@lucide/svelte/icons/settings';
 <article class="flex h-screen flex-col">
 	<Toolbar>
 		{#snippet menuItems()}
-			<ToolbarMenuItem text="Home Settings" Icon={SettingsIcon} targetNav={resolve('/home-settings')} />
-			<ToolbarMenuItem text="Reorder Cards" targetNav={resolve('/home-reorder')} Icon={ArrowDownUpIcon} />
+			<ToolbarMenuItem
+				text="Home Settings"
+				Icon={SettingsIcon}
+				targetNav={resolve('/home-settings')}
+			/>
+			<ToolbarMenuItem
+				text="Reorder Cards"
+				targetNav={resolve('/home-reorder')}
+				Icon={ArrowDownUpIcon}
+			/>
 		{/snippet}
 	</Toolbar>
 

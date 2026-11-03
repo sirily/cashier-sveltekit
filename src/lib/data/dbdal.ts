@@ -3,7 +3,7 @@
  */
 
 import type { IndexableType } from 'dexie';
-import { Account, Payee, ScheduledTransaction } from '#lib/data/model';
+import { Account, Payee } from '#lib/data/model';
 import db from '#lib/data/db';
 import type { DAL } from './dal';
 
@@ -62,19 +62,4 @@ export default class CashierDAL implements DAL {
 	// 	const id = await db.xacts.put(tx);
 	// 	return id as number;
 	// }
-}
-
-export async function saveScheduledTransaction(stx: ScheduledTransaction) {
-	if (!stx.id) {
-		stx.id = new Date().getTime();
-	}
-
-	// clear any transaction ids!
-	if (stx.transaction && stx.transaction.id) {
-		delete stx.transaction.id;
-	}
-
-	const result = await db.scheduled.put(stx);
-
-	return result;
 }

@@ -263,7 +263,7 @@ test('outbound local Backup downloads settings and scheduled content without the
 	await expect(page.getByRole('heading', { name: 'Create Backup', exact: true })).toBeVisible();
 	await expect(page.getByRole('textbox')).toHaveValue(/^cashier-backup_.+\.json$/);
 	await expect(
-		page.getByText('Journal transactions and book files are not included. Export them separately.')
+		page.getByText('Export journal transactions and book files separately.')
 	).toBeVisible();
 	const recordsBefore = await readLocalRecords(page);
 	expect(recordsBefore.scheduled).toEqual(scheduled);
@@ -291,31 +291,6 @@ test('outbound local Backup downloads settings and scheduled content without the
 
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Create Backup', exact: true })).toBeVisible();
-	expect(await readLocalRecords(page)).toEqual(recordsBefore);
-	expect(await readJournal(page)).toBe(journal);
-	expect(browserErrors).toEqual([]);
-});
-
-test('scheduled export copies and downloads JSON without changing local data', async ({
-	page,
-	context
-}) => {
-	const browserErrors = await seedLocalData(page);
-	const recordsBefore = await readLocalRecords(page);
-	await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
-		origin: new URL(page.url()).origin
-	});
-	await page.goto('/export/scheduled');
-	await expect(page.getByText('Export scheduled', { exact: true })).toBeVisible();
-	await expect(page.getByRole('textbox')).toHaveValue(JSON.stringify(scheduled));
-	await page.getByRole('button', { name: 'Copy', exact: true }).click();
-	await expect(page.getByText('Data copied to clipboard', { exact: true })).toBeVisible();
-	expect(JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))).toEqual(scheduled);
-	const downloading = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Download', exact: true }).click();
-	const download = await downloading;
-	expect(download.suggestedFilename()).toMatch(/^scheduled_.+\.json$/);
-	expect(JSON.parse(await downloadText(download))).toEqual(scheduled);
 	expect(await readLocalRecords(page)).toEqual(recordsBefore);
 	expect(await readJournal(page)).toBe(journal);
 	expect(browserErrors).toEqual([]);
