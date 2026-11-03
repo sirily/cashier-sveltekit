@@ -16,6 +16,15 @@ import { LEDGER_CACHE_FILE } from '../constants';
 
 let wasmModule: typeof import('@rustledger/wasm') | null = null;
 let ledger: import('@rustledger/wasm').Ledger | null = null;
+const CACHE_METADATA_FILE = `${LEDGER_CACHE_FILE}.json`;
+const CACHE_FORMAT = 1;
+type SourceComposition = {
+	mainFileName: string;
+	userBookFilename?: string;
+	fileMap: Record<string, string>;
+	sourceHash: string;
+};
+let loadedComposition: SourceComposition | null = null;
 
 // ---------------------------------------------------------------------------
 // WASM init
@@ -61,8 +70,13 @@ async function opfsSaveBinary(filename: string, data: Uint8Array): Promise<void>
 	const handle = await opfsGetHandle(filename, true);
 	if (!handle) throw new Error(`Cannot open ${filename} for writing`);
 	const stream = await handle.createWritable();
-	await stream.write(data.buffer as ArrayBuffer);
-	await stream.close();
+	try {
+		await stream.write(data.slice().buffer as ArrayBuffer);
+		await stream.close();
+	} catch (error) {
+		await stream.abort().catch(() => {});
+		throw error;
+	}
 }
 
 async function opfsDeleteFile(filename: string): Promise<void> {
@@ -75,8 +89,8 @@ async function opfsDeleteFile(filename: string): Promise<void> {
 			dir = await dir.getDirectoryHandle(part);
 		}
 		await dir.removeEntry(name);
-	} catch {
-		// File doesn't exist — that's fine
+	} catch (error) {
+		if (!(error instanceof DOMException) || error.name !== 'NotFoundError') throw error;
 	}
 }
 
@@ -106,22 +120,26 @@ async function loadFromCacheOrFiles(
 	userBookFilename?: string,
 	useCaching = true
 ): Promise<void> {
+	clearLedger();
+	const composition = await readComposition(mainFileName, userBookFilename);
 	if (useCaching) {
-		const bytes = await opfsReadBinary(LEDGER_CACHE_FILE);
-		if (bytes) {
-			try {
-				if (ledger) {
-					ledger.free();
-					ledger = null;
+		try {
+			const metadataBytes = await opfsReadBinary(CACHE_METADATA_FILE);
+			const metadata = metadataBytes && JSON.parse(new TextDecoder().decode(metadataBytes));
+			if (metadata?.format === CACHE_FORMAT && metadata.sourceHash === composition.sourceHash) {
+				const bytes = await opfsReadBinary(LEDGER_CACHE_FILE);
+				if (bytes && metadata.binaryHash === (await fingerprint(bytes))) {
+					ledger = wasmModule!.Ledger.fromCache(bytes);
+					loadedComposition = composition;
+					return;
 				}
-				ledger = wasmModule!.Ledger.fromCache(bytes);
-				return;
-			} catch {
-				// Cache corrupt or version mismatch — fall through to file parse
 			}
+		} catch {
+			// Unreadable, legacy, incompatible or corrupt cache: sources remain authoritative.
 		}
 	}
-	await loadFromFiles(mainFileName, userBookFilename);
+	ledger = wasmModule!.Ledger.fromFiles(composition.fileMap, mainFileName);
+	loadedComposition = composition;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +163,7 @@ export type WorkerRequestPayload =
 	/** Serialize the persistent ledger to the OPFS cache file. */
 	| { type: 'serialize-ledger' }
 	/** Restore the persistent ledger from the OPFS cache file. */
-	| { type: 'load-from-cache' }
+	| { type: 'load-from-cache'; mainFileName: string; userBookFilename?: string }
 	/** Free the in-memory ledger and delete the OPFS cache file. */
 	| { type: 'delete-cache' }
 	/** Return all open accounts (open directives + BQL tx accounts merged). */
@@ -175,17 +193,31 @@ export type WorkerResponse = { id: number } & WorkerResponsePayload;
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function loadFromFiles(mainFileName: string, userBookFilename?: string): Promise<void> {
-	const wasm = wasmModule!;
-	if (ledger) {
-		ledger.free();
-		ledger = null;
-	}
+function clearLedger(): void {
+	ledger?.free();
+	ledger = null;
+	loadedComposition = null;
+}
+
+async function fingerprint(bytes: Uint8Array): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', bytes.slice().buffer as ArrayBuffer);
+	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function readComposition(
+	mainFileName: string,
+	userBookFilename?: string
+): Promise<SourceComposition> {
 	const beanFiles = await opfsListBeanFiles();
 	if (beanFiles.length === 0) throw new Error('No .bean files found in OPFS');
-	const fileMap: Record<string, string> = {};
+	const fileMap: Record<string, string> = Object.create(null);
 	for (const { path, content } of beanFiles) {
 		fileMap[path] = content;
+	}
+	if (fileMap[mainFileName] === undefined)
+		throw new Error(`Analysis root missing: ${mainFileName}`);
+	if (userBookFilename && fileMap[userBookFilename] === undefined) {
+		throw new Error(`Selected book missing: ${userBookFilename}`);
 	}
 	// Inject the user's book include into cashier.bean on-the-fly, without
 	// persisting the directive to disk. Only when the book file is actually present.
@@ -197,7 +229,57 @@ async function loadFromFiles(mainFileName: string, userBookFilename?: string): P
 	) {
 		fileMap[mainFileName] = `include "${userBookFilename}"\n\n${fileMap[mainFileName]}`;
 	}
-	ledger = wasm.Ledger.fromFiles(fileMap, mainFileName);
+	// Hash the exact parser input, including paths (glob additions/deletions matter),
+	// composition rules and parser build. No independent include parser to drift from WASM.
+	const sourceHash = await fingerprint(
+		new TextEncoder().encode(
+			JSON.stringify([
+				CACHE_FORMAT,
+				wasmModule!.version(),
+				wasmUrl,
+				mainFileName,
+				userBookFilename ?? null,
+				Object.keys(fileMap)
+					.sort()
+					.map((path) => [path, fileMap[path]])
+			])
+		)
+	);
+	return { mainFileName, userBookFilename, fileMap, sourceHash };
+}
+
+async function loadFromFiles(mainFileName: string, userBookFilename?: string): Promise<void> {
+	clearLedger();
+	const composition = await readComposition(mainFileName, userBookFilename);
+	ledger = wasmModule!.Ledger.fromFiles(composition.fileMap, mainFileName);
+	loadedComposition = composition;
+}
+
+async function saveCache(): Promise<number> {
+	if (!ledger || !loadedComposition)
+		throw new Error('Ledger not loaded — call load or ensure-loaded first');
+	// Retire acceptance metadata before any fallible serialization/write. Even if
+	// the old binary survives, no future worker may activate it without validation.
+	await opfsDeleteFile(CACHE_METADATA_FILE);
+	const current = await readComposition(
+		loadedComposition.mainFileName,
+		loadedComposition.userBookFilename
+	);
+	if (current.sourceHash !== loadedComposition.sourceHash) {
+		throw new Error('Analysis sources changed — reload the ledger before serializing');
+	}
+	const bytes = ledger.serialize();
+	const metadata = new TextEncoder().encode(
+		JSON.stringify({
+			format: CACHE_FORMAT,
+			sourceHash: loadedComposition.sourceHash,
+			binaryHash: await fingerprint(bytes)
+		})
+	);
+	await opfsSaveBinary(LEDGER_CACHE_FILE, bytes);
+	// Publish last: a partial write or interrupted pair is always a cache miss.
+	await opfsSaveBinary(CACHE_METADATA_FILE, metadata);
+	return bytes.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +316,11 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 			}
 
 			case 'ensure-loaded': {
-				if (!ledger) {
+				if (
+					!ledger ||
+					loadedComposition?.mainFileName !== e.data.mainFileName ||
+					loadedComposition?.userBookFilename !== e.data.userBookFilename
+				) {
 					const t0 = performance.now();
 					await loadFromCacheOrFiles(
 						e.data.mainFileName,
@@ -261,15 +347,10 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 
 			case 'invalidate': {
 				const t0 = performance.now();
+				clearLedger();
+				await opfsDeleteFile(CACHE_METADATA_FILE);
 				await loadFromFiles(e.data.mainFileName, e.data.userBookFilename);
-				// Update the cache so future ensure-loaded calls get fresh data
-				if (e.data.useCaching ?? true) {
-					try {
-						await opfsSaveBinary(LEDGER_CACHE_FILE, ledger!.serialize());
-					} catch {
-						// Non-fatal — cache update failed but ledger is in memory
-					}
-				}
+				if (e.data.useCaching ?? true) await saveCache();
 				const ms = performance.now() - t0;
 				reply({
 					type: 'load-done',
@@ -314,10 +395,7 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 			}
 
 			case 'reset': {
-				if (ledger) {
-					ledger.free();
-					ledger = null;
-				}
+				clearLedger();
 				reply({ type: 'reset-done' });
 				break;
 			}
@@ -325,37 +403,28 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 			case 'serialize-ledger': {
 				if (!ledger) throw new Error('Ledger not loaded — call load or ensure-loaded first');
 				const t0 = performance.now();
-				const bytes = ledger.serialize();
-				await opfsSaveBinary(LEDGER_CACHE_FILE, bytes);
+				const bytes = await saveCache();
 				const ms = performance.now() - t0;
-				// Transfer the buffer zero-copy; the worker no longer needs it
-				reply({ type: 'serialize-ledger-done', bytes: bytes.length, ms });
+
+				reply({ type: 'serialize-ledger-done', bytes, ms });
 				break;
 			}
 
 			case 'load-from-cache': {
 				const t0 = performance.now();
-				const bytes = await opfsReadBinary(LEDGER_CACHE_FILE);
-				if (!bytes) throw new Error('No cache file found in OPFS. Serialize first.');
-				if (ledger) {
-					ledger.free();
-					ledger = null;
-				}
-				ledger = wasmModule!.Ledger.fromCache(bytes);
+				await loadFromCacheOrFiles(e.data.mainFileName, e.data.userBookFilename);
 				const ms = performance.now() - t0;
 				reply({
 					type: 'load-from-cache-done',
-					directiveCount: ledger.getDirectives().length,
+					directiveCount: ledger!.getDirectives().length,
 					ms
 				});
 				break;
 			}
 
 			case 'delete-cache': {
-				if (ledger) {
-					ledger.free();
-					ledger = null;
-				}
+				clearLedger();
+				await opfsDeleteFile(CACHE_METADATA_FILE);
 				await opfsDeleteFile(LEDGER_CACHE_FILE);
 				reply({ type: 'delete-cache-done' });
 				break;
@@ -395,6 +464,18 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 				});
 		}
 	} catch (err) {
+		if (
+			[
+				'load',
+				'ensure-loaded',
+				'invalidate',
+				'load-from-cache',
+				'serialize-ledger',
+				'delete-cache'
+			].includes(e.data.type)
+		) {
+			clearLedger();
+		}
 		reply({ type: 'error', message: String(err) });
 	}
 }

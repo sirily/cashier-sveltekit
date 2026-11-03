@@ -77,10 +77,10 @@ The original identity fix and nine removal commits are complete; their checked t
 
 ## 10. Validate full-book cache freshness — separate fix commit
 
-- [ ] 10.1 Add regression-first tests with real WASM/worker composition: a readable cached book must not reactivate removed drafts or old edited amounts after journal/root/include changes, same-length edits, or a fresh worker/browser reload. Preserve the exact QA order including OPFS edit and Delete All; assert source and real remaining errors, not only diagnostic count.
-- [ ] 10.2 Validate cache against the effective current source composition and relevant root/parsing identity before activation. Rebuild on mismatch, old unvalidated cache, missing/corrupt cache, deleted include or root change; keep the valid matching-cache fast path. Preserve financial files/overlay and genuine error diagnostics. Hash verification after cache activation is insufficient.
-- [ ] 10.3 Make invalidation durable against a failed cache rewrite so the next reload cannot accept an obsolete binary. Cover persistence failures and expose freshness/loading/error state instead of presenting stale calculations as current; avoid silent failure or disabling caching as the fix.
-- [ ] 10.4 Run G and fresh graph/review checks, including all cache-enabled regression paths; record results and create only `fix: validate ledger cache against current sources`.
+- [x] 10.1 Add regression-first tests with real WASM/worker composition: a readable cached book must not reactivate removed drafts or old edited amounts after journal/root/include changes, same-length edits, or a fresh worker/browser reload. Preserve the exact QA order including OPFS edit and Delete All; assert source and real remaining errors, not only diagnostic count.
+- [x] 10.2 Validate cache against the effective current source composition and relevant root/parsing identity before activation. Rebuild on mismatch, old unvalidated cache, missing/corrupt cache, deleted include or root change; keep the valid matching-cache fast path. Preserve financial files/overlay and genuine error diagnostics. Hash verification after cache activation is insufficient.
+- [x] 10.3 Make invalidation durable against a failed cache rewrite so the next reload cannot accept an obsolete binary. Cover persistence failures and expose freshness/loading/error state instead of presenting stale calculations as current; avoid silent failure or disabling caching as the fix.
+- [x] 10.4 Run G and fresh graph/review checks, including all cache-enabled regression paths; record results and create only `fix: validate ledger cache against current sources`.
 
 ## 11. Refresh full-book analysis after Journal Delete All — separate fix commit
 
@@ -194,6 +194,13 @@ The original identity fix and nine removal commits are complete; their checked t
 - QA reports schedule edit 500 for balanced completed entries and drafts, missing note/search in the list, and stale report diagnostics after OPFS edits/Delete All. Isolated browser reproduction confirms the schedule crash with `effect_update_depth_exceeded`; its exact reactive loop is unisolated and retires rather than receiving a repair task. List/source confirms note is omitted and search considers payee only; both retire.
 - Worker/source investigation confirms missing full-book invalidation on Delete All and OPFS Save plus unvalidated readable-cache acceptance on reload. A synthetic real-WASM worker probe reproduces stale diagnostics and cache-disabled recovery; it does not identify the user's individual 18 diagnostics.
 - Earlier gates did not cover schedule create/save/re-edit, Delete All with cache, or OPFS Save recovery without explicit Reload & Validate. The original 35 checked tasks record checks actually performed, not proof of these missing scenarios. Sections 10–13 are pending; no QA fixes or schedule removal implemented in this planning update.
+
+### Source-bound cache verification
+
+- Section 10: regression-first actual-worker/real-WASM tests reproduced 16 failures before the fix. Cache acceptance now checks versioned source-composition and binary SHA-256 metadata before activation; old/unverified/mismatched caches reparse current source. Metadata is retired before rewrite and published last; failed cache persistence clears availability rather than preserving stale authority.
+- G passed: specs, lint, Svelte lint, types, 222 unit tests (`--run tests src`), warning-gated build and 97 retained browsers (`--grep-invert 'scheduled export copies'`). Nine new cache browsers cover cold source/root/include changes, invalid caches, persistence failure and QA-order source/data preservation. The schedule-export success case retires; passive legacy backup checks remain.
+- Independent source review found no introduced blockers; shared worker graph reach CRITICAL investigated, fresh structured gate precedes `fix: validate ledger cache against current sources`. No real Python-server evidence claimed.
+- Test setup initially exposed the existing serialization tool's uninitialized main-thread hash call. Setup now uses the real worker Reload & Validate path; tool repair is outside this slice. Warm mutation hooks remain sections 11/12.
 
 ## Workflow follow-up
 

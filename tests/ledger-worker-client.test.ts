@@ -52,6 +52,56 @@ beforeEach(() => {
 });
 
 describe('full-book readiness', () => {
+	it('passes current root settings to explicit cache restore', async () => {
+		state.get.mockResolvedValue('selected.bean');
+		const service = await client();
+		const loading = service.loadFromCache();
+		const w = await worker();
+		await request(w, 'load-from-cache');
+		expect(w.requests[0]).toMatchObject({
+			mainFileName: 'cashier.bean',
+			userBookFilename: 'selected.bean'
+		});
+		w.reply('load-from-cache', { type: 'load-from-cache-done', directiveCount: 4, ms: 1 });
+		await loading;
+		expect(get(service.loaded)).toBe(true);
+	});
+
+	it('failed cache persistence ends reloading, leaves analysis unavailable and notifies version consumers', async () => {
+		const service = await client();
+		const initial = service.ensureLoaded();
+		const w = await worker();
+		await request(w, 'ensure-loaded');
+		w.reply('ensure-loaded', loaded);
+		await initial;
+		const version = get(service.version);
+		const refresh = service.invalidate();
+		const failure = expect(refresh).rejects.toThrow('cache close denied');
+		expect(get(service.loaded)).toBe(false);
+		expect(get(service.isReloading)).toBe(true);
+		await request(w, 'invalidate');
+		w.reply('invalidate', { type: 'error', message: 'cache close denied' });
+		await failure;
+		expect(service.isLoaded).toBe(false);
+		expect(get(service.loaded)).toBe(false);
+		expect(get(service.isReloading)).toBe(false);
+		expect(get(service.version)).toBeGreaterThan(version);
+	});
+
+	it('a failed explicit serialization cannot leave the client claiming a ready worker', async () => {
+		const service = await client();
+		const initial = service.ensureLoaded();
+		const w = await worker();
+		await request(w, 'ensure-loaded');
+		w.reply('ensure-loaded', loaded);
+		await initial;
+		const serialized = service.serialize();
+		const failure = expect(serialized).rejects.toThrow('sources changed');
+		await request(w, 'serialize-ledger');
+		w.reply('serialize-ledger', { type: 'error', message: 'sources changed' });
+		await failure;
+		expect(get(service.loaded)).toBe(false);
+	});
 	it('a cold query waits for the shared local load rather than succeeding with empty rows', async () => {
 		const service = await client();
 		let settled = false;

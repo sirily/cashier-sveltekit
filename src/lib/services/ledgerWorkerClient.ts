@@ -201,12 +201,20 @@ class LedgerWorkerClient {
 				if (available) this._isConfigured.set(true);
 				if (available || reloading) this._version.update((v) => v + 1);
 			}
-		})().finally(() => {
-			if (this._loading === loading) {
-				this._loading = null;
-				this._isReloading.set(false);
-			}
-		});
+		})()
+			.catch((error) => {
+				if (revision === this._revision) {
+					this.setLoaded(false);
+					if (reloading) this._version.update((v) => v + 1);
+				}
+				throw error;
+			})
+			.finally(() => {
+				if (this._loading === loading) {
+					this._loading = null;
+					this._isReloading.set(false);
+				}
+			});
 		this._loading = loading;
 		this.setLoaded(false);
 		if (reloading) this._isReloading.set(true);
@@ -249,18 +257,27 @@ class LedgerWorkerClient {
 	 * Returns byte count and elapsed milliseconds.
 	 */
 	async serialize(): Promise<{ bytes: number; ms: number }> {
-		const resp = await this.send<'serialize-ledger-done'>({ type: 'serialize-ledger' });
-		return { bytes: resp.bytes, ms: resp.ms };
+		let result!: { bytes: number; ms: number };
+		await this.updateLedger(async () => {
+			const resp = await this.send<'serialize-ledger-done'>({ type: 'serialize-ledger' });
+			result = { bytes: resp.bytes, ms: resp.ms };
+			return true;
+		});
+		return result;
 	}
 
 	/**
-	 * Restore the ledger from the OPFS binary cache written by serialize().
+	 * Restore a source-validated OPFS cache, falling back to current sources on a miss.
 	 * Returns directive count and elapsed milliseconds.
 	 */
 	async loadFromCache(): Promise<{ directiveCount: number; ms: number }> {
 		let result!: { directiveCount: number; ms: number };
 		await this.updateLedger(async () => {
-			const resp = await this.send<'load-from-cache-done'>({ type: 'load-from-cache' });
+			const resp = await this.send<'load-from-cache-done'>({
+				type: 'load-from-cache',
+				mainFileName: await this.mainFileName(),
+				userBookFilename: await this.userBookFilename()
+			});
 			result = { directiveCount: resp.directiveCount, ms: resp.ms };
 			return true;
 		});
