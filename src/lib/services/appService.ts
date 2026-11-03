@@ -466,22 +466,6 @@ class AppService {
 		await db.payees.bulkPut(payees);
 	}
 
-	/**
-	 * Imports Scheduled Transactions from a JSON String backup (from the export file).
-	 * @param {String} jsonList
-	 */
-	async importScheduledTransactions(jsonList: string) {
-		if (!jsonList) {
-			throw new Error('The transactions list is required!');
-		}
-
-		const parsed = JSON.parse(jsonList);
-		// first delete all existing records?
-		await db.scheduled.clear();
-
-		await db.scheduled.bulkPut(parsed);
-	}
-
 	// async loadAccount(name: string) {
 	// 	return db.accounts.get(name);
 	// }

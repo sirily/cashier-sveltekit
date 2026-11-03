@@ -374,3 +374,338 @@ test('remote backup links are absent while local Backup and export remain reacha
 		await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
 	}
 });
+
+const retiredLocalPaths = [
+	'/opfs/import-ledger',
+	'/import-ledger-xact',
+	'/restore/scheduled',
+	'/restore/settings',
+	'/restore/arbitrary-item',
+	'/settings/json-editor'
+];
+
+async function watchRetiredIngress(page: Page) {
+	const permissions: string[] = [];
+	const requests: string[] = [];
+	await page.exposeFunction('recordIngressPermission', (api: string) => permissions.push(api));
+	await page.addInitScript(() => {
+		const denied = (api: string) => () => {
+			void (
+				window as unknown as { recordIngressPermission: (api: string) => Promise<void> }
+			).recordIngressPermission(api);
+			return Promise.reject(new Error(`Retired ingress must not call ${api}`));
+		};
+		for (const api of ['showDirectoryPicker', 'showOpenFilePicker', 'showSaveFilePicker']) {
+			Object.defineProperty(window, api, { configurable: true, value: denied(api) });
+		}
+		for (const method of ['queryPermission', 'requestPermission']) {
+			Object.defineProperty(FileSystemHandle.prototype, method, {
+				configurable: true,
+				value: denied(`FileSystemHandle.${method}`)
+			});
+		}
+	});
+	const origin = new URL(page.url()).origin;
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (url.origin !== origin || url.pathname.startsWith('/api/') || request.method() !== 'GET') {
+			requests.push(`${request.method()} ${request.url()}`);
+		}
+	});
+	await page.route('**/*', (route) => {
+		const url = new URL(route.request().url());
+		if (url.origin !== origin || url.pathname.startsWith('/api/')) return route.abort();
+		return route.continue();
+	});
+	return { permissions, requests };
+}
+
+async function attemptRetiredInputs(page: Page) {
+	await expect(page.locator('input[type="file"], input[webkitdirectory]')).toHaveCount(0);
+	await page.evaluate(() => {
+		const target =
+			document.querySelector('article section') ??
+			document.querySelector('article') ??
+			document.querySelector('main') ??
+			document.body;
+		const payloads = [
+			{ name: 'cashier.bean', content: 'Retired upload must not overwrite the journal' },
+			{ name: 'server.bean', content: 'Retired upload must not overwrite the book' },
+			{ name: 'retired-new.bean', content: 'Retired upload must not create a file' },
+			{
+				name: 'backup.json',
+				content: JSON.stringify({
+					settings: [{ key: 'syncApiToken', value: '"foreign-token"' }],
+					scx: [{ id: 41, remarks: 'Foreign schedule' }]
+				})
+			}
+		];
+		for (const { name, content } of payloads) {
+			const transfer = new DataTransfer();
+			transfer.items.add(new File([content], name));
+			for (const type of ['dragenter', 'dragover', 'drop']) {
+				target.dispatchEvent(
+					new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer })
+				);
+			}
+			// Recreating a stale input node must not revive a retired/delegated upload handler.
+			const input = document.createElement('input');
+			input.type = 'file';
+			input.id = 'backupFile';
+			input.name = 'files';
+			input.setAttribute('webkitdirectory', '');
+			input.files = transfer.files;
+			target.appendChild(input);
+			input.dispatchEvent(new Event('change', { bubbles: true }));
+			input.remove();
+			transfer.setData('text/plain', content);
+			target.dispatchEvent(
+				new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })
+			);
+			target.dispatchEvent(
+				new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste', data: content })
+			);
+		}
+		return new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+		);
+	});
+	await expect(
+		page.getByRole('heading', { name: /Confirm Restore|File Already Exists/ })
+	).toHaveCount(0);
+}
+
+for (const path of retiredLocalPaths.flatMap((path) => [path, `${path}/`])) {
+	test(`retired local ingress URL ${path} and stale inputs leave data intact without permissions or requests`, async ({
+		page
+	}) => {
+		await seedStoredData(page);
+		const observations = await watchRetiredIngress(page);
+		const before = await readStoredData(page);
+		await page.goto(path);
+		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
+		await expect(page.locator('textarea')).toHaveCount(0);
+		await attemptRetiredInputs(page);
+		expect(await readStoredData(page)).toEqual(before);
+		await page.reload();
+		await expect(page.getByText('Not Found', { exact: true })).toBeVisible();
+		expect(await readStoredData(page)).toEqual(before);
+		expect(observations).toEqual({ permissions: [], requests: [] });
+	});
+}
+
+for (const path of ['/opfs', '/backup']) {
+	test(`${path} keeps retained controls but rejects stale upload, file-drop and paste inputs`, async ({
+		page
+	}) => {
+		await seedStoredData(page);
+		const observations = await watchRetiredIngress(page);
+		const before = await readStoredData(page);
+		await page.goto(path);
+		if (path === '/opfs') {
+			await expect(page.getByRole('cell', { name: 'cashier.bean', exact: true })).toBeVisible();
+			await expect(page.getByRole('cell', { name: 'server.bean', exact: true })).toBeVisible();
+		} else {
+			await expect(page.getByRole('button', { name: 'Backup', exact: true })).toBeVisible();
+			await expect(page.getByRole('button', { name: 'Share', exact: true })).toBeVisible();
+			await expect(page.getByRole('link', { name: 'server Sync', exact: true })).toHaveAttribute(
+				'href',
+				'/sync'
+			);
+		}
+		await expect(
+			page.getByRole('button', { name: /Upload File|Restore/, includeHidden: true })
+		).toHaveCount(0);
+		await expect(page.locator('textarea')).toHaveCount(0);
+		await attemptRetiredInputs(page);
+		expect(await readStoredData(page)).toEqual(before);
+		await page.reload();
+		await expect(
+			page.getByText(path === '/opfs' ? 'OPFS Files' : 'Create Backup', { exact: true })
+		).toBeVisible();
+		expect(await readStoredData(page)).toEqual(before);
+		expect(observations).toEqual({ permissions: [], requests: [] });
+	});
+}
+
+test('import and restore links are absent while manual journal, schedule and settings controls remain', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	const before = await readStoredData(page);
+	for (const path of ['/journal', '/scheduled-xacts', '/settings']) {
+		await page.goto(path);
+		await expect(
+			page.locator(
+				'a[href*="import-ledger"], a[href^="/restore/"], a[href="/settings/json-editor"]'
+			)
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: /Import Ledger|Restore|JSON Editor/, includeHidden: true })
+		).toHaveCount(0);
+		if (path === '/settings') {
+			await expect(page.locator('#currency')).toHaveValue('USD');
+			await expect(page.getByRole('button', { name: 'Select', exact: true })).toHaveCount(2);
+			await expect(page.getByRole('link', { name: 'server Sync', exact: true })).toHaveAttribute(
+				'href',
+				'/sync'
+			);
+		} else {
+			await expect(page.locator('button.fixed')).toBeVisible();
+		}
+	}
+	expect(await readStoredData(page)).toEqual(before);
+});
+
+for (const { name, selectIndex, settingKey, selectedFile } of [
+	{ name: 'book', selectIndex: 0, settingKey: 'userBookFilename', selectedFile: 'alternate.bean' },
+	{
+		name: 'asset allocation TOML',
+		selectIndex: 1,
+		settingKey: 'aa.definition',
+		selectedFile: 'allocation.toml'
+	}
+]) {
+	test(`Settings ${name} picker keeps its URL and pending values until explicit save/reload`, async ({
+		page
+	}) => {
+		await seedStoredData(page);
+		await page.evaluate(
+			async ({ book }) => {
+				const db = await new Promise<IDBDatabase>((resolve, reject) => {
+					const request = indexedDB.open('Cashier');
+					request.onsuccess = () => resolve(request.result);
+					request.onerror = () => reject(request.error);
+				});
+				try {
+					await new Promise<void>((resolve, reject) => {
+						const tx = db.transaction('settings', 'readwrite');
+						for (const [key, value] of Object.entries({
+							'aa.definition': 'original.toml',
+							'aa.rootAccount': 'Assets:Investments',
+							rememberLastTransaction: false,
+							dateFormat: 'D MMM YYYY'
+						})) {
+							tx.objectStore('settings').put({ key, value: JSON.stringify(value) });
+						}
+						tx.oncomplete = () => resolve();
+						tx.onerror = () => reject(tx.error);
+						tx.onabort = () => reject(tx.error);
+					});
+				} finally {
+					db.close();
+				}
+				const root = await navigator.storage.getDirectory();
+				for (const [filename, content] of Object.entries({
+					'alternate.bean': book,
+					'original.toml': '[allocation]\nname = "Original"\n',
+					'allocation.toml': '[allocation]\nname = "Selected"\n'
+				})) {
+					const handle = await root.getFileHandle(filename, { create: true });
+					const writer = await handle.createWritable();
+					await writer.write(content);
+					await writer.close();
+				}
+			},
+			{ book }
+		);
+		const observations = await watchRetiredIngress(page);
+		await page.goto('/settings');
+		await expect(page.locator('#currency')).toHaveValue('USD');
+		await expect(page.locator('#investment-account-root')).toHaveValue('Assets:Investments');
+		await expect(page.locator('#date-format')).toHaveValue('D MMM YYYY');
+		await expect(page.locator('#remember-last-transaction')).not.toBeChecked();
+		const before = await readStoredData(page);
+		await page.locator('#currency').fill('EUR');
+		await page.locator('#investment-account-root').fill('Assets:Investments:Pending');
+		await page.locator('#date-format').selectOption('YYYY-MM-DD');
+		await page.locator('#remember-last-transaction').check();
+
+		await page.getByRole('button', { name: 'Select', exact: true }).nth(selectIndex).click();
+		await expect(page).toHaveURL(
+			new URL(`/opfs/file-picker?returnSetting=${settingKey}`, page.url()).href
+		);
+		await page.getByRole('cell', { name: selectedFile, exact: true }).click();
+		await page.locator('button.fixed').click();
+		await expect(page).toHaveURL(new URL('/settings', page.url()).href);
+		await expect(page.getByText(selectedFile, { exact: true })).toBeVisible();
+		await expect(
+			page.getByText(selectIndex === 0 ? 'original.toml' : 'server.bean', { exact: true })
+		).toBeVisible();
+		await expect(page.locator('#currency')).toHaveValue('EUR');
+		await expect(page.locator('#investment-account-root')).toHaveValue(
+			'Assets:Investments:Pending'
+		);
+		await expect(page.locator('#date-format')).toHaveValue('YYYY-MM-DD');
+		await expect(page.locator('#remember-last-transaction')).toBeChecked();
+		expect(await readStoredData(page)).toEqual(before);
+
+		await page.locator('button.fixed').click();
+		await expect(page).toHaveURL(new URL('/', page.url()).href);
+		const expected = structuredClone(before);
+		const savedFields: Record<string, string | boolean> = {
+			currency: 'EUR',
+			'aa.rootAccount': 'Assets:Investments:Pending',
+			rememberLastTransaction: true,
+			dateFormat: 'YYYY-MM-DD',
+			[settingKey]: selectedFile
+		};
+		expected.records.settings = expected.records.settings.map((row) => {
+			const setting = row as { key: string; value: string };
+			return Object.hasOwn(savedFields, setting.key)
+				? { ...setting, value: JSON.stringify(savedFields[setting.key]) }
+				: row;
+		});
+		expect(await readStoredData(page)).toEqual(expected);
+
+		await page.goto('/settings');
+		await page.reload();
+		await expect(page).toHaveURL(new URL('/settings', page.url()).href);
+		await expect(page.getByText(selectedFile, { exact: true })).toBeVisible();
+		await expect(
+			page.getByText(selectIndex === 0 ? 'original.toml' : 'server.bean', { exact: true })
+		).toBeVisible();
+		await expect(page.locator('#currency')).toHaveValue('EUR');
+		await expect(page.locator('#investment-account-root')).toHaveValue(
+			'Assets:Investments:Pending'
+		);
+		await expect(page.locator('#date-format')).toHaveValue('YYYY-MM-DD');
+		await expect(page.locator('#remember-last-transaction')).toBeChecked();
+		await expect(page.locator('#ledger-cache-enabled')).not.toBeChecked();
+		expect(await readStoredData(page)).toEqual(expected);
+		expect(observations).toEqual({ permissions: [], requests: [] });
+	});
+}
+
+test('OPFS browsing, settings file selection and existing source editing remain local', async ({
+	page
+}) => {
+	await seedStoredData(page);
+	const observations = await watchRetiredIngress(page);
+	const before = await readStoredData(page);
+	await page.goto('/settings');
+	await expect(page.getByText('Book file:', { exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Select', exact: true }).first().click();
+	await expect(page).toHaveURL(/\/opfs\/file-picker\?/);
+	await page.getByRole('cell', { name: 'server.bean', exact: true }).click();
+	await page.locator('button.fixed').click();
+	await expect(page).toHaveURL(/\/settings$/);
+	await expect(page.getByText('server.bean', { exact: true })).toBeVisible();
+	expect(await readStoredData(page)).toEqual(before);
+
+	await page.goto('/opfs');
+	await page.getByRole('cell', { name: 'server.bean', exact: true }).click();
+	await expect(page).toHaveURL(/\/opfs\/edit-file\?file=server.bean$/);
+	await expect(page.locator('textarea')).toHaveValue(book);
+	const edited = `${book}; Local source edit\n`;
+	await page.locator('textarea').fill(edited);
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+	const expected = structuredClone(before);
+	expected.files['server.bean'] = Array.from(Buffer.from(edited));
+	expect(await readStoredData(page)).toEqual(expected);
+	await page.reload();
+	await expect(page.locator('textarea')).toHaveValue(edited);
+	expect(await readStoredData(page)).toEqual(expected);
+	expect(observations).toEqual({ permissions: [], requests: [] });
+});

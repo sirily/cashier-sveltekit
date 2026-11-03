@@ -38,10 +38,11 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 4. Remove local import and restore entry points — commit 4
 
-- [ ] 4.1 Remove `/opfs/import-ledger` including directory picker/upload fallback, `/import-ledger-xact`, their drawer/Journal/Settings links and exclusive paste-parser tests/helpers. Preserve other transactionParser consumers and folder helpers still used by filesystem sync. Verify the removed entry points cannot mutate an existing journal/book.
-- [ ] 4.2 Remove both OPFS Upload File and drag-and-drop ingestion, including input handlers/state and upload-only conflict/overwrite/copy dialogs. Verify file listing/selection and retained local editor/storage operations still work, and attempted retired inputs leave data unchanged.
-- [ ] 4.3 Remove local Restore Backup controls/file-reading/dialogs from `/backup`, the entire `/restore/[itemType]` file/paste route and Scheduled Transactions Restore action, plus arbitrary bulk-save `/settings/json-editor` and its menu. Remove restore-only services after their final consumer is gone; preserve manual schedule/settings controls and outbound backup/export. Verify old file/paste/URL paths cannot alter settings, schedules or active token.
-- [ ] 4.4 Preserve existing OPFS/IndexedDB data and outbound token filtering; update backup/setup descriptions to server Sync, verify no directory prompts or retired network calls, run G and commit gate, then create only `chore: remove local import and restore entry points`. Remove obsolete restore/import tests and helpers while preserving positive server-pull, outbound-export and removal-data-preservation coverage.
+- [x] 4.0 Fix the retained Settings file-picker return URL: replace the empty `replaceState` destination with the explicitly resolved Settings path while clearing return parameters. Preserve selected book/asset-allocation definition and pending form values. Keep the existing failing book-selection regression, add allocation-definition selection coverage, and verify ordinary save/reload, unchanged unrelated settings/token/OPFS files, G and graph/review checks before completing 4.4. Do not weaken the URL assertion or bypass the picker.
+- [x] 4.1 Remove `/opfs/import-ledger` including directory picker/upload fallback, `/import-ledger-xact`, their drawer/Journal/Settings links and exclusive paste-parser tests/helpers. Preserve other transactionParser consumers and folder helpers still used by filesystem sync. Verify the removed entry points cannot mutate an existing journal/book.
+- [x] 4.2 Remove both OPFS Upload File and drag-and-drop ingestion, including input handlers/state and upload-only conflict/overwrite/copy dialogs. Verify file listing/selection and retained local editor/storage operations still work, and attempted retired inputs leave data unchanged.
+- [x] 4.3 Remove local Restore Backup controls/file-reading/dialogs from `/backup`, the entire `/restore/[itemType]` file/paste route and Scheduled Transactions Restore action, plus arbitrary bulk-save `/settings/json-editor` and its menu. Remove restore-only services after their final consumer is gone; preserve manual schedule/settings controls and outbound backup/export. Verify old file/paste/URL paths cannot alter settings, schedules or active token.
+- [x] 4.4 Preserve existing OPFS/IndexedDB data and outbound token filtering; update backup/setup descriptions to server Sync, verify no directory prompts or retired network calls, run G and commit gate, then create only `chore: remove local import and restore entry points`. Remove obsolete restore/import tests and helpers while preserving positive server-pull, outbound-export and removal-data-preservation coverage.
 
 ## 5. Keep only server synchronization — commit 5
 
@@ -72,7 +73,7 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 - [ ] 9.1 Reconfirm no direct/dynamic/config/peer consumers of @floating-ui/dom, @rollup/wasm-node, autoprefixer and vite-plugin-mkcert; remove them and regenerate the lockfile, verifying framework/test dependencies and installed metadata remain consistent.
 - [ ] 9.2 Remove disconnected tailwind.config.js and src/manifest.json; verify CSS themes/plugins, generated manifest/icons, static routes, worker and offline production behavior; update affected configuration docs.
-- [ ] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize the identity-fix and nine removal commit hashes/checks with real-server evidence distinct from mocks.
+- [ ] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize the identity-fix and nine removal commit hashes/checks, including task 4.0's Settings return-path repair with real-server evidence distinct from mocks.
 
 ## Verification record
 
@@ -105,10 +106,24 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Gate G passed: specs, lint, Svelte lint, types, warning-gated build; 159 retained unit tests (5 restore cases excluded), 55 browsers. Unit selection: `npm run test:unit -- --run --exclude tests/xactParser.test.ts -t '^(?!.*restore).*$'`; browser selection unchanged. Covers actual copy/download/share, no retired requests, narrow cleanup and unchanged data.
 - Shared-settings graph reach is CRITICAL; independent review exposed and verified repair of failure propagation. Fresh structured graph check precedes the separate commit. Reverting cannot recover deleted remote credentials; reintroduction requires re-entry and dependency-aware restoration of the relocated filename helper. Real-server integration not run. npm reports 10 remaining vulnerabilities; no unrelated audit updates applied.
 
+### Local ingress retirement — verification blocker
+
+- Remote backup removal committed as `0b1619f`. Slice 4 implementation is present but uncommitted; its task checkboxes remain open until the retained-workflow gate passes.
+- Specs, lint, Svelte lint, types and unit checks passed. Warning-gated build passed on a sequential retry; an earlier attempt emitted timing diagnostics counted as warnings. Browser selection: 70 passed, 1 failed. Retired route/file/drop/paste checks passed; the retained settings file-selection workflow failed.
+- Failure: after Settings → Select book → confirm `server.bean`, `handleFilePickerReturn` calls `replaceState('', {})`. The root `<base href="/">` makes the empty URL resolve to `/`, leaving the settings component mounted under the wrong address. The test expects `/settings`; it remains unchanged rather than accepting the defect.
+- Reproduced against an unmodified detached production build of HEAD `0b1619f` on isolated port 4174. Relevant return-handler/picker/layout code matches the current source; the bug predates slice 4. OPFS/IndexedDB remained unchanged. Later source-edit steps were not reached. Temporary worktree removed and test server stopped; no real server API exercised.
+- The owner authorized adding this retained-workflow repair to the current change. Task 4.0 records the narrow fix and regression checks. Implementation remains pending; the slice-4 commit and later removals await its passing gate. No workaround or assertion weakening applied.
+
+### Local ingress retirement — completed verification
+
+- Task 4.0 fixes the pre-existing return URL with `replaceState(resolve('/settings'), {})`. Both book and allocation-definition selection preserve pending values, require explicit save and survive reload without changing unrelated records, tokens or OPFS bytes.
+- Removed import/upload/drop/restore/bulk-settings inputs and exclusive helpers/tests; retained source editing, OPFS browse/select, manual controls and outbound exports. Gate G passed: specs 5/5; lint, Svelte lint, types; `npm run test:unit -- --run tests` (160 passed); warning-gated build; retained browser selection (73 passed). Unit scope excludes temporary investigation artifacts outside `tests/`; retiring correctness tests have been deleted.
+- Independent slice and picker reviews passed. Fresh structured graph-change analysis precedes commit 4. Real Python-server integration remains not run. The previous blocker record above documents the baseline failure, now resolved by the authorized task.
+
 ## Workflow follow-up
 
 - Runtime implementation requires a separate apply request. Planning does not start the removal sequence.
-- Design decision 7 records the 60-page source audit. About/Help ownership/link corrections and retained-feature defects need separately scoped OpenSpec work; do not silently broaden removal commits.
+- Design decision 7 records the 60-page source audit. About/Help ownership/link corrections and retained-feature defects outside the explicit identity fix and task 4.0 need separately scoped OpenSpec work; do not silently broaden removal commits.
 - Asset-allocation TOML delivery through server Sync is a recorded integration gap. The cleanup preserves existing local data and analysis; new server/client delivery behavior needs its own change.
 - Archive only on the owner's explicit request. Published business specs and their originating archive remain unchanged; cleanup verification covers retained workflows and non-mutating retired entry points rather than correct operation of functions selected for deletion.
 - Real-server tests need a disposable book and explicit connection/credentials; report them as not run until available. Push, merge, release, publication and deployment require separate authorization.

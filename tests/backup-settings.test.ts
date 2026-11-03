@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 
-import { filterBackupSettings, settingsForRestore } from '#lib/services/backupSettings';
+import { filterBackupSettings } from '#lib/services/backupSettings';
 test('outbound filtering removes active and retired credentials without changing source settings', () => {
 	const retained = [
 		{ key: 'currency', value: 'USD' },
@@ -21,21 +21,4 @@ test('outbound filtering removes active and retired credentials without changing
 	expect(filterBackupSettings(entries)).toEqual(retained);
 	expect(entries).toEqual(before);
 	expect(filterBackupSettings(filterBackupSettings(entries))).toEqual(retained);
-});
-test('shared restore ignores foreign token and preserves local raw setting', () => {
-	expect(
-		settingsForRestore(
-			[
-				{ key: 'syncApiToken', value: 'foreign' },
-				{ key: 'currency', value: 'USD' }
-			],
-			{ key: 'syncApiToken', value: 'local' }
-		)
-	).toEqual([
-		{ key: 'currency', value: 'USD' },
-		{ key: 'syncApiToken', value: 'local' }
-	]);
-});
-test('shared restore does not inject token when local token absent', () => {
-	expect(settingsForRestore([{ key: 'syncApiToken', value: 'foreign' }])).toEqual([]);
 });

@@ -72,8 +72,8 @@ Core workflows:
 ## Architecture
 
 - The owner's Python Beancount server is authoritative for synchronized data. The PWA retains pending local entries and a downloaded book; it must keep on-device RustLedger WASM calculations and offline analysis.
-- Only the fork's explicit server synchronization is the target. The peer-sync demo is removed. Legacy WebDAV/filesystem sync and Ledger-cli support are pending removal under `remove-unsupported-client-features`, not already gone. Do not add CRDT/Yjs or S3 as replacements.
-- External accounting data enters through server Sync. Local book/transaction imports, OPFS uploads/drop, backup/scheduled-record restore, and bulk settings JSON ingestion are included in cleanup. Preserve manual entry, ordinary settings controls, export, outbound backup, journal/editor/account foundations, and local analytics. Post-sync mutations and account management are separate work.
+- Only the fork's explicit server synchronization is the target. Voice Entry, peer-sync demo and WebDAV/cloud backup are removed. Filesystem sync and Ledger-cli support remain pending removal under `remove-unsupported-client-features`. Do not add CRDT/Yjs or S3 as replacements.
+- External accounting data enters through server Sync. Local book/transaction imports, OPFS upload/drop, backup/scheduled-record restore, and bulk settings JSON ingestion are removed. Preserve manual entry, manual schedules, ordinary settings controls, export, outbound backup, OPFS browsing/selection/editing, journal/editor/account foundations, and local analytics. Shared folder/manifest helpers still serve retained filesystem sync and file selection. Post-sync mutations and account management are separate work.
 - The app is a PWA with a single page application (SPA) architecture, using SvelteKit and DaisyUI frameworks. SvelteKit configuration lives in `vite.config.ts`; `#lib` is a package-import alias declared in `package.json`.
 - Uses **Svelte 5** with runes syntax (`$state`, `$derived`, `$effect`) — do NOT use Svelte 4 store or `$:` reactive patterns.
 - Uses **TailwindCSS v4** and **DaisyUI v5** — class names and config differ from v3/v4 respectively.

@@ -200,6 +200,14 @@ Add a failing regression through the actual conversion/save pipeline: edit narra
 
 This task implements published `transaction-entry` / "Lossless Local Edit and Stable Identity" and `manual-transaction-writeback` / "Stable Transaction Identity" without changing specs. Preserve applicable metadata/source guarantees; keep the fix narrow rather than redesigning the editor or adding server mutation APIs. Run focused tests, G and graph/review checks before `fix: preserve local transaction identity on edit`. Keep feature removal in its own commits and exclude retiring-function correctness tests.
 
+### 9. Keep the Settings URL after file selection — separate task in this change
+
+The retained Settings file-picker return handler calls `replaceState('', {})` to clear query parameters. With the root layout's `<base href="/">`, the empty URL resolves to `/`, leaving the Settings component mounted under the home URL. This was reproduced on the unmodified pre-slice-4 commit `0b1619f`.
+
+In task 4.0, replace the empty URL with the explicit Settings route using the existing route-resolution convention. Preserve the selected book or asset-allocation definition and pending form values while clearing return parameters. Keep persistence behind the ordinary Settings save action. The picker, root base URL, stored data and server Sync protocol retain their existing responsibilities.
+
+Keep the failing Settings → Select book → confirm regression and add coverage for the asset-allocation definition return. Verify the URL remains the resolved Settings path, parameters are cleared, the selected value is displayed, and ordinary save/reload retains it without resetting unrelated settings, the active token or OPFS files. Run G and graph/review checks before completing slice 4; do not relax the URL assertion or bypass the picker. This is an explicitly authorized retained-workflow repair, not a general navigation redesign or new business capability; published specs remain unchanged.
+
 ## Risks / Trade-offs
 
 - Shared settings/backup code can leak or erase the active token → narrow retired-key cleanup, outbound-export filtering and unchanged-state checks for retired restore inputs; retiring restore correctness is outside the cleanup test gate.

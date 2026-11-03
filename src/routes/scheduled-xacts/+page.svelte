@@ -13,9 +13,9 @@
 	import Notifier from '#lib/utils/notifier';
 	import { XactAugmenter } from '#lib/utils/xactAugmenter';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
-import PackageIcon from '@lucide/svelte/icons/package';
-import PackageOpenIcon from '@lucide/svelte/icons/package-open';
-import PlusIcon from '@lucide/svelte/icons/plus';
+	import PackageIcon from '@lucide/svelte/icons/package';
+
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
@@ -56,8 +56,8 @@ import PlusIcon from '@lucide/svelte/icons/plus';
 	}
 
 	async function onItemClicked(id: number) {
-	    // load Scheduled Transaction into state.
-	    await appService.loadScheduledXact(id);
+		// load Scheduled Transaction into state.
+		await appService.loadScheduledXact(id);
 		// show details page
 		await goto(resolve('/scx-actions/[id]', { id: String(id) }));
 	}
@@ -79,9 +79,17 @@ import PlusIcon from '@lucide/svelte/icons/plus';
 <article class="flex h-screen flex-col">
 	<Toolbar title="Scheduled Transactions">
 		{#snippet menuItems()}
-			<ToolbarMenuItem Icon={PackageIcon} text="Backup" targetNav={resolve('/export/[dataType=exportType]', { dataType: 'scheduled' })} />
-			<ToolbarMenuItem Icon={PackageOpenIcon} text="Restore" targetNav={resolve('/restore/[itemType]', { itemType: 'scheduled' })} />
-			<ToolbarMenuItem Icon={CalendarIcon} text="Calendar" targetNav={resolve('/scheduled-xacts/calendar')} />
+			<ToolbarMenuItem
+				Icon={PackageIcon}
+				text="Backup"
+				targetNav={resolve('/export/[dataType=exportType]', { dataType: 'scheduled' })}
+			/>
+
+			<ToolbarMenuItem
+				Icon={CalendarIcon}
+				text="Calendar"
+				targetNav={resolve('/scheduled-xacts/calendar')}
+			/>
 		{/snippet}
 	</Toolbar>
 	<!-- search toolbar -->

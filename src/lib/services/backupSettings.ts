@@ -7,11 +7,3 @@ const excludedKeys = new Set<string>(['syncApiToken', ...retiredRemoteSettingKey
 export function filterBackupSettings<T extends Pick<Setting, 'key' | 'value'>>(entries: T[]): T[] {
 	return entries.filter((entry) => !excludedKeys.has(entry.key));
 }
-export function settingsForRestore<T extends Pick<Setting, 'key' | 'value'>>(
-	entries: T[],
-	localToken?: T
-): T[] {
-	const filtered = filterBackupSettings(entries);
-	if (localToken) filtered.push(localToken);
-	return filtered;
-}

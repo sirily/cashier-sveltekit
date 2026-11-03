@@ -12,9 +12,8 @@
 	import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 	import Notifier from '#lib/utils/notifier';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
-import ImportIcon from '@lucide/svelte/icons/import';
-import PlusIcon from '@lucide/svelte/icons/plus';
-import TrashIcon from '@lucide/svelte/icons/trash';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import TrashIcon from '@lucide/svelte/icons/trash';
 	import appService from '#lib/services/appService';
 
 	Notifier.init();
@@ -75,11 +74,6 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 			<ToolbarMenuItem text="Export" Icon={FileDownIcon} onclick={onExportClick} />
 			<!-- Delete All -->
 			<ToolbarMenuItem text="Delete All" onclick={onDeleteAllClicked} Icon={TrashIcon} />
-			<ToolbarMenuItem
-				text="Import Ledger item"
-				Icon={ImportIcon}
-				targetNav={resolve('/import-ledger-xact')}
-			/>
 		{/snippet}
 	</Toolbar>
 
@@ -101,7 +95,12 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 </article>
 
 <!-- "Delete All" dialog -->
-<input type="checkbox" id="delete-all-journal-confirmation-modal" class="modal-toggle" bind:checked={isDeleteAllConfirmationOpen} />
+<input
+	type="checkbox"
+	id="delete-all-journal-confirmation-modal"
+	class="modal-toggle"
+	bind:checked={isDeleteAllConfirmationOpen}
+/>
 <dialog class="modal">
 	<div class="modal-box">
 		<header class="flex justify-between">

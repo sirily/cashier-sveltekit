@@ -12,6 +12,7 @@ This fork is a Beancount client of the owner's Python server, with offline captu
 - Remove unreachable DAL/storage-selection implementations, the test-only cross-list drag demo, four unused build dependencies, and disconnected Tailwind/source-manifest configuration.
 - Preserve offline manual entry and local editing/deletion, confirmation-based writeback, reference data and account history, RustLedger WASM calculations, existing analytics, ordinary export and outbound local backup.
 - Fix loss of an existing local transaction's `cashier_id` when saving an edit, as a separate task and commit within this change before the removal sequence. Preserve the same ID on later Sync preparation/retry and independent identities for new or duplicated transactions.
+- Fix the retained Settings file-picker return path as a separate task within this change: clear return parameters while keeping the Settings URL and selected value. Complete its regression checks before committing slice 4.
 - Deliver nine separately verified removal commits in a defined sequence, each leaving a coherent application; shared-code dependencies require dependency-aware rollback. Run the retained-workflow regression gate before every commit; stop on failure or unavailable required checks.
 - Document the fork architecture in `docs/architecture.md`, link it from agent/project entry points, and retire `docs/completed-projects/`. OpenSpec owns requirements and change history; Git retains deleted historical documents.
 
@@ -29,7 +30,7 @@ The removed optional features have no published requirements to delete. Scope an
 
 ## Impact
 
-- Runtime work affects local transaction identity preservation through editor conversion/save, navigation, settings, removed route groups, sync source selection, Ledger-cli query/parser branches, unused DAL/storage factories, drag-test fixtures, and package/configuration files.
+- Runtime work affects local transaction identity preservation through editor conversion/save, navigation, settings and file-picker return URL handling, removed route groups, sync source selection, Ledger-cli query/parser branches, unused DAL/storage factories, drag-test fixtures, and package/configuration files.
 - No Python-server API or server-repository changes; no CRDT, S3, new transport, ledger-engine replacement, or upstream merge.
 - Shared backup naming and API-token protection survive WebDAV removal. Legacy credential removal must not reset unrelated settings or financial data; removed file/drop/paste/restore entry points must leave existing data unchanged; outbound backups remain credential-free.
 - Post-sync transaction editing/deletion and account creation/deletion are future work, not cleanup tasks. Retain their existing journal/editor/account foundations; this proposal does not design or implement those features.

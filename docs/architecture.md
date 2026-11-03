@@ -93,7 +93,9 @@ Protected API calls carry the locally configured token in the `Authorization: Be
 
 Journal export produces transaction text for copying or downloading. Export leaves local entries and their synchronization identities in place.
 
-Local backup contains settings and scheduled transactions. Journal files and the downloaded book have their own export paths.
+Outbound local backup contains settings and scheduled transactions, with credentials filtered out. Journal files and the downloaded book have their own export paths. Server Sync supplies the accounting book and reference data on a configured device.
+
+OPFS tools browse and select stored files, create text files, and edit existing source text. Settings select the stored book and asset-allocation definition. Manual schedule entry and ordinary settings controls persist local configuration in IndexedDB.
 
 ## Packaging and contracts
 

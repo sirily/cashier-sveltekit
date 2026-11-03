@@ -4,28 +4,27 @@
 	import { resolve } from '$app/paths';
 	// Icons
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
-import ChartLineIcon from '@lucide/svelte/icons/chart-line';
-import ChartPieIcon from '@lucide/svelte/icons/chart-pie';
-import DatabaseIcon from '@lucide/svelte/icons/database';
-import WrenchIcon from '@lucide/svelte/icons/wrench';
-import CircleQuestionMarkIcon from '@lucide/svelte/icons/circle-question-mark';
-import HouseIcon from '@lucide/svelte/icons/house';
-import InfoIcon from '@lucide/svelte/icons/info';
-import LandmarkIcon from '@lucide/svelte/icons/landmark';
-import ScrollIcon from '@lucide/svelte/icons/scroll';
-import SettingsIcon from '@lucide/svelte/icons/settings';
-import StarIcon from '@lucide/svelte/icons/star';
-import UsersRoundIcon from '@lucide/svelte/icons/users-round';
-import ContainerIcon from '@lucide/svelte/icons/container';
-import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-import FolderInputIcon from '@lucide/svelte/icons/folder-input';
-import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
-import ChartNoAxesCombinedIcon from '@lucide/svelte/icons/chart-no-axes-combined';
-import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
-import CalculatorIcon from '@lucide/svelte/icons/calculator';
-import CalendarIcon from '@lucide/svelte/icons/calendar';
-import ListTreeIcon from '@lucide/svelte/icons/list-tree';
-import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import ChartLineIcon from '@lucide/svelte/icons/chart-line';
+	import ChartPieIcon from '@lucide/svelte/icons/chart-pie';
+	import DatabaseIcon from '@lucide/svelte/icons/database';
+	import WrenchIcon from '@lucide/svelte/icons/wrench';
+	import CircleQuestionMarkIcon from '@lucide/svelte/icons/circle-question-mark';
+	import HouseIcon from '@lucide/svelte/icons/house';
+	import InfoIcon from '@lucide/svelte/icons/info';
+	import LandmarkIcon from '@lucide/svelte/icons/landmark';
+	import ScrollIcon from '@lucide/svelte/icons/scroll';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import StarIcon from '@lucide/svelte/icons/star';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
+	import ContainerIcon from '@lucide/svelte/icons/container';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
+	import ChartNoAxesCombinedIcon from '@lucide/svelte/icons/chart-no-axes-combined';
+	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
+	import CalculatorIcon from '@lucide/svelte/icons/calculator';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import ListTreeIcon from '@lucide/svelte/icons/list-tree';
+	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 
 	function closeDrawer(): void {
 		// the new drawer
@@ -200,19 +199,6 @@ import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 						<span class="flex-1"></span>
 					</summary>
 					<ul>
-						<li>
-							<a
-								href={resolve('/opfs/import-ledger')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
-								'/opfs/import-ledger'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<FolderInputIcon />
-								<span>Ledger Import</span>
-							</a>
-						</li>
 						<li>
 							<a
 								href={resolve('/opfs/sync')}
