@@ -109,4 +109,6 @@ Asset allocation reads its selected TOML definition from OPFS and combines it wi
 
 The PWA is a static SvelteKit application packaged in Docker and served by Caddy. Its service worker supplies offline application assets; API requests use the network. Backend deployment and routing are managed in separate repositories.
 
+`vite.config.ts` generates `manifest.webmanifest` during the production build; `src/app.html` links it. Its icons are served from `static/icons/`. `src/service-worker.ts` precaches the generated manifest, static assets, immutable bundles and the adapter-static `200.html` navigation fallback.
+
 Published behavior contracts are in `openspec/specs/`. Change proposals, designs, and tasks are in `openspec/changes/`. Release procedures are documented in [releasing.md](releasing.md).

@@ -71,9 +71,9 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 9. Remove unused build dependencies and configurations — commit 9
 
-- [ ] 9.1 Reconfirm no direct/dynamic/config/peer consumers of @floating-ui/dom, @rollup/wasm-node, autoprefixer and vite-plugin-mkcert; remove them and regenerate the lockfile, verifying framework/test dependencies and installed metadata remain consistent.
-- [ ] 9.2 Remove disconnected tailwind.config.js and src/manifest.json; verify CSS themes/plugins, generated manifest/icons, static routes, worker and offline production behavior; update affected configuration docs.
-- [ ] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize the identity-fix and nine removal commit hashes/checks, including task 4.0's Settings return-path repair with real-server evidence distinct from mocks.
+- [x] 9.1 Reconfirm no direct/dynamic/config/peer consumers of @floating-ui/dom, @rollup/wasm-node, autoprefixer and vite-plugin-mkcert; remove them and regenerate the lockfile, verifying framework/test dependencies and installed metadata remain consistent.
+- [x] 9.2 Remove disconnected tailwind.config.js and src/manifest.json; verify CSS themes/plugins, generated manifest/icons, static routes, worker and offline production behavior; update affected configuration docs.
+- [x] 9.3 Run G and commit gate, then create only `chore: remove unused build dependencies and configs`; verify scope and summarize the identity-fix and nine removal commit hashes/checks, including task 4.0's Settings return-path repair with real-server evidence distinct from mocks.
 
 ## Verification record
 
@@ -141,6 +141,25 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 - Storage cleanup committed as `2ba3752`. Removed five prototype components and cross-list-only assertions; extracted a retained-only live reorder compilation harness. Live component, production callers and `esbuild-wasm` unchanged. Added duplicate-label bound-order/persistence checks across favourites, home cards, postings and account groups.
 - Gate G passed: specs, lint, Svelte lint, types, 191 unit tests, warning-gated build, all 88 browser tests (`npm run test:e2e -- --workers=2`; no retired-case filter now needed). Independent review checked string-built imports and retained DOM/parent-binding assertions; no blockers. New files staged before fresh structured graph gate. No real-server integration.
+
+### Build dependency/configuration cleanup and final gate
+
+- Prototype retirement committed as `9fed67e`. Removed four unused dev dependencies and disconnected Tailwind/source-manifest configs. Lockfile: 18 removed entries, zero additions or changes to retained entries; no required runtime/optional/peer consumers. Installed framework/CSS peers and live `esbuild-wasm` remain satisfied. The pre-existing extraneous `node_modules/$app` metadata entry and 10 npm audit findings remain outside scope.
+- Final gate G passed: specs 5/5, lint, Svelte lint, types (0 errors/warnings), `npm run test:unit -- --run tests src` (192 passed across 28 files), warning-gated build, `npm run test:e2e -- --workers=2` (89 passed). Production checks verify generated manifest, 14 declared icons, actual theme/Tailwind/DaisyUI styles; PWA tests verify offline navigation and update lifecycle. No retiring-function correctness tests run.
+- All slices passed independent regression review and fresh structured graph-change gates without partial/truncated results. Real Python-server integration not run: no disposable book/credentials provided. Mocked tests cover API success/rejection/auth/retry/rollback but are not real-server evidence. No push, release, deployment or archive performed.
+
+| Work                                         | Commit                                                              | Browser gate |
+| -------------------------------------------- | ------------------------------------------------------------------- | ------------ |
+| Preserve local identity                      | `5fbca27`                                                           | 36 passed    |
+| Remove voice                                 | `402b8ca`                                                           | 39 passed    |
+| Remove peer demo                             | `26addce`                                                           | 41 passed    |
+| Remove remote backup                         | `0b1619f`                                                           | 55 passed    |
+| Remove local ingress; task 4.0 picker repair | `af4a6d9`                                                           | 73 passed    |
+| Server-only Sync                             | `1fb17e9`                                                           | 88 passed    |
+| Beancount-only compatibility                 | `ec520e8`                                                           | 88 passed    |
+| Storage-selection layers                     | `2ba3752`                                                           | 88 passed    |
+| Cross-list prototype                         | `9fed67e`                                                           | 88 passed    |
+| Build dependencies/configs                   | `chore: remove unused build dependencies and configs` (Git history) | 89 passed    |
 
 ## Workflow follow-up
 
