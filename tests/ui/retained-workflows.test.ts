@@ -216,6 +216,9 @@ test('journal export copies and downloads actual content without changing source
 	});
 	await page.goto('/export/journal');
 	await expect(page.getByText('Export journal', { exact: true })).toBeVisible();
+	await expect(
+		page.getByText('Journal is exported in Beancount format', { exact: false })
+	).toBeVisible();
 	await expect(page.getByRole('textbox')).toHaveValue(journal);
 	const recordsBefore = await readLocalRecords(page);
 
@@ -229,7 +232,7 @@ test('journal export copies and downloads actual content without changing source
 	const downloading = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Download', exact: true }).click();
 	const download = await downloading;
-	expect(download.suggestedFilename()).toMatch(/^journal_.+\.ledger$/);
+	expect(download.suggestedFilename()).toMatch(/^journal_.+\.bean$/);
 	const downloaded = await downloadText(download);
 	expect(downloaded).toBe(journal);
 	for (const text of [copied, downloaded, await readJournal(page)]) {

@@ -85,7 +85,7 @@ Callers commonly import `ledgerWorkerClient` under the local name `fullLedgerSer
 
 The worker reads `.bean` files from OPFS into a file map and loads them through `Ledger.fromFiles`. `cashier.bean` is the analysis root. When a different configured user book and the journal are available, the worker adds the user-book include to the in-memory journal source. Stored source files retain their original content.
 
-Balances, account history, and reports use asynchronous BQL queries against this combined book. **BQL** is the query language for selecting and aggregating Beancount data. The worker runs calculations in a background thread while the interface remains responsive.
+Balances, account history, and reports use asynchronous BQL queries against this combined book. Investment security analysis uses an injected local query function backed by the worker. **BQL** is the query language for selecting and aggregating Beancount data. The worker runs calculations in a background thread while the interface remains responsive.
 
 The client exposes loading, availability, version, and reloading state. Reports use these signals to track freshness and distinguish results from pending or failed calculations.
 
@@ -95,11 +95,13 @@ The binary cache accelerates loading. An unusable cache triggers source parsing;
 
 Protected API calls carry the locally configured token in the `Authorization: Bearer` header. Settings export filters out the API credential. The owner configures connection details and credentials through local settings controls.
 
-Journal export produces transaction text for copying or downloading. Export leaves local entries and their synchronization identities in place.
+Journal export produces Beancount text for copying or downloading, with explicit `.bean` download filenames. Export leaves local entries and their synchronization identities in place.
 
 Outbound local backup contains settings and scheduled transactions, with credentials filtered out. Journal files and the downloaded book have their own export paths. Server Sync supplies the accounting book and reference data on a configured device.
 
 OPFS tools browse and select stored files, create text files, and edit existing source text. Settings select the stored book and asset-allocation definition. Manual schedule entry and ordinary settings controls persist local configuration in IndexedDB.
+
+Asset allocation reads its selected TOML definition from OPFS and combines it with locally calculated book data.
 
 ## Packaging and contracts
 

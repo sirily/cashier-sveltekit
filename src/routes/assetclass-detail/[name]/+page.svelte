@@ -12,7 +12,7 @@
 	import * as Formatter from '#lib/utils/formatter.js';
 	import { processWithConcurrencyLimit } from '#lib/utils/concurrency.js';
 	import { getQueries } from '#lib/sync/sync-queries.js';
-	import { PtaSystems } from '#lib/enums.js';
+
 	import Loader from '@lucide/svelte/icons/loader';
 import X from '@lucide/svelte/icons/x';
 import Bug from '@lucide/svelte/icons/bug';
@@ -134,7 +134,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	async function runSymbolDebugQueries(symbol: string) {
 		const queryFn = data.wasmQuery as WasmQueryFn;
 		const currency = data.currency as string;
-		const queries = getQueries(PtaSystems.beancount);
+		const queries = getQueries();
 		const yieldFrom = moment().subtract(1, 'year').format('YYYY-MM-DD');
 
 		symbolDebug[symbol] = {

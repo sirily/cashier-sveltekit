@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { BackupType, PtaSystems } from '#lib/enums';
+import { BackupType } from '#lib/enums';
 import { ISODATEFORMAT, LONGTIMEFORMAT } from '#lib/constants';
 
 export function getFilenameForBackup(backupType: string) {
@@ -14,7 +14,7 @@ export function getFilenameForBackup(backupType: string) {
 	let extension;
 	switch (backupType) {
 		case BackupType.JOURNAL:
-			extension = PtaSystems.ledger;
+			extension = 'bean';
 			break;
 		default:
 			extension = 'json';

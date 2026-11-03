@@ -156,7 +156,7 @@ import Share2Icon from '@lucide/svelte/icons/share-2';
 	</Toolbar>
 
 	<main class="flex flex-col p-1 grow">
-		<p>Note: Journal is exported in ledger format, Scheduled Transactions in JSON.</p>
+		<p>Note: Journal is exported in Beancount format, Scheduled Transactions in JSON.</p>
 
 		<textarea
 			class="textarea mt-3 overflow-auto p-2 whitespace-nowrap w-full"

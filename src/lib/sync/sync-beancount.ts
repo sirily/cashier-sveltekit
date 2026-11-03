@@ -14,7 +14,6 @@ import Notifier from '#lib/utils/notifier';
 import * as SyncCommon from '#lib/sync/sync-common';
 import type { SyncSteps } from '#lib/sync/sync-common';
 import { initializeSyncProgress, updateSyncStep } from '#lib/stores/syncProgressStore';
-import { PtaSystems } from '#lib/enums';
 import {
 	prepareLocalTransactions,
 	pushTransactions,
@@ -283,7 +282,6 @@ class CashierSyncBeancount {
 	serverUrl: string;
 	apiToken: string;
 	queries: Queries;
-	ptaSystem: PtaSystems;
 
 	constructor(serverUrl: string, apiToken = '') {
 		if (!serverUrl) {
@@ -295,8 +293,7 @@ class CashierSyncBeancount {
 		this.serverUrl = serverUrl;
 		this.apiToken = apiToken.trim();
 
-		this.ptaSystem = PtaSystems.beancount;
-		this.queries = getQueries(this.ptaSystem);
+		this.queries = getQueries();
 	}
 
 	private requestOptions(options?: CashierRequestOptions): RequestInit {
@@ -475,13 +472,8 @@ class CashierSyncBeancount {
 			throw new Error('Error reading payees!');
 		}
 
-		let content = (await response.json()) as string[];
-
-		if (this.ptaSystem === PtaSystems.beancount) {
-			content = content.map((subArray) => subArray[0]);
-		}
-
-		return content;
+		const content = (await response.json()) as string[][];
+		return content.map((row) => row[0]);
 	}
 }
 
@@ -516,7 +508,6 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 	if (!activeUrl) return false;
 	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken)) ?? '';
 
-	// const _ptaSystem = (await settings.get(SettingKeys.ptaSystem)) as PtaSystems;
 	const sync = new CashierSyncBeancount(activeUrl, apiToken);
 	let hasRetryableWritebackFailure = false;
 
@@ -640,7 +631,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 
 async function synchronizeAccounts(sync: CashierSyncBeancount) {
 	const response = await sync.readAccounts();
-	await SyncCommon.syncAccounts(sync.ptaSystem, response);
+	await SyncCommon.syncAccounts(response);
 	const accountsCount =
 		typeof response === 'object' &&
 		response !== null &&
@@ -654,7 +645,7 @@ async function synchronizeAccounts(sync: CashierSyncBeancount) {
 
 async function synchronizeAaValues(sync: CashierSyncBeancount) {
 	const result = await sync.readCurrentValues();
-	await SyncCommon.syncCurrentValues(sync.ptaSystem, result);
+	await SyncCommon.syncCurrentValues(result);
 	Notifier.success('Asset Allocation values loaded');
 }
 

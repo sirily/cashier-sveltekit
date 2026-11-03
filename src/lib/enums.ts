@@ -13,8 +13,7 @@ export const HomeCardNames = {
 
 export enum LedgerDataSource {
 	filesystem = 'filesystem',
-	beancount = 'beancount',
-	ledger = 'ledger'
+	beancount = 'beancount'
 }
 
 export const RecurrencePeriods = {
@@ -25,11 +24,6 @@ export const RecurrencePeriods = {
 	EndOfMonth: 'end of month',
 	Years: 'years'
 };
-
-export enum PtaSystems {
-	beancount = 'beancount',
-	ledger = 'ledger'
-}
 
 export const SelectionType = {
 	ACCOUNT: 'Account'

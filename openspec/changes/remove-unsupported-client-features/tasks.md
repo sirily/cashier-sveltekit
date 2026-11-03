@@ -53,10 +53,10 @@ One separately tested identity-fix commit precedes nine separately tested remova
 
 ## 6. Remove Ledger-cli compatibility — commit 6
 
-- [ ] 6.1 Remove Ledger-cli query/parser/format branches and exclusive enums; retain Beancount and shared helpers, verifying reference-data replacement, original currencies and distinct report records. The Ledger paste-import route already retired in commit 4; do not recreate it under a new name.
-- [ ] 6.2 Remove optional investment HTTP fallback after verifying all worker-injected callers; test local investment calculations and absence of report network requests. Preserve existing allocation TOML/data/selector; record the unsupported server-definition delivery path for separate work instead of inventing an API or retaining an importer.
-- [ ] 6.3 Set journal filenames explicitly to `.bean` in the helper moved by commit 3; test actual output, unchanged journal/identity and credential-free backup, updating accounting-system copy and dependency-aware rollback notes.
-- [ ] 6.4 Run G and commit gate, then create only `chore: remove ledger cli compatibility`; verify RustLedger/WASM, worker, parser and cache remain functional.
+- [x] 6.1 Remove Ledger-cli query/parser/format branches and exclusive enums; retain Beancount and shared helpers, verifying reference-data replacement, original currencies and distinct report records. The Ledger paste-import route already retired in commit 4; do not recreate it under a new name.
+- [x] 6.2 Remove optional investment HTTP fallback after verifying all worker-injected callers; test local investment calculations and absence of report network requests. Preserve existing allocation TOML/data/selector; record the unsupported server-definition delivery path for separate work instead of inventing an API or retaining an importer.
+- [x] 6.3 Set journal filenames explicitly to `.bean` in the helper moved by commit 3; test actual output, unchanged journal/identity and credential-free backup, updating accounting-system copy and dependency-aware rollback notes.
+- [x] 6.4 Run G and commit gate, then create only `chore: remove ledger cli compatibility`; verify RustLedger/WASM, worker, parser and cache remain functional.
 
 ## 7. Remove unused storage-selection layers — commit 7
 
@@ -125,6 +125,12 @@ One separately tested identity-fix commit precedes nine separately tested remova
 - Slice 4 committed as `af4a6d9`. Removed filesystem sync/routes and exclusive scan/handle helpers. Navigation/home card both open `/sync`; source selection is Beancount-only with read-time legacy normalization. Existing connection details, server selection, sync choices and financial data remain unchanged; no automatic sync or default-root write on load.
 - Gate G passed: specs, lint, Svelte lint, types, `npm run test:unit -- --run tests` (170 passed), warning-gated build, retained browser selection (88 passed). Same-ID retry/rollback/rejection, metadata-only references, authenticated server-only Reload and fresh/partial/legacy configuration covered. Retired filesystem correctness not exercised.
 - Shared-settings impact CRITICAL, investigated through direct consumers; independent review found no blockers. Fresh structured graph gate precedes commit 5. `importManifest` and analytics concurrency retained. Real-server integration not run.
+
+### Beancount-only compatibility cleanup
+
+- Server-only Sync committed as `1fb17e9`. Removed Ledger-cli query/parser/formatter/enums and investment HTTP fallback; production investment caller injects worker queries. Journal downloads use `.bean`; actual copy/share/download preserves source and IDs.
+- Gate G passed: specs, lint, Svelte lint, types, 180 unit tests (`--run tests`), warning-gated build and 88 retained browser tests. Local investment/no-network, reference replacement/original currencies, real WASM/cache and distinct posting identities covered. Independent review found no blockers; HIGH/CRITICAL shared-path graph impact investigated, with fresh structured gate before commit.
+- Allocation definition still uses existing selected TOML in OPFS; server definition delivery remains separately scoped per design. Rollback must resolve the earlier filename-helper relocation and shared query/enum/caller dependencies and rerun G; code reversal restores neither purged remote credentials nor new data. Real-server integration not run.
 
 ## Workflow follow-up
 
