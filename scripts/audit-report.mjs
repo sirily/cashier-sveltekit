@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
 
 const registry = 'https://registry.npmjs.org';
 const severities = ['critical', 'high', 'moderate', 'low', 'info'];
@@ -105,7 +104,7 @@ export function renderSummary(summary) {
 	lines.push(
 		'',
 		total
-			? '> Findings fail this job. Full details are shown here in the CI logs.'
+			? '> Findings are informational and do not fail this job. Full details are shown here in the CI logs.'
 			: '> No known vulnerabilities were reported.'
 	);
 	return lines.join('\n');
@@ -124,14 +123,14 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
 		const summary = summarizeAudit(auditResult);
 		const rendered = renderSummary(summary);
 		console.log(rendered);
-		if (process.env.GITHUB_STEP_SUMMARY)
-			appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${rendered}\n`);
+
 		const total = Object.values(summary.totals).reduce((sum, count) => sum + count, 0);
-		if (total || auditResult.status === 1) {
+		if (!total && auditResult.status === 1)
+			throw new Error('npm audit exited with status 1 despite reporting no vulnerabilities');
+		if (total) {
 			console.log(
-				`::error::${safeText(`npm audit reported ${total} known vulnerabilities; see details above.`).replaceAll('%', '%25')}`
+				`::notice::${safeText(`npm audit reported ${total} known vulnerabilities (informational only); see details above.`).replaceAll('%', '%25')}`
 			);
-			process.exitCode = 1;
 		}
 	} catch (error) {
 		console.error(error.message);

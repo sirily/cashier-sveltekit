@@ -77,7 +77,7 @@ test('renders detailed direct and transitive findings for CI logs', () => {
 	);
 	assert.match(rendered, /transitive — moderate/);
 	assert.match(rendered, /Fix available: no fix reported/);
-	assert.match(rendered, /Findings fail this job/);
+	assert.match(rendered, /Findings are informational and do not fail this job/);
 });
 
 test('preserves percent characters in advisory text and handles null fixes', () => {
@@ -133,7 +133,7 @@ test('fails closed for command errors, unexpected exit status, invalid JSON, mis
 	);
 });
 
-test('the CLI fails with details for findings of every severity', () => {
+test('the CLI succeeds with informational details for findings of every severity', () => {
 	const findings = Object.fromEntries(
 		['critical', 'high', 'moderate', 'low', 'info'].map((severity) => [
 			severity,
@@ -145,16 +145,24 @@ test('the CLI fails with details for findings of every severity', () => {
 		metadata: Object.fromEntries(Object.keys(findings).map((key) => [key, 1])),
 		vulnerabilities: findings
 	});
-	assert.equal(execution.status, 1);
+	assert.equal(execution.status, 0);
 	for (const severity of Object.keys(findings))
 		assert.match(execution.stdout, new RegExp(`${severity} — ${severity}`));
-	assert.match(execution.stdout, /::error::/);
+	assert.match(execution.stdout, /::notice::/);
+	assert.doesNotMatch(execution.stdout, /::error::/);
 });
 
 test('the CLI fails when npm exits 1 despite zero metadata findings', () => {
 	const execution = runCli({ status: 1 });
 	assert.equal(execution.status, 1);
-	assert.match(execution.stdout, /::error::/);
+	assert.match(execution.stderr, /despite reporting no vulnerabilities/);
+});
+
+test('the CLI fails on audit infrastructure errors', () => {
+	const execution = runCli({ status: 2 });
+	assert.equal(execution.status, 1);
+	assert.match(execution.stderr, /exit status 2/);
+	assert.doesNotMatch(execution.stdout, /::notice::/);
 });
 
 test('the CLI succeeds on a consistent clean audit', () => {
@@ -177,7 +185,12 @@ function runCli({ status, metadata = {}, vulnerabilities = {} }) {
 			[fileURLToPath(new URL('./audit-report.mjs', import.meta.url))],
 			{
 				encoding: 'utf8',
-				env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` }
+				env: {
+					...process.env,
+					PATH: `${bin}${delimiter}${process.env.PATH}`,
+					// An unwritable summary path ensures the CLI only reports to CI logs.
+					GITHUB_STEP_SUMMARY: join(directory, 'missing', 'summary.md')
+				}
 			}
 		);
 	} finally {
