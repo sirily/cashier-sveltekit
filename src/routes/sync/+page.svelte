@@ -8,6 +8,7 @@
 	import Notifier from '#lib/utils/notifier';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import * as SyncBeancount from '#lib/sync/sync-beancount';
+		import { syncFeedback } from '#lib/sync/sync-feedback.svelte';
 
 	import { goto } from '$app/navigation';
 
@@ -26,9 +27,9 @@
 	let syncServerUrl = $state('');
 	let syncApiToken = $state('');
 	let syncBeancountRootFile = $state('');
-	let diagnostics = $state<SyncBeancount.BeancountSyncDiagnostics | null>(null);
+	const diagnostics = $derived(syncFeedback.diagnostics);
 	let rotationClass = $state('');
-	let syncStarted = $state(false);
+	const syncStarted = $derived(diagnostics !== null);
 	let syncing = $state(false);
 	let reloading = $state(false);
 
@@ -190,9 +191,9 @@
 
 		Notifier.info('Synchronization starting...');
 
-		diagnostics = null;
+
 		syncing = true;
-		syncStarted = true;
+
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
 
 		try {
@@ -206,7 +207,6 @@
 			};
 
 			const syncResult = await SyncBeancount.synchronize(syncOptions);
-			diagnostics = SyncBeancount.getLastDiagnostics();
 
 			if (!syncResult) {
 				throw new Error(
@@ -223,7 +223,6 @@
 			rotationClass = '';
 			syncing = false;
 		} catch (error: any) {
-			diagnostics = SyncBeancount.getLastDiagnostics();
 			rotationClass = '';
 			syncing = false;
 			console.error(error);
@@ -474,6 +473,7 @@
 					{#each diagnostics.syncErrors as error, i (`${error.stage}:${error.message}:${i}`)}
 						<li>
 							<span class="font-medium">{error.stage}:</span>
+							{#if error.cashierId}<code>{error.cashierId}</code> — {/if}
 							{error.message}
 						</li>
 					{/each}

@@ -1,9 +1,11 @@
+import { syncFeedback } from './sync-feedback.svelte';
 /**
  * Sync source: Cashier Server (network).
  * Fetches data from the CashierSync server over HTTP.
  */
 import { settings, SettingKeys } from '#lib/settings';
 import moment from 'moment';
+import { syncHttpError } from './http-error';
 import { CASHIER_XACT_FILE, ISODATEFORMAT } from '#lib/constants';
 import * as opfs from '#lib/utils/opfslib';
 import fullLedgerService from '#lib/services/ledgerWorkerClient';
@@ -53,8 +55,6 @@ export interface BeancountSyncDiagnostics {
 	syncErrors?: SyncError[];
 }
 
-let lastDiagnostics: BeancountSyncDiagnostics | null = null;
-
 function describeError(error: unknown): string {
 	if (error instanceof Error) return error.message;
 	if (typeof error === 'string') return error;
@@ -70,9 +70,9 @@ function describeParseErrors(errors: unknown[]): string[] {
 }
 
 function recordSyncError(error: SyncError): void {
-	const syncErrors = lastDiagnostics?.syncErrors ?? [];
-	lastDiagnostics = {
-		...lastDiagnostics,
+	const syncErrors = syncFeedback.diagnostics?.syncErrors ?? [];
+	syncFeedback.diagnostics = {
+		...syncFeedback.diagnostics,
 		lastError: error.message,
 		syncErrors: [...syncErrors, error]
 	};
@@ -351,7 +351,7 @@ class CashierSyncBeancount {
 		const accountsQuery = this.queries.accounts();
 		const response = await this.send(accountsQuery);
 		if (!response.ok) {
-			throw new Error('Error reading accounts!');
+			throw syncHttpError(response.status, 'Reading accounts');
 		}
 
 		const content = await response.json();
@@ -407,7 +407,7 @@ class CashierSyncBeancount {
 		url.searchParams.append('file_path', filePath);
 		const response = await fetch(url, this.requestOptions());
 		if (!response.ok) {
-			throw new Error(`Error reading infrastructure file: ${filePath}`);
+			throw syncHttpError(response.status, 'Downloading book');
 		}
 
 		const json = (await response.json()) as InfrastructureFileResponse | InfrastructureGlobResponse;
@@ -469,7 +469,7 @@ class CashierSyncBeancount {
 		const query = this.queries.payees(from);
 		const response = await this.send(query, { timeout: 20000 });
 		if (!response.ok) {
-			throw new Error('Error reading payees!');
+			throw syncHttpError(response.status, 'Reading payees');
 		}
 
 		const content = (await response.json()) as string[][];
@@ -495,7 +495,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 
 	// Initialize sync progress
 	initializeSyncProgress();
-	lastDiagnostics = {
+	syncFeedback.diagnostics = {
 		syncMode: syncOptions.syncLedgerFiles ? 'offline-ledger' : 'metadata-only',
 		parseResult: 'skipped',
 		syncErrors: []
@@ -619,7 +619,7 @@ async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
 		}
 	} catch (error: any) {
 		console.error(error);
-		if ((lastDiagnostics?.syncErrors?.length ?? 0) === 0) {
+		if ((syncFeedback.diagnostics?.syncErrors?.length ?? 0) === 0) {
 			recordSyncError({ stage: 'other', message: describeError(error) });
 		}
 		Notifier.error(error.message);
@@ -639,7 +639,7 @@ async function synchronizeAccounts(sync: CashierSyncBeancount) {
 		Array.isArray(response.rows)
 			? response.rows.length
 			: Object.keys(response).length;
-	lastDiagnostics = { ...lastDiagnostics, accountsCount };
+	syncFeedback.diagnostics = { ...syncFeedback.diagnostics, accountsCount };
 	Notifier.success('Accounts fetched from Ledger');
 }
 
@@ -652,7 +652,7 @@ async function synchronizeAaValues(sync: CashierSyncBeancount) {
 async function synchronizePayees(sync: CashierSyncBeancount) {
 	const response = await sync.readPayees();
 	await SyncCommon.syncPayees(response);
-	lastDiagnostics = { ...lastDiagnostics, payeesCount: response.length };
+	syncFeedback.diagnostics = { ...syncFeedback.diagnostics, payeesCount: response.length };
 	Notifier.success('Payees fetched from Ledger');
 }
 
@@ -699,7 +699,7 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 	} catch (error) {
 		const message = describeError(error);
 		recordSyncError({ stage: 'pull', message });
-		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
+		syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 		updateSyncStep(6, 'error');
 		throw error;
 	}
@@ -712,7 +712,7 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 	} catch (error) {
 		const message = describeError(error);
 		recordSyncError({ stage: 'other', message });
-		lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
+		syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 		updateSyncStep(7, 'error');
 		throw error;
 	}
@@ -720,8 +720,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 	updateSyncStep(8, 'in-progress');
 	try {
 		const errors = await parseDownloadedLedger(localFiles, selectedRootBookFilename);
-		lastDiagnostics = {
-			...lastDiagnostics,
+		syncFeedback.diagnostics = {
+			...syncFeedback.diagnostics,
 			ledgerFilesCount: localFiles.size,
 			selectedRootBookFilename,
 			rootBookSize: rootBook.length,
@@ -730,7 +730,7 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 			parseErrors: describeParseErrors(errors)
 		};
 		if (errors.length > 0) {
-			lastDiagnostics = { ...lastDiagnostics, parseResult: 'error' };
+			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 			throw new Error(
 				`Full ledger parsed with ${errors.length} errors for ${selectedRootBookFilename}`
 			);
@@ -751,8 +751,8 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 		} catch {
 			// Best-effort recovery so the app doesn't stay on the failed ledger state.
 		}
-		lastDiagnostics = {
-			...lastDiagnostics,
+		syncFeedback.diagnostics = {
+			...syncFeedback.diagnostics,
 			ledgerFilesCount: localFiles.size || undefined,
 			selectedRootBookFilename: selectedRootBookFilename || undefined,
 			rootBookSize: rootBook.length || undefined,
@@ -768,7 +768,7 @@ async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<strin
 }
 
 function getLastDiagnostics() {
-	return lastDiagnostics;
+	return syncFeedback.diagnostics;
 }
 
 const __test__ = {

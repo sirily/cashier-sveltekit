@@ -205,6 +205,8 @@ test('mock API: rejected completed transaction retains its local copy and shows 
 	expect(mock.posts[0]).toHaveLength(1);
 	await page.getByRole('link', { name: 'Journal' }).click();
 	await expect(page.locator('body')).toContainText(note);
+	await page.goBack();
+	await expect(page.getByRole('alert')).toContainText(rejection);
 	expect(mock.unexpectedRequests).toEqual([]);
 });
 
@@ -218,7 +220,7 @@ test('mock API: accepted transaction survives a failed pull and retries with the
 		`2025-01-05 * "Cafe" "${note}"\n  Expenses:Food  14.00 USD\n  Assets:Cash  -14.00 USD\n`
 	);
 
-	await synchronize(page, undefined, 'pull: Error reading infrastructure file: main.bean');
+	await synchronize(page, undefined, 'pull: Downloading book: HTTP 503');
 	const localAfterFailure = await readCashierFile(page);
 	expect(localAfterFailure).toContain(note);
 	const firstCashierId = localAfterFailure.match(/^\s+cashier_id:\s*"([^"]*)"/m)?.[1];
@@ -258,7 +260,7 @@ test('mock API: editing after accepted send and failed pull keeps the ID and sho
 		`${baseBook}2025-01-06 * "Cafe" "${note}"\n  Expenses:Food  14.00 USD\n  Assets:Cash  -14.00 USD\n`
 	);
 
-	await synchronize(page, undefined, 'pull: Error reading infrastructure file: main.bean');
+	await synchronize(page, undefined, 'pull: Downloading book: HTTP 503');
 	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
 	const localAfterFailure = await readCashierFile(page);
 	const cashierId = localAfterFailure.match(/^[ \t]+cashier_id:\s*"([^"]*)"/m)?.[1];
@@ -311,7 +313,7 @@ test('mock API: editing after accepted send and failed pull keeps the ID and sho
 	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
 	await synchronize(page, undefined, conflict);
 	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
-	await expect(page.getByRole('alert')).toContainText(`send: ${conflict}`);
+	await expect(page.getByRole('alert')).toContainText(`send: ${cashierId} — ${conflict}`);
 	expect(mock.posts).toHaveLength(2);
 	expect(mock.posts[1]).toHaveLength(1);
 	expect(mock.posts[1][0]).toContain(editedNote);
@@ -338,4 +340,120 @@ test('mock API: editing after accepted send and failed pull keeps the ID and sho
 	await expect(page.getByRole('main')).toContainText(editedNote);
 	expect(await readCashierFile(page)).toBe(localAfterEdit);
 	expect(mock.unexpectedRequests).toEqual([]);
+});
+
+test('D4 mock API: wrong token survives navigation and corrected credentials recover', async ({
+	page
+}) => {
+	await mockServer(page);
+	await page.route(apiBase + '/**', async (route) => {
+		if (route.request().headers().authorization !== `Bearer ${token}`)
+			return route.fulfill({
+				status: 401,
+				body: 'Authorization: Bearer wrong-secret-do-not-display'
+			});
+		return route.fallback();
+	});
+	await seedApp(
+		page,
+		`2025-01-02 * "Cafe" "Auth retry"\n  Expenses:Food  12 USD\n  Assets:Cash  -12 USD\n`
+	);
+	await page.getByLabel('API token').fill('wrong-secret-do-not-display');
+	await page.getByLabel('API token').blur();
+	await synchronize(page, undefined, 'Authentication failed');
+	await expect(page.getByRole('alert')).toContainText('send:');
+	await expect(page.getByRole('alert')).toContainText('pull:');
+	await expect(page.getByRole('alert')).not.toContainText('wrong-secret-do-not-display');
+	const retained = await readCashierFile(page);
+	await page.getByRole('link', { name: 'Journal', exact: true }).click();
+	await expect(page).toHaveURL(/\/journal$/);
+	await expect(page.getByRole('main')).toContainText('Auth retry');
+	await page.goBack();
+	await expect(page.getByRole('alert')).toContainText('Authentication failed');
+	expect(await readCashierFile(page)).toBe(retained);
+	await page.getByLabel('API token').fill(token);
+	await page.getByLabel('API token').blur();
+	await synchronize(page, 'Auth retry');
+	await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+for (const reason of [
+	'Conflict: cashier_id already exists with different transaction content',
+	'Unknown account Expenses:Missing'
+]) {
+	test(`D3 mixed mock batch retains ${reason} through navigation`, async ({ page }) => {
+		const accepted = `2025-01-02 * "Cafe" "Accepted mixed"\n  cashier_id: "mixed-ok"\n  Expenses:Food  12 USD\n  Assets:Cash  -12 USD\n`;
+		const rejected = `2025-01-03 * "Cafe" "Rejected mixed"\n  cashier_id: "mixed-rejected"\n  Expenses:Food  7 USD\n  Assets:Cash  -7 USD\n`;
+		await mockServer(page);
+		await page.route(apiBase + '/xact', (route) =>
+			route.fulfill({
+				json: { synchronized: ['mixed-ok'], rejected: [{ cashier_id: 'mixed-rejected', reason }] }
+			})
+		);
+		await page.route(apiBase + '/infrastructure**', (route) =>
+			route.fulfill({ json: { content: baseBook + accepted } })
+		);
+		await seedApp(page, accepted + rejected);
+		await synchronize(page, 'Accepted mixed', reason);
+		await expect(page.getByRole('alert')).toContainText('mixed-rejected');
+		const source = await readCashierFile(page);
+		expect(source).toContain('Rejected mixed');
+		await page.getByRole('link', { name: 'Journal', exact: true }).click();
+		await expect(page).toHaveURL(/\/journal$/);
+		await expect(page.getByRole('main')).toContainText('Rejected mixed');
+		await page.goBack();
+		await expect(page.getByRole('alert')).toContainText(reason);
+		await expect(page.getByRole('alert')).toContainText('mixed-rejected');
+		expect(await readCashierFile(page)).toBe(source);
+	});
+}
+
+test('D3 delayed failure updates a remounted Sync page and next run resets it', async ({
+	page
+}) => {
+	await mockServer(page);
+	let release!: () => void;
+	let requested!: () => void;
+	const started = new Promise<void>((resolve) => {
+		requested = resolve;
+	});
+	const pending = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route(apiBase + '/xact', async (route) => {
+		requested();
+		await pending;
+		await route.fulfill({ status: 401, body: 'Unauthorized' });
+	});
+	await seedApp(
+		page,
+		`2025-01-02 * "Cafe" "Delayed failure"\n  Expenses:Food  12 USD\n  Assets:Cash  -12 USD\n`
+	);
+	await page.getByRole('button', { name: 'Synchronize' }).click();
+	await started;
+	await page.getByRole('link', { name: 'Journal', exact: true }).click();
+	await expect(page).toHaveURL(/\/journal$/);
+	await expect(page.getByRole('main')).toContainText('Delayed failure');
+	await page.goBack();
+	await expect(page).toHaveURL(/\/sync$/);
+	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeVisible();
+	release();
+	await expect(page.getByRole('alert')).toContainText('send:');
+	await expect(page.getByRole('alert')).toContainText('Sending local transactions: HTTP 401');
+	await expect(page.getByRole('alert')).toContainText('Authentication failed');
+	await expect(page.locator('.card').filter({ hasText: 'Sync diagnostics' })).toContainText('ok');
+	expect(await readCashierFile(page)).toContain('Delayed failure');
+	await page.unroute(apiBase + '/xact');
+	let releaseRetry!: () => void;
+	const retry = new Promise<void>((resolve) => {
+		releaseRetry = resolve;
+	});
+	await page.route(apiBase + '/xact', async (route) => {
+		await retry;
+		await route.fallback();
+	});
+	await page.getByRole('button', { name: 'Synchronize' }).click();
+	await expect(page.getByRole('alert')).toHaveCount(0);
+	releaseRetry();
+	await expect.poll(() => readCashierFile(page)).not.toContain('Delayed failure');
 });

@@ -7,6 +7,7 @@
  *    (and was not rejected in the current push batch).
  */
 import * as opfs from '#lib/utils/opfslib';
+import { syncHttpError } from './http-error';
 import { CASHIER_XACT_FILE } from '#lib/constants';
 
 export interface PendingTransaction {
@@ -142,8 +143,7 @@ export async function pushTransactions(
 	});
 
 	if (!response.ok) {
-		const text = await response.text().catch(() => '');
-		throw new Error(`Server rejected request (${response.status}): ${text || response.statusText}`);
+		throw syncHttpError(response.status, 'Sending local transactions');
 	}
 
 	const data = (await response.json()) as WritebackResponse;

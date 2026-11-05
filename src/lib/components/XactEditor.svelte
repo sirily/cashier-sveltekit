@@ -31,7 +31,7 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	let dateFormatValue = $state(DATE_FORMAT_DEFAULT);
 	let dateInputEl: HTMLInputElement | undefined;
 	let autoIncomplete = $state(false);
-	let autoIncompleteXact: Xact | undefined = $state(undefined);
+	let autoIncompleteXact: Xact | undefined = $state.raw(undefined);
 
 	let formattedDate = $derived.by(() => {
 		if (!$xact?.date) return 'Date';
