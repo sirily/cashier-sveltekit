@@ -4,7 +4,7 @@
 
 Use published `transaction-entry`, `manual-transaction-writeback`, `ledger-sync`, and `ledger-analysis` as the business regression baseline. Their requirements remain unchanged; this change uses proposal, design and tasks with spec generation skipped.
 
-The original identity fix and nine removal commits are complete; their checked tasks and verification records below retain the scope tested at that time. QA follow-up adds three separately tested analysis-freshness fixes (sections 10–12), followed by one atomic schedule/forecast retirement (section 13), all within this change. The eight orphan-file deletions already landed in `7dc6bfad`. Manual journal entry, ordinary settings, local editing, journal export, outbound backup and offline RustLedger actual-book analysis remain. Scheduled transaction authoring/actions/calendar, dedicated scheduled export and schedule-based forecast retire; existing scheduled rows remain passively backed up. External accounting data enters through server Sync. Import, upload/drop, pasted-record ingestion and restore are removal scope. Post-sync mutations, account management and analytics redesign are separate work.
+The original identity fix and nine removal commits are complete; their checked tasks and verification records below retain the scope tested at that time. QA follow-up adds three separately tested analysis-freshness fixes (sections 10–12), followed by one atomic schedule/forecast retirement (section 13), all within this change. Those follow-up sections are now complete; newly approved PR #26 repairs D1–D4 and D6 and repeat acceptance checks are pending in sections 14–19. D5 is explicitly excluded. The eight orphan-file deletions already landed in `7dc6bfad`. Manual journal entry, ordinary settings, local editing, journal export, outbound backup and offline RustLedger actual-book analysis remain. Scheduled transaction authoring/actions/calendar, dedicated scheduled export and schedule-based forecast retire; existing scheduled rows remain passively backed up. External accounting data enters through server Sync. Import, upload/drop, pasted-record ingestion and restore are removal scope. Post-sync mutations, account management and analytics redesign are separate work.
 
 **Gate G before every runtime commit:** run `npm run check:specs`, `npm run lint`, `npm run lint:svelte`, `npm run check`, `npm run check:build`, and retained-workflow unit/browser suites through the repository test runners. Select and record test files/name filters so tests dedicated solely to retiring functions are excluded; split mixed tests to preserve their retained assertions. Use `npm run test:unit -- --run` and `npm run test:e2e -- --workers=2` once that selection is reflected in the invocation/configuration; unfiltered execution of retiring behavior is not required. Exercise offline journal create/edit/delete/reload; server Sync success/rejection/incomplete/failed-pull retry with stable IDs; accounts/history/reports and offline calculations; actual export content and outbound backup credential filtering. Test retained business workflows and the safety of removal. Do not test, repair or require correct operation of retiring voice/peer/backup-restore/import/filesystem/Ledger/schedule/forecast paths, including while they still exist in earlier slices. Tests whose sole purpose is exercising those paths leave the required cleanup suite; keep shared assertions for retained behavior. After retirement, check that former entry points leave stored data unchanged and positively verify data arrival through server Sync. Seed test fixtures directly in OPFS/IndexedDB, not through a production importer.
 
@@ -102,6 +102,41 @@ The original identity fix and nine removal commits are complete; their checked t
 - [x] 13.4 Remove live schedule stores and load/save/export APIs, exclusive enums/constants and `/export/scheduled` branch/matcher. Retain existing Dexie scheduled table/schema/rows and minimal legacy model for passive `scx` outbound backup. Keep journal export, token filtering and unrelated settings/OPFS data; no reset, store drop or conversion to journal entries.
 - [x] 13.5 Update backup/UI copy and affirmative architecture/agent documentation. Split mixed tests: remove retiring workflow correctness cases, keep legacy-row backup and data-preservation assertions. Add former schedule/forecast/export URL/action checks for no record mutations/network, and retained manual entry/reorder/report/export checks.
 - [x] 13.6 After sections 10–12 pass, run G and fresh graph/review checks for the atomic removal; verify upgrade/reload preserves financial data/token/server selection/legacy rows, credential-free outbound backup still contains legacy `scx`, and manual journal, Sync retry, actual-book analytics and offline PWA work. Record checks and create only `chore: remove scheduled transactions and forecast`.
+
+## 14. Correct currency-specific balance adjustment — D2
+
+- [ ] 14.1 Reproduce the currency-switch failure with 290 GBP / 66.81 USD; add regression coverage for USD target 70 → +3.19 USD, switching back to GBP, and unavailable versus proven-zero baselines.
+- [ ] 14.2 Resolve the selected account/currency baseline without implicit conversion or stale numeric reuse; block saving when it is unavailable. Verify balanced local postings, save/reopen, original currencies, unchanged neighboring source and no server mutation.
+- [ ] 14.3 Run focused unit/browser checks, G and fresh impact/review checks; record evidence for D2 without changing the original QA report.
+
+## 15. Preserve the editor across posting subpage returns — D1
+
+- [ ] 15.1 Reproduce both Delete Postings and Reorder Postings return failures through production routes for new and saved local entries; capture the actual client error/root cause before editing, without assuming the retired schedule crash is the cause.
+- [ ] 15.2 Repair the confirmed return/state boundary. Cover delete Cancel/OK, no-op reorder and actual pointer reordering; preserve unsaved fields, edit target, stable identity and exact posting order through return and save/reopen without duplicate entries or neighbor changes.
+- [ ] 15.3 Run focused browser/editor tests, G and fresh impact/review checks; record D1 outcomes separately for both routes. Do not count unsupported keyboard gestures or harness-only tests as production reorder evidence.
+
+## 16. Retain Sync failure explanations through navigation — D3
+
+- [ ] 16.1 Add navigation regressions for same-ID conflict, unknown account and mixed accepted/rejected batches: Sync → Journal → Sync without another run must retain concrete reasons, stage outcomes and available transaction attribution.
+- [ ] 16.2 Keep last-run feedback outside route lifetime until the next explicit Sync starts, without new durable transaction states or a restart-persistence guarantee. Verify a new run replaces old feedback, rejected entries remain local and safe retry/reconciliation is unchanged.
+- [ ] 16.3 Run focused Sync tests, G and fresh impact/review checks; record D3 evidence and distinguish mocked API coverage from real Python-server execution.
+
+## 17. Explain authentication and authorization failures — D4
+
+- [ ] 17.1 Add wrong-token HTTP authorization regressions and contrasting transport/non-authorization failures; verify stage-specific actionable messages without token/header leakage or blanket invalid-token diagnoses.
+- [ ] 17.2 Preserve error classification through the client/UI boundary; verify feedback survives navigation under D3 and ordinary Sync recovers after correcting credentials. Do not change server APIs or investigate D5's Reload access policy.
+- [ ] 17.3 Run focused client/browser tests, G and fresh impact/review checks. With an available disposable Python-server environment, repeat wrong-token/corrected-token browser checks; otherwise record that integration evidence as not run.
+
+## 18. Align About and Help with the retained fork workflow — D6
+
+- [ ] 18.1 Update the existing About/Help pages to identify the fork/repository, manual offline journal capture, explicit Python-server Sync, local calculations and optional export. Remove retired import and Ledger CLI/Hledger setup recommendations; remove obsolete manual links or explicitly label historical upstream references.
+- [ ] 18.2 Add browser assertions for actual page copy/link destinations and retained build/update/tool controls. Keep the change to existing pages, without a new help system or restored ingress capabilities.
+- [ ] 18.3 Run focused page tests, G and fresh impact/review checks; record D6 verification within this change rather than deferring it to a separate change.
+
+## 19. Repeat scoped PR #26 acceptance checks
+
+- [ ] 19.1 Repeat browser scenarios D2, D1, D3, D4 and D6 on rebuilt assets. Record revision, environment, per-scenario outcomes and limitations in a new verification entry, preserving the original QA report verbatim. D5 is owner-excluded: no investigation, repair or acceptance task.
+- [ ] 19.2 Run the full retained-workflow gate G and regression review after the fixes; distinguish automated, browser and real-server evidence. Keep remaining failures/unavailable checks explicit and do not claim readiness based on the prior 51 checked tasks. Commit, archive, push, merge and deployment still require their corresponding authorization.
 
 ## Verification record
 
@@ -228,10 +263,16 @@ The original identity fix and nine removal commits are complete; their checked t
 | OPFS book-save analysis refresh                | `b05efb1`                                                         |
 | Scheduled transactions and forecast retirement | `chore: remove scheduled transactions and forecast` (Git history) |
 
+### PR #26 browser QA — newly approved, not implemented
+
+- [Cashier-PR26-QA-report.md](Cashier-PR26-QA-report.md) records browser observations on PWA `477f28c2653fd668dcf67485425057c914614983` with Python server `4bef2b5d3c97e61ae350728cac56129f8594627f`, using a synthetic local Compose/Caddy book. Its real-server evidence belongs to that run and does not retroactively turn earlier mocked gates into integration checks.
+- The owner approved D1–D4 and D6 within this change; D5 is explicitly excluded. Sections 14–19 are pending. No fixes or new validation runs are claimed by this planning update. Prior completed tasks remain historical evidence, not proof that these scenarios pass.
+- About/Help deferral in the original audit is superseded by design decision 12. Other out-of-scope findings and the report's untested scenarios remain unverified; pointer reorder is now explicitly included in D1 regression coverage.
+
 ## Workflow follow-up
 
 - Runtime implementation requires a separate apply request. Planning does not start the removal sequence.
-- Design decision 7 records the 60-page source audit. About/Help ownership/link corrections and retained-feature defects outside the explicit identity fix, task 4.0 and QA sections 10–13 need separately scoped OpenSpec work; do not silently broaden removal commits.
+- Design decision 7 records the 60-page source audit. Decision 12 and sections 14–19 now include PR #26 D1–D4 and D6, including About/Help, in this change. D5 is explicitly excluded. Other retained-feature defects outside the identity fix, task 4.0 and QA sections 10–19 still need separately scoped work; do not silently broaden implementation.
 - Asset-allocation TOML delivery through server Sync is a recorded integration gap. The cleanup preserves existing local data and analysis; new server/client delivery behavior needs its own change.
 - Archive only on the owner's explicit request. Published business specs and their originating archive remain unchanged; cleanup verification covers retained workflows and non-mutating retired entry points rather than correct operation of functions selected for deletion.
 - Real-server tests need a disposable book and explicit connection/credentials; report them as not run until available. Push, merge, release, publication and deployment require separate authorization.
