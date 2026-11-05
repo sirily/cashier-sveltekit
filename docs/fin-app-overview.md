@@ -76,7 +76,7 @@ Characteristics
 
 - **Automatic recurring transaction detection**.
 - **Smart receipt scanning** (extract total, date, merchant from photo).
-- **Voice entry** – “Add $4.50 for coffee today.”
+
 - **Forecasting** – predict future balance based on scheduled bills and income.
 
 ### 9. Credit Health (Optional but Popular)

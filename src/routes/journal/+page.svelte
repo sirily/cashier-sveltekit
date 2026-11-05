@@ -9,17 +9,18 @@
 	import { Xact } from '#lib/data/model';
 	import { xact, xactSpan } from '#lib/data/mainStore';
 	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 	import Notifier from '#lib/utils/notifier';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
-import ImportIcon from '@lucide/svelte/icons/import';
-import PlusIcon from '@lucide/svelte/icons/plus';
-import TrashIcon from '@lucide/svelte/icons/trash';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import TrashIcon from '@lucide/svelte/icons/trash';
 	import appService from '#lib/services/appService';
 
 	Notifier.init();
 
 	let isDeleteAllConfirmationOpen = $state(false);
+	let isDeletingAll = $state(false);
 	let listContainer: HTMLElement | undefined = $state();
 
 	const lsVersion = ledgerService.version;
@@ -45,9 +46,35 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 
 	async function onDeleteAllConfirmed() {
 		closeModal();
-		await appService.createDefaultCashierFile();
-		await ledgerService.invalidate();
-		Notifier.success('All local transactions deleted.');
+		if (isDeletingAll) return;
+		isDeletingAll = true;
+		try {
+			try {
+				await appService.createDefaultCashierFile();
+			} catch (error) {
+				Notifier.error(`Could not delete local transactions: ${String(error)}. Please try again.`);
+				return;
+			}
+
+			xactsWithSpans = [];
+			// Both owners must refresh after the durable write, even if one refresh fails.
+			const refreshes = await Promise.allSettled([
+				fullLedgerService.invalidate(),
+				ledgerService.invalidate()
+			]);
+			const failures = refreshes
+				.filter((result) => result.status === 'rejected')
+				.map((result) => String(result.reason));
+			if (failures.length) {
+				Notifier.error(
+					`Local transactions deleted, but refreshing views failed: ${failures.join('; ')}. Reload the app to retry analysis.`
+				);
+				return;
+			}
+			Notifier.success('All local transactions deleted.');
+		} finally {
+			isDeletingAll = false;
+		}
 	}
 
 	async function onExportClick() {
@@ -75,11 +102,6 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 			<ToolbarMenuItem text="Export" Icon={FileDownIcon} onclick={onExportClick} />
 			<!-- Delete All -->
 			<ToolbarMenuItem text="Delete All" onclick={onDeleteAllClicked} Icon={TrashIcon} />
-			<ToolbarMenuItem
-				text="Import Ledger item"
-				Icon={ImportIcon}
-				targetNav={resolve('/import-ledger-xact')}
-			/>
 		{/snippet}
 	</Toolbar>
 
@@ -101,7 +123,12 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 </article>
 
 <!-- "Delete All" dialog -->
-<input type="checkbox" id="delete-all-journal-confirmation-modal" class="modal-toggle" bind:checked={isDeleteAllConfirmationOpen} />
+<input
+	type="checkbox"
+	id="delete-all-journal-confirmation-modal"
+	class="modal-toggle"
+	bind:checked={isDeleteAllConfirmationOpen}
+/>
 <dialog class="modal">
 	<div class="modal-box">
 		<header class="flex justify-between">

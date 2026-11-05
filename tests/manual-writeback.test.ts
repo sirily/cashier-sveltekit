@@ -354,7 +354,9 @@ describe('pushTransactions', () => {
 			text: async () => 'Server error'
 		});
 
-		await expect(pushTransactions(SERVER_URL, pending)).rejects.toThrow(/Server rejected request/);
+		await expect(pushTransactions(SERVER_URL, pending)).rejects.toThrow(
+			/Sending local transactions: HTTP 500/
+		);
 	});
 
 	test('trims trailing slash from server URL', async () => {

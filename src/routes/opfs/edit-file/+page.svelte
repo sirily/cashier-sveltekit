@@ -5,10 +5,12 @@
 	import { onMount } from 'svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import ArrowDownToLineIcon from '@lucide/svelte/icons/arrow-down-to-line';
-import SaveIcon from '@lucide/svelte/icons/save';
-import XIcon from '@lucide/svelte/icons/x';
+	import SaveIcon from '@lucide/svelte/icons/save';
+	import XIcon from '@lucide/svelte/icons/x';
 	import * as OpfsLib from '#lib/utils/opfslib.js';
 	import Notifier from '#lib/utils/notifier';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { writeSourceFile } from './save-file';
 
 	Notifier.init();
 
@@ -39,16 +41,31 @@ import XIcon from '@lucide/svelte/icons/x';
 	});
 
 	async function saveFile() {
-		if (!hasUnsavedChanges) return;
+		if (isSaving || !hasUnsavedChanges) return;
 
 		isSaving = true;
+		const savedContent = fileContent;
+		const savedPath = filePath;
 		try {
-			await OpfsLib.saveFile(filePath, fileContent);
-			originalContent = fileContent;
-			hasUnsavedChanges = false;
+			await writeSourceFile(savedPath, savedContent);
+		} catch (error) {
+			Notifier.error(
+				`Failed to save file: ${error instanceof Error ? error.message : String(error)}. Please try again.`
+			);
+			isSaving = false;
+			return;
+		}
+
+		originalContent = savedContent;
+		hasUnsavedChanges = fileContent !== originalContent;
+		try {
+			// Match the worker's source-file boundary; it owns root/include/overlay composition.
+			if (savedPath.endsWith('.bean')) await fullLedgerService.invalidate();
 			Notifier.success('File saved successfully');
-		} catch (error: any) {
-			Notifier.error(error.message || 'Failed to save file');
+		} catch (error) {
+			Notifier.error(
+				`File saved, but analysis refresh failed: ${error instanceof Error ? error.message : String(error)}. Reload to retry analysis.`
+			);
 		} finally {
 			isSaving = false;
 		}
@@ -105,7 +122,7 @@ import XIcon from '@lucide/svelte/icons/x';
 		<textarea
 			bind:this={textareaEl}
 			class="flex-1 textarea font-mono text-sm resize-none rounded-none border-0 focus:outline-none w-full"
-			oninput={onContentChange}
-		>{fileContent}</textarea>
+			oninput={onContentChange}>{fileContent}</textarea
+		>
 	{/if}
 </article>

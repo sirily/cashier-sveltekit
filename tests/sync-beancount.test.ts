@@ -780,3 +780,28 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(consoleError.mock.calls).toEqual([[error]]);
 	});
 });
+
+for (const method of ['readAccounts', 'readPayees', 'readFiles'] as const) {
+	for (const status of [401, 403, 500]) {
+		test(`D4 ${method} classifies HTTP ${status} without response secrets`, async () => {
+			vi.stubGlobal(
+				'fetch',
+				vi.fn().mockResolvedValue(new Response('Authorization: Bearer sensitive-token', { status }))
+			);
+			const client = new CashierSyncBeancount('https://cashier.test/api', 'sensitive-token');
+			const call = () =>
+				method === 'readFiles' ? client.readFiles('main.bean') : client[method]();
+			await expect(call()).rejects.toThrow(`HTTP ${status}`);
+			await expect(call()).rejects.not.toThrow('sensitive-token');
+			vi.unstubAllGlobals();
+		});
+	}
+	test(`D4 ${method} transport failure is not invalid-token diagnosis`, async () => {
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+		const client = new CashierSyncBeancount('https://cashier.test/api');
+		await expect(
+			method === 'readFiles' ? client.readFiles('main.bean') : client[method]()
+		).rejects.toThrow('Failed to fetch');
+		vi.unstubAllGlobals();
+	});
+}

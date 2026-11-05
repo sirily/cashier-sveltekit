@@ -3,6 +3,7 @@
 */
 import db from '#lib/data/db';
 import { Setting } from '#lib/data/model';
+import { retiredRemoteSettingKeys } from '#lib/retiredRemoteSettings';
 
 /**
  * Contains all the values required for the selection mode to function.
@@ -25,11 +26,6 @@ export class SelectionModeMetadata {
 	initialValue?: number;
 }
 
-export const Constants = {
-	CacheName: 'cashier',
-	ForecastDays: 7
-};
-
 export interface AccountGroup {
 	title: string;
 	accounts: string[];
@@ -49,21 +45,17 @@ export const SettingKeys = {
 	assetAllocationDefinition: 'aa.definition',
 	rootInvestmentAccount: 'aa.rootAccount',
 	//
-	backupServerUrl: 'backupServerUrl', // Server for online backup (pCloud).
+
 	currency: 'currency',
 	rememberLastTransaction: 'rememberLastTransaction',
 	favouriteAccounts: 'favouriteAccounts',
-	// forecast
-	forecastAccounts: 'forecast.accounts',
-	forecastDays: 'forecast.days',
-	//
-	pCloudToken: 'pCloudToken',
+
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
 	syncApiToken: 'syncApiToken',
 	syncBeancountRootFile: 'syncBeancountRootFile',
-	// External data source system
-	ledgerDataSource: 'ledgerDataSource', // beancount, ledger, filesystem
+	// Server source; legacy values are normalized when read.
+	ledgerDataSource: 'ledgerDataSource',
 	// synchronization choices
 	syncAccounts: 'syncAccounts',
 	syncAaValues: 'syncAaValues',
@@ -75,13 +67,11 @@ export const SettingKeys = {
 	visibleCards: 'homeCardNames',
 	// Peer sync
 	peerId: 'peerId',
+	// Server selection
 	syncServers: 'syncServers',
 	syncActiveServerId: 'syncActiveServerId',
 	syncServerSelectionCleared: 'syncServerSelectionCleared',
-	// import book from filesystem via File System API
-	importBookDirectory: 'importBookDirectory',
-	importBookFileSpec: 'importBookFileSpec',
-	storageBackend: 'storageBackend',
+
 	bookFilename: 'userBookFilename',
 	// SHA-256 hash of source files at last serialization, stored alongside the OPFS binary cache
 	ledgerCacheHash: 'ledgerCacheHash',
@@ -89,31 +79,42 @@ export const SettingKeys = {
 	ledgerCacheEnabled: 'ledgerCacheEnabled',
 	// Account groups for the groups page
 	accountGroups: 'accountGroups',
-	// TODO(webdav-removal): legacy personal-backup settings. This is not the target sync path.
-	// Remove with the WebDAV backup UI so password/app-token storage disappears completely.
-	webdavSettings: 'webdav-settings',
+
 	// Date display format (moment.js format string)
 	dateFormat: 'dateFormat'
 };
 
 export const CardNames = {
 	FavouritesCard: 'FavouritesCard',
-	ForecastCard: 'ForecastCard',
+
 	JournalCard: 'JournalCard',
-	ScheduledXactCard: 'ScheduledXactCard',
+
 	SyncCard: 'SyncCard'
 };
 
 class Settings {
+	private retiredSettingsCleanup?: Promise<void>;
+
+	private removeRetiredSettings(): Promise<void> {
+		// Best-effort local cleanup shared by concurrent reads; failures retry on the next load.
+		return (this.retiredSettingsCleanup ??= db.settings
+			.bulkDelete([...retiredRemoteSettingKeys])
+			.catch(() => {
+				this.retiredSettingsCleanup = undefined;
+			}));
+	}
+
 	/**
 	 *
 	 * @param {any} key
 	 * @returns Promise with the Setting object
 	 */
 	async get<T>(key: string): Promise<T | null> {
+		await this.removeRetiredSettings();
+		if (retiredRemoteSettingKeys.some((retiredKey) => retiredKey === key)) return null;
 		const setting = await db.settings.get(key);
 
-		if (!setting) return null;
+		if (!setting) return (key === SettingKeys.ledgerDataSource ? 'beancount' : null) as T | null;
 
 		let value = null;
 		try {
@@ -122,11 +123,19 @@ class Settings {
 			value = setting.value;
 		}
 
+		// Normalize only recognized retired sources. Reads do not rewrite configuration or sync.
+		if (key === SettingKeys.ledgerDataSource && (value === 'filesystem' || value === 'ledger')) {
+			return 'beancount' as T;
+		}
 		return value;
 	}
 
 	async getAll() {
-		return db.settings.toArray();
+		await this.removeRetiredSettings();
+		const entries = await db.settings.toArray();
+		return entries.filter(
+			({ key }) => !retiredRemoteSettingKeys.some((retiredKey) => retiredKey === key)
+		);
 	}
 
 	async set(key: string, value: unknown) {

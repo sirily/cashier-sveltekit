@@ -4,18 +4,18 @@
 	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
 	import SquareButton from '#lib/components/SquareButton.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { ScheduledXact, xact, xactSpan } from '#lib/data/mainStore';
-	import { ScheduledTransaction, Xact } from '#lib/data/model';
+	import { xact, xactSpan } from '#lib/data/mainStore';
+	import { Xact } from '#lib/data/model';
 	import appService from '#lib/services/appService';
 	import ledgerService from '#lib/services/ledgerService';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { xactToBeancountText } from '#lib/utils/xactUtils';
 	import Notifier from '#lib/utils/notifier';
-	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
-import CopyIcon from '@lucide/svelte/icons/copy';
-import ClipboardIcon from '@lucide/svelte/icons/clipboard';
-import SquarePenIcon from '@lucide/svelte/icons/square-pen';
-import TrashIcon from '@lucide/svelte/icons/trash';
+
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import ClipboardIcon from '@lucide/svelte/icons/clipboard';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();
@@ -26,8 +26,7 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 		goto(resolve('/'));
 	}
 
-	onMount(async () => {
-	});
+	onMount(async () => {});
 
 	/**
 	 * Close all dialogs.
@@ -103,17 +102,6 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 	async function onEditClicked() {
 		await goto(resolve('/tx'));
 	}
-
-	async function onScheduleClick() {
-		ScheduledXact.set(new ScheduledTransaction());
-
-		// clear the Xact id
-		if ($xact) {
-			$xact.id = undefined;
-		}
-
-		goto(resolve('/scx-editor/[[id]]', { id: undefined }));
-	}
 </script>
 
 <Toolbar title="Transaction Actions" />
@@ -129,13 +117,7 @@ import TrashIcon from '@lucide/svelte/icons/trash';
 		<SquareButton Icon={ClipboardIcon} classes="bg-primary text-accent" onclick={onDuplicateClick}>
 			Duplicate
 		</SquareButton>
-		<SquareButton
-			Icon={CalendarClockIcon}
-			classes="bg-accent text-secondary"
-			onclick={onScheduleClick}
-		>
-			Schedule
-		</SquareButton>
+
 		<SquareButton Icon={CopyIcon} classes="bg-primary text-accent" onclick={onCopyClicked}>
 			Copy
 		</SquareButton>

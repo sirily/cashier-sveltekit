@@ -1,6 +1,5 @@
 /**
- * Unified storage backend interface.
- * All backends must implement these methods to be used as the active storage.
+ * File operations provided by the OPFS storage backend.
  */
 export interface StorageBackend {
 	readFile(filename: string): Promise<string | undefined>;
@@ -8,5 +7,3 @@ export interface StorageBackend {
 	listFiles(): Promise<string[]>;
 	lastModified(filename: string): Promise<number | undefined>;
 }
-
-export type StorageBackendType = 'opfs' | 'filesystem' | 'indexeddb';

@@ -135,7 +135,26 @@ class LedgerService {
 					`Could not locate directive at line ${span.startLine} in ${CASHIER_XACT_FILE}`
 				);
 			}
-			const updated = replaceDirectiveBySpan(source, spans, idx, newBeancountText.trimEnd());
+			let replacement = newBeancountText.trimEnd();
+			// The editor model omits sync metadata; retain identity from the stored entry.
+			// Skip quoted strings (including multiline text) and comments, and stop at postings.
+			const tokens = spans[idx].sourceText.matchAll(
+				/"(?:\\[\s\S]|[^"\\])*"|;[^\r\n]*|^[\t ]+(?:[*!][\t ]+)?\p{Lu}[^\s:;"]*(?::[^\s:;"]+)+(?=[\t ]|$)|^[\t ]+cashier_id:[\t ]*"(?:\\.|[^"\\\r\n])*"[^\r\n]*/gmu
+			);
+			let identityLine: string | undefined;
+			for (const [token] of tokens) {
+				if (/^[\t ]+cashier_id:/.test(token)) {
+					identityLine = token;
+					break;
+				}
+				if (/^[\t ]/.test(token)) break;
+			}
+			if (identityLine) {
+				const lines = replacement.split('\n').filter((line) => !/^[\t ]+cashier_id:/.test(line));
+				lines.splice(1, 0, identityLine);
+				replacement = lines.join('\n');
+			}
+			const updated = replaceDirectiveBySpan(source, spans, idx, replacement);
 			await opfslib.saveFile(CASHIER_XACT_FILE, updated);
 		} finally {
 			tempLedger.free();

@@ -1,5 +1,5 @@
 /**
- * Common synchronization logic shared by all sync sources.
+ * Beancount synchronization result handling.
  * Handles parsing, storage, and orchestration after raw data is fetched.
  */
 import appService from '#lib/services/appService';
@@ -16,21 +16,18 @@ export interface SyncSteps {
 /**
  * Delete existing accounts and import new ones from a balance sheet response.
  */
-export async function syncAccounts(
-	ptaSystem: string,
-	response: Record<string, unknown>
-): Promise<void> {
+export async function syncAccounts(response: Record<string, unknown>): Promise<void> {
 	if (!response || Object.keys(response).length === 0) {
 		throw new Error('No accounts received');
 	}
 
-	await appService.replaceAccounts(ptaSystem, response);
+	await appService.replaceAccounts(response);
 }
 
 /**
  * Stage 1 sync does not support current values / asset allocation imports.
  */
-export async function syncCurrentValues(_ptaSystem: string, _result: any): Promise<void> {
+export async function syncCurrentValues(_result: any): Promise<void> {
 	throw new Error('Stage 1 sync does not support current values or asset allocation import');
 }
 

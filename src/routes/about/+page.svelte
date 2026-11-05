@@ -33,37 +33,37 @@
 	<Toolbar title="About"></Toolbar>
 
 	<section class="space-y-4 p-1">
-		<h1 class="text-5xl font-bold">Cashier Svelte</h1>
+		<h1 class="text-5xl font-bold">Cashier</h1>
 		<p>
-			Cashier Svelte is a version of
+			This Beancount client-server fork is based on
 			<a class="link link-primary" href="https://cashier.alensiljak.eu.org">Cashier</a>, built with
 			Svelte.
 		</p>
 
 		<p>
-			Cashier is a pocket helper for Plain-Text Accounting (PTA) systems, like Ledger CLI, Hledger,
-			or Beancount. More on PTA at
+			Capture manual transactions in the device Journal, including while offline.
+			More on plain-text accounting at
 			<a class="link link-primary" href="https://plaintextaccounting.org/">Plain Text Accounting</a
 			>.
 		</p>
 
 		<p>
-			It is used to write transaction records and transfer them to the full-blown personal finance
-			system. It can also display the account and other useful information. For more detailed
-			overview of the functionality, see the
+			Explicit Server Sync sends completed local entries to the authoritative Python Beancount
+			server, downloads the book, and removes local copies only after confirmation.
+			For setup and daily use, see the
 			<a class="link link-primary" href={resolve("/help")}>Help</a> section.
 		</p>
 
 		<p>
-			Cashier can also read your whole Beancount ledger. Use Ledger Import function to copy and
-			regularly update your ledger data. Eventually export the Journal transactions created on your
-			device and store them into your ledger files.
+			RustLedger calculates balances, account history and reports locally from the downloaded
+			book and pending Journal, even offline. Journal export is optional; it does not synchronize
+			or remove local entries.
 		</p>
 
 		<h3 class="text-3xl font-semibold">Links</h3>
 		<p>
 			Repository: at
-			<a class="link link-primary" href="https://github.com/alensiljak/cashier-svelte">GitHub</a>
+			<a class="link link-primary" href="https://github.com/sirily/cashier-sveltekit">GitHub</a>
 		</p>
 
 		<h3 class="text-3xl font-semibold">Version</h3>

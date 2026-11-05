@@ -4,7 +4,9 @@
 
 The current theme is defined in [cashier-theme-daisy.css](../cashier-theme-daisy.css) and
 imported by [src/app.css](../src/app.css). The theme is named `cashier`, is the default,
-and declares a dark color scheme.
+and declares a dark color scheme. Tailwind v4 is enabled by `@tailwindcss/vite` in
+`vite.config.ts`; `src/app.css` loads Tailwind, the forms and typography plugins, and
+DaisyUI v5. Theme configuration is CSS-based.
 
 This document describes the theme source, not a separate set of color requirements.
 The CSS definitions are authoritative; update this reference when changing them.
