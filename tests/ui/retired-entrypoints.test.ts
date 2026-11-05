@@ -987,7 +987,7 @@ test('drawer and home card both open server Sync and expose no filesystem links'
 	expect(observations).toEqual({ permissions: [], requests: [] });
 });
 
-test('Reload server data calls only the authenticated server reload, without pulling or changing local data', async ({
+test('Sync exposes Synchronize without server Reload and opening it leaves local data unchanged', async ({
 	page
 }) => {
 	await seedStoredData(page);
@@ -997,28 +997,14 @@ test('Reload server data calls only the authenticated server reload, without pul
 		syncServerSelectionCleared: false
 	});
 	const observations = await watchRetiredIngress(page);
-	const reloads: string[] = [];
-	await page.route('https://cashier.test/api/reload', async (route) => {
-		expect(route.request().method()).toBe('GET');
-		expect(route.request().headers().authorization).toBe(
-			'Bearer retired-entrypoint-test-only-secret'
-		);
-		reloads.push(route.request().url());
-		await route.fulfill({ status: 200, body: 'reloaded' });
-	});
+	const before = await readStoredData(page);
 	await page.goto('/sync');
 	await expect(page.getByLabel('Cashier Server URL')).toHaveValue('https://cashier.test/api');
-	const before = await readStoredData(page);
-	await page.getByRole('button', { name: 'Reload server data', exact: true }).click();
-	await expect(page.locator('#toast-container')).toContainText(
-		'Server data reloaded. Synchronize to download'
-	);
-	expect(reloads).toEqual(['https://cashier.test/api/reload']);
+	await expect(page.getByRole('button', { name: /reload/i })).toHaveCount(0);
+	await expect(page.getByText('Reload refreshes the server book only.')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Synchronize', exact: true })).toBeEnabled();
 	expect(await readStoredData(page)).toEqual(before);
-	expect(observations).toEqual({
-		permissions: [],
-		requests: ['GET https://cashier.test/api/reload']
-	});
+	expect(observations).toEqual({ permissions: [], requests: [] });
 });
 
 test('metadata-only server Sync refreshes selected references without sending, pulling or reconciling the journal', async ({

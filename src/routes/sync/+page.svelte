@@ -31,7 +31,7 @@
 	let rotationClass = $state('');
 	const syncStarted = $derived(diagnostics !== null);
 	let syncing = $state(false);
-	let reloading = $state(false);
+
 
 	function hasSelectedSyncStep() {
 		return syncAccounts || syncPayees || syncLedgerFiles;
@@ -230,25 +230,6 @@
 		}
 	}
 
-	async function reloadData() {
-		if (reloading) return;
-
-		const activeUrl = await persistSyncServerUrl(true);
-		if (!activeUrl) return;
-
-		reloading = true;
-
-		try {
-			const sync = new SyncBeancount.CashierSyncBeancount(activeUrl, syncApiToken);
-			await sync.reloadData();
-			Notifier.success('Server data reloaded. Synchronize to download the updated book.');
-		} catch (error: any) {
-			console.error(error);
-			Notifier.error(error.message || 'Failed to reload server data.');
-		} finally {
-			reloading = false;
-		}
-	}
 
 	async function saveSettings() {
 		recomputeSyncAll();
@@ -520,25 +501,4 @@
 		</div>
 	{/if}
 
-	<hr class="my-10" />
-	<p>
-		Reload refreshes the server book only. Run Synchronize to download it and refresh local
-		analysis.
-	</p>
-
-	<center>
-		<button
-			class="btn bg-primary text-accent rounded uppercase"
-			onclick={reloadData}
-			disabled={reloading}
-		>
-			<span
-				><RefreshCcw
-					class={reloading ? 'animate-[spin_2s_linear_infinite]' : ''}
-					style="animation-direction: reverse;"
-				/></span
-			>
-			<span>Reload server data</span>
-		</button>
-	</center>
 </main>

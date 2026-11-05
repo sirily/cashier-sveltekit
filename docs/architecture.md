@@ -64,8 +64,6 @@ Metadata-only synchronization refreshes selected reference data. The Sync option
 
 Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book and sync choices intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
 
-“Reload server data” asks the server to reload its book. It does not download files or refresh local analysis; the owner runs Sync to obtain the updated snapshot.
-
 The server prepares snapshots with Python-plugin results materialized. The PWA validates the server snapshot separately from the pending local journal, then combines the accepted book with local entries for display and analysis.
 
 ### Identity
