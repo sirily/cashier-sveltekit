@@ -4,7 +4,7 @@ import init, { ParsedLedger } from '@rustledger/wasm';
 
 const state = vi.hoisted(() => ({ files: new Map<string, string>() }));
 vi.mock('#lib/utils/opfslib', () => ({
-	readFile: async (path: string) => state.files.get(path),
+	readFile: vi.fn(async (path: string) => state.files.get(path)),
 	saveFile: async (path: string, content: string) => {
 		state.files.set(path, content);
 	}
@@ -21,6 +21,7 @@ vi.mock('#lib/services/rustledger', async () => {
 });
 
 import ledgerService from '#lib/services/ledgerService';
+import * as opfslib from '#lib/utils/opfslib';
 import appService from '#lib/services/appService';
 import { Xact } from '#lib/data/model';
 import { xactToBeancountText } from '#lib/utils/xactUtils';
@@ -45,6 +46,7 @@ beforeEach(() => {
 afterEach(() => {
 	ledgerService.free();
 	vi.unstubAllGlobals();
+	vi.mocked(opfslib.readFile).mockClear();
 });
 
 async function edit(note: string) {
@@ -133,7 +135,7 @@ test('ignores apparent identity lines inside multiline narration', async () => {
 	);
 	await edit('Edited multiline note');
 	expect(persistedIds()).toEqual(['existing-local-id']);
-	expect(state.files.get('cashier.bean')).not.toContain('not-metadata');
+	expect(state.files.get('cashier.bean')).toContain('; "not-metadata"');
 });
 
 test.each(['Expenses:Food', 'Expenses:Еда', 'Expenses:食物', 'Expenses:Épicerie'])(
@@ -149,6 +151,60 @@ test.each(['Expenses:Food', 'Expenses:Еда', 'Expenses:食物', 'Expenses:Épi
 		expect(pending[0].cashierId).not.toBe('posting-only-id');
 	}
 );
+
+const annotatedTransaction =
+	'2025-01-01 * "Cafe" "Original" #groceries ^receipt-123 ; header comment\n' +
+	'  custom: "keep metadata"\n  cashier_id: "existing-local-id"\n' +
+	'  ; transaction comment\n' +
+	'  Expenses:Food  12.50 USD ; posting comment\n    category: "lunch"\n' +
+	'  Assets:Cash  -12.50 USD\n';
+
+test('RC95 no-op editor save preserves all source constructs byte for byte', async () => {
+	const source = prefix + annotatedTransaction + neighbor;
+	state.files.set('cashier.bean', source);
+	await edit('Original');
+	expect(state.files.get('cashier.bean')).toBe(source);
+});
+
+test('RC95 narration edits preserve metadata, tags, links and posting comments', async () => {
+	state.files.set('cashier.bean', prefix + annotatedTransaction + neighbor);
+	await edit('Edited');
+	expect(state.files.get('cashier.bean')).toBe(
+		prefix + annotatedTransaction.replace('"Original"', '"Edited"') + neighbor
+	);
+	await edit('Edited again');
+	expect(state.files.get('cashier.bean')).toBe(
+		prefix + annotatedTransaction.replace('"Original"', '"Edited again"') + neighbor
+	);
+});
+
+test('unsafe annotated posting edits reject without changing source', async () => {
+	const source = prefix + annotatedTransaction + neighbor;
+	state.files.set('cashier.bean', source);
+	const [{ xact, span }] = await ledgerService.getXactsWithSpans();
+	xact.postings.reverse();
+	await expect(ledgerService.editTransaction(span, xactToBeancountText(xact))).rejects.toThrow(
+		/annotat|source editor/i
+	);
+	expect(state.files.get('cashier.bean')).toBe(source);
+});
+
+test('save rejects a journal change observed between reads without overwriting its neighbor', async () => {
+	const [{ xact, span }] = await ledgerService.getXactsWithSpans();
+	xact.note = 'Edited';
+	const original = state.files.get('cashier.bean')!;
+	const appended = original + '\n2025-01-03 ! "Concurrent addition"\n  Expenses:Food\n';
+	vi.mocked(opfslib.readFile)
+		.mockImplementationOnce(async () => original)
+		.mockImplementationOnce(async () => {
+			state.files.set('cashier.bean', appended);
+			return appended;
+		});
+	await expect(ledgerService.editTransaction(span, xactToBeancountText(xact))).rejects.toThrow(
+		/journal changed/i
+	);
+	expect(state.files.get('cashier.bean')).toBe(appended);
+});
 
 test('new and duplicated transactions receive identities independent of the edited original', async () => {
 	await edit('Edited');

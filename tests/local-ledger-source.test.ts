@@ -76,7 +76,7 @@ test.each([
 	expect(xact.postings.map((p) => p.amount)).toEqual([3, -3]);
 	xact.note = 'QA-RC93-edit-target';
 	await ledgerService.editTransaction(span, xactToBeancountText(xact));
-	expect(state.source).toBe(prefix + unsorted.replace(refund, xactToBeancountText(xact).trimEnd()));
+	expect(state.source).toBe(prefix + unsorted.replace('QA-RC93-refund', 'QA-RC93-edit-target'));
 	expect((await ledgerService.getXactsWithSpans()).map((e) => e.xact.note).sort()).toEqual([
 		'QA-RC93-edit-target',
 		'QA-RC93-income',
