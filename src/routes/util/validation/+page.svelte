@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	type ErrorItem = { severity: string; line: number; column: number; message: string };
 	type Status = 'idle' | 'loading' | 'done' | 'error';
@@ -131,7 +131,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each errors as err}
+									{#each errors as err, i (`${err.line}:${err.column}:${err.message}:${i}`)}
 										<tr class="text-error">
 											<td class="font-mono">{err.line}</td>
 											<td class="font-mono">{err.column}</td>
@@ -163,7 +163,7 @@
 									</tr>
 								</thead>
 								<tbody>
-									{#each warnings as warn}
+									{#each warnings as warn, i (`${warn.line}:${warn.column}:${warn.message}:${i}`)}
 										<tr class="text-warning">
 											<td class="font-mono">{warn.line}</td>
 											<td class="font-mono">{warn.column}</td>

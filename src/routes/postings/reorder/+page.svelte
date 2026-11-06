@@ -1,9 +1,10 @@
 <script lang="ts">
-	import DragReorderList from '$lib/components/DragReorderList.svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { xact } from '$lib/data/mainStore';
-	import { CheckIcon } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import DragReorderList from '#lib/components/DragReorderList.svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { xact } from '#lib/data/mainStore';
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -11,7 +12,7 @@
 
 	onMount(() => {
 		if (!$xact) {
-			goto('/');
+			goto(resolve('/'));
 			return;
 		}
 		postings = [...$xact.postings];

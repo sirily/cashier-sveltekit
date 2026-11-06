@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import appService from '$lib/services/appService';
-	import { getFilenameForBackup } from '$lib/services/cloudBackupService';
-	import Notifier from '$lib/utils/notifier';
-	import { ArrowDownNarrowWideIcon, CopyIcon, FileDownIcon, Share2Icon } from '@lucide/svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import appService from '#lib/services/appService';
+	import { getFilenameForBackup } from '#lib/services/backupFilename';
+	import Notifier from '#lib/utils/notifier';
+	import ArrowDownNarrowWideIcon from '@lucide/svelte/icons/arrow-down-narrow-wide';
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
+	import Share2Icon from '@lucide/svelte/icons/share-2';
 	import { onMount } from 'svelte';
-	import { CASHIER_XACT_FILE } from '$lib/constants';
+	import { CASHIER_XACT_FILE } from '#lib/constants';
 
 	Notifier.init();
 
@@ -44,9 +47,6 @@
 			case 'journal':
 				output = await appService.stripIncludesFromBookFile();
 				break;
-			case 'scheduled':
-				output = await loadScheduledTransactions();
-				break;
 		}
 	}
 
@@ -56,12 +56,6 @@
 			return;
 		}
 		output = await appService.sortTransactionsByDate(output);
-	}
-
-	async function loadScheduledTransactions() {
-		const collection = await appService.db.scheduled.orderBy('nextDate').toArray();
-		const output = JSON.stringify(collection);
-		return output;
 	}
 
 	async function onCopyClick() {
@@ -101,7 +95,9 @@
 		// const file = new File([output], fileName, { type: 'text/plain' });
 
 		if (!window.isSecureContext) {
-			Notifier.error('Sharing requires a secure context (HTTPS or localhost). Please use Download instead.');
+			Notifier.error(
+				'Sharing requires a secure context (HTTPS or localhost). Please use Download instead.'
+			);
 			return;
 		}
 		if (!navigator.canShare) {
@@ -134,7 +130,9 @@
 						);
 						return;
 					case 'InvalidStateError':
-						Notifier.error('A share operation is already in progress. Please try again in a moment.');
+						Notifier.error(
+							'A share operation is already in progress. Please try again in a moment.'
+						);
 						return;
 				}
 			}
@@ -148,12 +146,16 @@
 <article class="flex h-screen flex-col">
 	<Toolbar title="Export {dataType}">
 		{#snippet menuItems()}
-			<ToolbarMenuItem text="Sort by Date" Icon={ArrowDownNarrowWideIcon} onclick={onSortByDateClick} />
+			<ToolbarMenuItem
+				text="Sort by Date"
+				Icon={ArrowDownNarrowWideIcon}
+				onclick={onSortByDateClick}
+			/>
 		{/snippet}
 	</Toolbar>
 
 	<main class="flex flex-col p-1 grow">
-		<p>Note: Journal is exported in ledger format, Scheduled Transactions in JSON.</p>
+		<p>Journal is exported in Beancount format.</p>
 
 		<textarea
 			class="textarea mt-3 overflow-auto p-2 whitespace-nowrap w-full"
@@ -173,7 +175,7 @@
 				<CopyIcon />
 				<span>Copy</span>
 			</button>
-			<!-- pCloud Save ?-->
+
 			<!-- WebShare -->
 			{#if canUseWebShare}
 				<button class="btn btn-primary w-full" onclick={onShareClick}>

@@ -1,11 +1,14 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import AccountGroupCard from '$lib/components/AccountGroupCard.svelte';
-	import { defaultAccountGroups, SettingKeys, settings, type AccountGroup } from '$lib/settings';
+	import { resolve } from '$app/paths';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import AccountGroupCard from '#lib/components/AccountGroupCard.svelte';
+	import { defaultAccountGroups, SettingKeys, settings, type AccountGroup } from '#lib/settings';
 	import { onMount } from 'svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { ArrowUpDownIcon, CirclePlusIcon } from '@lucide/svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 	import { goto } from '$app/navigation';
+
 
 	let groups: AccountGroup[] = $state([]);
 	let isAddGroupModalOpen = $state(false);
@@ -56,17 +59,17 @@
 			<ToolbarMenuItem
 				text="Reorder Groups"
 				Icon={ArrowUpDownIcon}
-				targetNav="/accounts/groups/reorder"
+				targetNav={resolve('/accounts/groups/reorder')}
 			/>
 		{/snippet}
 	</Toolbar>
 	<section class="flex grow flex-col gap-3 p-2">
 		<div class="alert alert-info alert-soft">
 			<span>If a synced account is missing from these groups, open the full accounts list.</span>
-			<button type="button" class="btn btn-sm" onclick={() => goto('/accounts')}>Open /accounts</button>
+			<button type="button" class="btn btn-sm" onclick={() => goto(resolve('/accounts'))}>Open /accounts</button>
 		</div>
 		{#each groups as group, i (group.title)}
-			<AccountGroupCard {group} index={i} onAccountClick={(name) => goto(`/accounts/account-xacts/${encodeURIComponent(name)}`)} />
+			<AccountGroupCard {group} index={i} onAccountClick={(name) => goto(resolve('/accounts/account-xacts/[accountName]', { accountName: encodeURIComponent(name) }))} />
 		{/each}
 	</section>
 </article>

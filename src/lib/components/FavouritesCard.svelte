@@ -1,13 +1,16 @@
 <script lang="ts">
-	import { Settings2Icon, StarIcon } from '@lucide/svelte';
+	import Settings2Icon from '@lucide/svelte/icons/settings-2';
+import StarIcon from '@lucide/svelte/icons/star';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import AccountRow from './AccountRow.svelte';
 	import { goto } from '$app/navigation';
-	import { Account, Money } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import Notifier from '$lib/utils/notifier';
-	import { SettingKeys, settings } from '$lib/settings';
+	import { resolve } from '$app/paths';
+	import { SvelteMap } from 'svelte/reactivity';
+	import { Account, Money } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import Notifier from '#lib/utils/notifier';
+	import { SettingKeys, settings } from '#lib/settings';
 
 	Notifier.init();
 
@@ -48,8 +51,9 @@
 	});
 
 	async function showPlaceholders() {
-		const favNames: string[] =
-			((await settings.get<string[]>(SettingKeys.favouriteAccounts)) ?? []).slice(0, 5);
+		const favNames: string[] = (
+			(await settings.get<string[]>(SettingKeys.favouriteAccounts)) ?? []
+		).slice(0, 5);
 		if (favNames.length === 0) return;
 
 		// Only set placeholders if balances haven't loaded yet.
@@ -65,7 +69,7 @@
 	}
 
 	async function queryFavouriteBalances(favNames: string[]): Promise<Map<string, Account>> {
-		const result = new Map<string, Account>();
+		const result = new SvelteMap<string, Account>();
 		if (favNames.length === 0) return result;
 
 		await fullLedgerService.ensureLoaded();
@@ -123,9 +127,9 @@
 
 	async function loadData() {
 		try {
-			const favNames: string[] =
-				((await settings.get<string[]>(SettingKeys.favouriteAccounts)) ?? [])
-					.slice(0, 5);
+			const favNames: string[] = (
+				(await settings.get<string[]>(SettingKeys.favouriteAccounts)) ?? []
+			).slice(0, 5);
 			if (favNames.length === 0) {
 				accounts = [];
 				return;
@@ -169,7 +173,7 @@
 	}
 
 	async function onClick() {
-		await goto('/accounts/groups', { replaceState: false });
+		await goto(resolve('/accounts/groups'));
 	}
 </script>
 
@@ -178,7 +182,7 @@
 		<StarIcon />
 	{/snippet}
 	{#snippet menu()}
-		<a href="/favourites">
+		<a href={resolve('/favourites')}>
 			<Settings2Icon />
 		</a>
 	{/snippet}

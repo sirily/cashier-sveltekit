@@ -6,14 +6,14 @@
  */
 
 	import { onMount } from 'svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { computeSourceHash } from '$lib/services/rustledger';
-	import { settings, SettingKeys } from '$lib/settings';
-	import { getFileMetadata } from '$lib/utils/opfslib';
-	import { listFileTree } from '$lib/utils/opfslib';
-	import { OPFSBackend } from '$lib/storage';
-	import { LEDGER_CACHE_FILE } from '$lib/constants';
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { computeSourceHash } from '#lib/services/rustledger';
+	import { settings, SettingKeys } from '#lib/settings';
+	import { getFileMetadata } from '#lib/utils/opfslib';
+	import { listFileTree } from '#lib/utils/opfslib';
+	import { OPFSBackend } from '#lib/storage';
+	import { LEDGER_CACHE_FILE } from '#lib/constants';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 
 	let status = '';
 	let isLoaded = false;

@@ -1,25 +1,26 @@
 <script lang="ts">
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { Check, ShieldCheck } from '@lucide/svelte';
-	import { xact, xactSpan } from '$lib/data/mainStore';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import Check from '@lucide/svelte/icons/check';
+import ShieldCheck from '@lucide/svelte/icons/shield-check';
+	import { xact, xactSpan } from '#lib/data/mainStore';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import { afterNavigate, goto } from '$app/navigation';
-	import Notifier from '$lib/utils/notifier';
-	import { SettingKeys, settings } from '$lib/settings';
-	import appService from '$lib/services/appService';
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { xactToBeancountText } from '$lib/utils/xactUtils';
-	import { base } from '$app/paths';
-	import TransactionEditor from '$lib/components/XactEditor.svelte';
-	import type { Xact } from '$lib/data/model';
+	import Notifier from '#lib/utils/notifier';
+	import { SettingKeys, settings } from '#lib/settings';
+	import appService from '#lib/services/appService';
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import { resolve } from '$app/paths';
+	import TransactionEditor from '#lib/components/XactEditor.svelte';
+	import type { Xact } from '#lib/data/model';
 
 	Notifier.init();
 
-	let previousPage: string = base;
+	let previousPage: string = resolve('/');
 
 	interface ValidationIssue {
 		kind: 'error' | 'warning';
@@ -31,7 +32,7 @@
 
 	onMount(async () => {
 		if (!get(xact)) {
-			await goto('/');
+			await goto(resolve('/'));
 			return;
 		}
 	});
@@ -188,7 +189,7 @@
 					</div>
 				{:else}
 					<ul class="space-y-2">
-						{#each validationIssues as issue}
+						{#each validationIssues as issue, i (`${issue.kind}:${issue.message}:${i}`)}
 							<li class="alert {issue.kind === 'error' ? 'alert-error' : 'alert-warning'} py-2">
 								<span>{issue.message}</span>
 							</li>

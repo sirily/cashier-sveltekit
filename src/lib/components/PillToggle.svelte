@@ -17,7 +17,7 @@
 </script>
 
 <div class="join {className}">
-	{#each options as opt}
+	{#each options as opt (opt.value)}
 		<button
 			class="btn btn-sm join-item"
 			class:btn-primary={value === opt.value}

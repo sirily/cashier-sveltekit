@@ -43,7 +43,7 @@ function routeExists(route: string, routes: Set<string>): boolean {
 		) {
 			return true;
 		}
-		// Optional trailing param (e.g., /scx-editor/:id matches /scx-editor)
+		// Optional trailing param
 		if (
 			candidateSegments.length === routeSegments.length + 1 &&
 			candidateSegments[candidateSegments.length - 1].startsWith(':') &&

@@ -27,7 +27,11 @@ export function mapDirectiveSpans(source: string, ledger: ParsedLedger): Directi
 
 	return symbols.map((sym, idx) => {
 		const startLine = sym.range.start_line;
-		let endLine = sym.range.end_line;
+		// WASM ranges have an exclusive end; column zero belongs to the next line.
+		let endLine = Math.min(
+			sym.range.end_line - (sym.range.end_character === 0 ? 1 : 0),
+			lines.length - 1
+		);
 
 		// Clamp: if the next symbol exists, our span must end before it starts.
 		if (idx + 1 < symbols.length) {

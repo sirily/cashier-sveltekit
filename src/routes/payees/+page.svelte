@@ -1,14 +1,15 @@
 <script lang="ts">
-	import Toolbar from '$lib/components/Toolbar.svelte';
+	import { resolve } from '$app/paths';
+	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { onMount } from 'svelte';
-	import { selectionMetadata } from '$lib/data/mainStore';
-	import Fab from '$lib/components/FAB.svelte';
-	import { CheckIcon } from '@lucide/svelte';
-	import SearchToolbar from '$lib/components/SearchToolbar.svelte';
-	import { ListSearch } from '$lib/utils/ListSearch';
-	import Notifier from '$lib/utils/notifier';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import CashierDAL from '$lib/data/dbdal';
+	import { selectionMetadata } from '#lib/data/mainStore';
+	import Fab from '#lib/components/FAB.svelte';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import SearchToolbar from '#lib/components/SearchToolbar.svelte';
+	import { ListSearch } from '#lib/utils/ListSearch';
+	import Notifier from '#lib/utils/notifier';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import CashierDAL from '#lib/data/dbdal';
 
 	Notifier.init();
 

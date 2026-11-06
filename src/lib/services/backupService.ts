@@ -1,24 +1,14 @@
 /*
     Backup Service
-	Backup and restore custom data using a JSON file.
+	Export settings and scheduled transactions as JSON.
 */
 
-import { ISODATEFORMAT, LONGTIMEFORMAT } from '$lib/constants';
-import db from '$lib/data/db';
-import { Setting, type ScheduledTransaction } from '$lib/data/model';
-import { SettingKeys, settings } from '$lib/settings';
-import { filterBackupSettings, settingsForRestore } from '$lib/services/backupSettings';
+import { ISODATEFORMAT, LONGTIMEFORMAT } from '#lib/constants';
+import db from '#lib/data/db';
+import type { Setting, ScheduledTransaction } from '#lib/data/model';
+import { settings } from '#lib/settings';
+import { filterBackupSettings } from '#lib/services/backupSettings';
 import moment from 'moment';
-
-export async function restoreSettings(entries: Setting[]) {
-	const existingApiToken = await settings.get<string>(SettingKeys.syncApiToken);
-	const localToken = existingApiToken
-		? new Setting(SettingKeys.syncApiToken, JSON.stringify(existingApiToken))
-		: undefined;
-	const restored = settingsForRestore(entries, localToken);
-	await db.settings.clear();
-	await db.settings.bulkAdd(restored);
-}
 
 interface Backup {
 	settings: Setting[];
@@ -80,17 +70,4 @@ function downloadTextFile(content: string, fileName: string) {
 	setTimeout(() => {
 		URL.revokeObjectURL(url);
 	}, 1500);
-}
-
-/**
- * Restores the backup, deleting any existing data.
- * @param content JSON contents of the backup file
- */
-export async function restoreBackup(content: string) {
-	const backup: Backup = JSON.parse(content);
-	await restoreSettings(backup.settings);
-
-	// backup.scx
-	await db.scheduled.clear();
-	await db.scheduled.bulkAdd(backup.scx);
 }
