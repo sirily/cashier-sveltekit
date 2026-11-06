@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 
 const registry = 'https://registry.npmjs.org';
 const severities = ['critical', 'high', 'moderate', 'low', 'info'];
@@ -127,6 +128,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
 		const total = Object.values(summary.totals).reduce((sum, count) => sum + count, 0);
 		if (!total && auditResult.status === 1)
 			throw new Error('npm audit exited with status 1 despite reporting no vulnerabilities');
+		if (process.env.GITHUB_STEP_SUMMARY)
+			appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${rendered}\n`);
 		if (total) {
 			console.log(
 				`::notice::${safeText(`npm audit reported ${total} known vulnerabilities (informational only); see details above.`).replaceAll('%', '%25')}`

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -148,6 +148,10 @@ test('the CLI succeeds with informational details for findings of every severity
 	assert.equal(execution.status, 0);
 	for (const severity of Object.keys(findings))
 		assert.match(execution.stdout, new RegExp(`${severity} — ${severity}`));
+	assert.equal(
+		execution.summary,
+		execution.stdout.slice(0, execution.stdout.indexOf('::notice::'))
+	);
 	assert.match(execution.stdout, /::notice::/);
 	assert.doesNotMatch(execution.stdout, /::error::/);
 });
@@ -169,6 +173,7 @@ test('the CLI succeeds on a consistent clean audit', () => {
 	const execution = runCli({ status: 0 });
 	assert.equal(execution.status, 0);
 	assert.doesNotMatch(execution.stdout, /::error::/);
+	assert.equal(execution.summary, execution.stdout);
 });
 
 function runCli({ status, metadata = {}, vulnerabilities = {} }) {
@@ -180,7 +185,9 @@ function runCli({ status, metadata = {}, vulnerabilities = {} }) {
 		const fakeNpm = join(bin, 'npm');
 		writeFileSync(fakeNpm, `#!/bin/sh\nprintf '%s\\n' '${output}'\nexit ${status}\n`);
 		chmodSync(fakeNpm, 0o755);
-		return spawnSync(
+		const summaryPath = join(directory, 'summary.md');
+		writeFileSync(summaryPath, '');
+		const execution = spawnSync(
 			process.execPath,
 			[fileURLToPath(new URL('./audit-report.mjs', import.meta.url))],
 			{
@@ -188,11 +195,11 @@ function runCli({ status, metadata = {}, vulnerabilities = {} }) {
 				env: {
 					...process.env,
 					PATH: `${bin}${delimiter}${process.env.PATH}`,
-					// An unwritable summary path ensures the CLI only reports to CI logs.
-					GITHUB_STEP_SUMMARY: join(directory, 'missing', 'summary.md')
+					GITHUB_STEP_SUMMARY: summaryPath
 				}
 			}
 		);
+		return { ...execution, summary: readFileSync(summaryPath, 'utf8') };
 	} finally {
 		rmSync(directory, { recursive: true, force: true });
 	}
