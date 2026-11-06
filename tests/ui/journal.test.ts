@@ -89,8 +89,8 @@ test('editing a local transaction preserves its cashier_id across saves and relo
 		]);
 		expect(saved.match(new RegExp(editedNote, 'g'))).toHaveLength(1);
 		expect(saved).not.toContain(previousNote);
-		expect(saved).toContain('Expenses:Food  12.5 USD');
-		expect(saved).toContain('Assets:Cash  -12.5 USD');
+		expect(saved).toContain('Expenses:Food  12.50 USD');
+		expect(saved).toContain('Assets:Cash  -12.50 USD');
 
 		await page.getByRole('link', { name: 'Journal' }).click();
 		await expect(page).toHaveURL(/\/journal$/);
@@ -104,6 +104,123 @@ test('editing a local transaction preserves its cashier_id across saves and relo
 	}
 	if (browserErrors.length) throw new Error(browserErrors.join('\n'));
 });
+
+for (const { name, savedNote, rejectPostingEdit } of [
+	{
+		name: 'no-op save preserves exact annotated journal source through offline reload',
+		savedNote: 'Lossless edit target',
+		rejectPostingEdit: false
+	},
+	{
+		name: 'note-only edit preserves annotations and changes only narration through offline reload',
+		savedNote: 'Lossless edited note',
+		rejectPostingEdit: false
+	},
+	{
+		name: 'unsafe annotated posting edit keeps source unchanged and the edited form available',
+		savedNote: 'Unsaved correction',
+		rejectPostingEdit: true
+	}
+]) {
+	test(name, async ({ page, context }) => {
+		const offlineToast = page.locator('.toast').filter({ hasText: 'App ready to work offline' });
+		await page.addLocatorHandler(offlineToast, async (toast) => {
+			await toast.getByRole('button', { name: 'Close', exact: true }).click();
+		});
+		const browserErrors = await openReadyJournal(page);
+		const originalNote = 'Lossless edit target';
+		const prefix = `option "operating_currency" "USD"\n2000-01-01 open Assets:Cash USD\n2000-01-01 open Expenses:Food USD\n`;
+		const transaction = `2025-01-01 * "Cafe" "${originalNote}" #groceries ^receipt-123 ; header-comment
+  cashier_id: "lossless-edit-id"
+  custom: "keep-custom-metadata"
+  receipt: "receipt.pdf"
+  ; transaction-comment
+  Expenses:Food  12.50 USD ; food-posting-comment
+    category: "lunch"
+  Assets:Cash  -12.50 USD ; cash-posting-comment
+    reference: "cash-receipt"
+`;
+		const neighbor = `
+; untouched neighbor comment
+2025-01-02 ! "Neighbor" "Untouched"
+  cashier_id: "lossless-neighbor-id"
+  Expenses:Food  3.00 USD
+  Assets:Cash  -3.00 USD
+`;
+		const source = prefix + transaction + neighbor;
+		const expected = prefix + transaction.replace(`"${originalNote}"`, `"${savedNote}"`) + neighbor;
+
+		await expect
+			.poll(() =>
+				page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.active?.state)
+			)
+			.toBe('activated');
+		await writeLocalJournal(page, source);
+		await page.reload();
+		await expect(page.getByRole('main')).toContainText(originalNote);
+		await expect
+			.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
+			.toBe(true);
+		expect(await readLocalJournal(page)).toBe(source);
+
+		await page.getByText(originalNote, { exact: false }).click();
+		await expect(page).toHaveURL(/\/xact-actions$/);
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await expect(page).toHaveURL(/\/tx$/);
+		await expect(page.getByTitle('Note', { exact: true })).toHaveValue(originalNote);
+		if (savedNote !== originalNote) {
+			await page.getByTitle('Note', { exact: true }).fill(savedNote);
+		}
+		if (rejectPostingEdit) {
+			await page.getByTitle('Amount', { exact: true }).first().fill('15');
+		}
+
+		const saveRequests: string[] = [];
+		const recordRequest = (request: Request) => {
+			if (['fetch', 'xhr'].includes(request.resourceType())) {
+				saveRequests.push(`${request.method()} ${request.url()}`);
+			}
+		};
+		await context.setOffline(true);
+		page.on('request', recordRequest);
+		await page.locator('button.fixed').click();
+		if (rejectPostingEdit) {
+			await expect(page.locator('#toast-container .alert-error')).toContainText(
+				'no changes were saved'
+			);
+			await expect(page).toHaveURL(/\/tx$/);
+			await expect(page.getByTitle('Note', { exact: true })).toHaveValue(savedNote);
+			await expect(page.getByTitle('Amount', { exact: true }).first()).toHaveValue('15');
+			expect(await readLocalJournal(page)).toBe(source);
+			page.off('request', recordRequest);
+			expect(saveRequests).toEqual([]);
+			await context.setOffline(false);
+			expect(browserErrors).toEqual([]);
+			return;
+		}
+		await expect(page).toHaveURL(/\/xact-actions$/);
+		await expect(page.locator('body')).toContainText(savedNote);
+		page.off('request', recordRequest);
+		expect(saveRequests).toEqual([]);
+		const saved = await readLocalJournal(page);
+		expect(saved).toBe(expected);
+		expect(saved.endsWith(neighbor)).toBe(true);
+
+		await page.getByRole('link', { name: 'Journal', exact: true }).click();
+		await expect(page).toHaveURL(/\/journal$/);
+		await page.reload();
+		await expect(page.getByRole('main')).toContainText(savedNote);
+		await expect(page.getByRole('main')).toContainText('Untouched');
+		expect(await readLocalJournal(page)).toBe(expected);
+		await page.getByText(savedNote, { exact: false }).click();
+		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await expect(page).toHaveURL(/\/tx$/);
+		await expect(page.getByTitle('Note', { exact: true })).toHaveValue(savedNote);
+		expect(await readLocalJournal(page)).toBe(expected);
+		await context.setOffline(false);
+		expect(browserErrors).toEqual([]);
+	});
+}
 
 test('saves a journal entry offline and persists it after reload', async ({ page, context }) => {
 	const browserErrors = await openReadyJournal(page);

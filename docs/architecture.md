@@ -44,7 +44,7 @@ flowchart TD
 
 The editor saves transactions into `cashier.bean`. Saving completes through local storage, allowing immediate use offline. Completed entries use the `*` flag; incomplete entries use `!`.
 
-`src/lib/services/ledgerService.ts` owns the local journal. Editing and deletion locate a directive through a `DirectiveSpan`, which describes its position in the source text. Replacing that span leaves surrounding directives in place. The replacement text determines the fields and metadata stored inside the edited transaction.
+`src/lib/services/ledgerService.ts` owns the local journal. Editing and deletion locate a directive through a `DirectiveSpan`, which describes its position in the source text. Replacing that span leaves surrounding directives in place. Form saves merge changed fields into the verified source rather than rebuilding it from the parser's lossy projection: no-op saves preserve the source exactly, and header edits retain metadata, tags, links, posting annotations and comments. Posting edits preserve untouched source fields; ambiguous annotated or lossy structural edits are rejected without writing. Save also rejects an observed concurrent journal change.
 
 ### Explicit synchronization
 

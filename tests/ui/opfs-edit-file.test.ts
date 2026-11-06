@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { navigateFromDrawer as navigate } from './fixtures/navigation';
 
 const transaction = (account: string, amount: number, currency: string, description: string) =>
 	`2026-10-01 * "${description}"\n  ${account} ${amount} ${currency}\n  Assets:Cash ${-amount} ${currency}\n`;
@@ -53,27 +54,6 @@ async function storedState(page: Page) {
 			db.close();
 		}
 	});
-}
-async function navigate(page: Page, name: string) {
-	const link = page.locator('aside').getByRole('link', { name, exact: true, includeHidden: true });
-	const details = link.locator('xpath=ancestor::details');
-	if (await details.count()) {
-		if (!(await details.evaluate((e) => (e as HTMLDetailsElement).open)))
-			await details.locator('summary').click();
-		// Expansion can move the link between pointer-down and pointer-up after auto-scrolling.
-		await details.evaluate(async (element) => {
-			await Promise.all(
-				element.getAnimations({ subtree: true }).map((animation) => animation.finished)
-			);
-		});
-	}
-	const destinations: Record<string, string> = {
-		Reports: '/reports',
-		'File Storage': '/opfs',
-		Journal: '/journal'
-	};
-	await link.click();
-	await expect(page).toHaveURL(destinations[name]);
 }
 async function report(page: Page) {
 	await navigate(page, 'Reports');

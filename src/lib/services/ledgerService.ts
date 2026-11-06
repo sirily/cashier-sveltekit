@@ -15,6 +15,8 @@ import {
 	type DirectiveSpan
 } from '#lib/rledger/sourceEditor';
 import { CASHIER_XACT_FILE } from '#lib/constants';
+import { xactToBeancountText } from '#lib/utils/xactUtils';
+import { mergeTransactionEdit } from '#lib/rledger/transactionEdit';
 
 interface QueryError {
 	message: string;
@@ -130,26 +132,21 @@ class LedgerService {
 		try {
 			const spans = mapDirectiveSpans(source, tempLedger);
 			const idx = this.verifyTransactionSpan(spans, span);
-			let replacement = newBeancountText.trimEnd();
-			// The editor model omits sync metadata; retain identity from the stored entry.
-			// Skip quoted strings (including multiline text) and comments, and stop at postings.
-			const tokens = spans[idx].sourceText.matchAll(
-				/"(?:\\[\s\S]|[^"\\])*"|;[^\r\n]*|^[\t ]+(?:[*!][\t ]+)?\p{Lu}[^\s:;"]*(?::[^\s:;"]+)+(?=[\t ]|$)|^[\t ]+cashier_id:[\t ]*"(?:\\.|[^"\\\r\n])*"[^\r\n]*/gmu
+			const entries = await this.getXactsWithSpans();
+			const entry = entries.find((entry) => entry.span.startLine === span.startLine);
+			if (!entry || entry.span.sourceText !== spans[idx].sourceText) {
+				throw new Error('Local transaction source changed. Reload the Journal and try again.');
+			}
+			const replacement = mergeTransactionEdit(
+				spans[idx].sourceText,
+				xactToBeancountText(entry.xact).trimEnd(),
+				newBeancountText.trimEnd()
 			);
-			let identityLine: string | undefined;
-			for (const [token] of tokens) {
-				if (/^[\t ]+cashier_id:/.test(token)) {
-					identityLine = token;
-					break;
-				}
-				if (/^[\t ]/.test(token)) break;
-			}
-			if (identityLine) {
-				const lines = replacement.split('\n').filter((line) => !/^[\t ]+cashier_id:/.test(line));
-				lines.splice(1, 0, identityLine);
-				replacement = lines.join('\n');
-			}
+			if (replacement === spans[idx].sourceText) return;
 			const updated = replaceDirectiveBySpan(source, spans, idx, replacement);
+			if ((await opfslib.readFile(CASHIER_XACT_FILE)) !== source) {
+				throw new Error('Local journal changed while saving. Reload the Journal and try again.');
+			}
 			await opfslib.saveFile(CASHIER_XACT_FILE, updated);
 		} finally {
 			tempLedger.free();
