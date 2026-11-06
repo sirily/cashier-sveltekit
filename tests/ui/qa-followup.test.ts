@@ -173,8 +173,10 @@ for (const currencyInput of ['USD', 'USD ', 'usd', '/USD', '/NQH21']) {
 		await page.locator('button.fixed').click();
 		await expect(page.getByTitle('Amount', { exact: true }).nth(1)).toHaveValue('3.19');
 		await page.locator('button.fixed').click();
-		await expect.poll(() => readJournal(page)).toContain('Assets:Wallet');
+		// Save returns only after the journal write closes; clicking alone does not await it.
+		await expect(page).toHaveURL(/\/accounts\/bal-adj\?account=Assets:Wallet$/);
 		const saved = await readJournal(page);
+		expect(saved).toContain('Assets:Wallet');
 		expect(saved.startsWith(original)).toBe(true);
 		expect(saved).toContain('3.19 ' + commodity);
 		expect(saved).toContain('-3.19 ' + commodity);
@@ -297,8 +299,9 @@ for (const saved of [false, true])
 			await page.locator('button.fixed').click();
 			await expectEditor(page, tuples);
 			await page.locator('button.fixed').click();
-			await expect.poll(() => readJournal(page)).toContain('Full-field unsaved edit');
+			await expect(page).toHaveURL(saved ? /\/xact-actions$/ : /\/journal$/);
 			const source = await readJournal(page);
+			expect(source).toContain('Full-field unsaved edit');
 			expect(source.match(/Full-field unsaved edit/g)).toHaveLength(1);
 			expect(source.match(/cashier_id: "qa-edit-id"/g)).toHaveLength(1);
 			if (saved) expect(source.endsWith(neighbor)).toBe(true);
