@@ -9,7 +9,7 @@
 		".claude/skills/**",
 		".pi/skills/**",
 		".pi/prompts/**",
-		"openspec/changes/remove-unsupported-client-features/Cashier-PR26-QA-report.md"
+		"openspec/changes/archive/2026-11-06-remove-unsupported-client-features/Cashier-PR26-QA-report.md"
 	],
 	// Tailwind CSS class sorting (replaces prettier-plugin-tailwindcss)
 	"experimentalTailwindcss": {}
