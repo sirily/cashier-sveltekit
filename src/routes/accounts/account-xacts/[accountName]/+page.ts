@@ -63,19 +63,20 @@ WHERE account = '${accountName}'`;
 	}
 
 	// Normalize device xacts
-	const deviceRows: UnifiedXact[] = deviceXacts.map(({ xact, span }) => {
-		const posting = xact.postings?.find((p) => p.account === accountName);
-		return {
-			date: xact.date ?? '',
-			payee: xact.payee ?? '',
-			narration: xact.note ?? '',
-			amount: posting?.amount ?? 0,
-			currency: posting?.currency ?? '',
-			isDevice: true,
-			xact,
-			span
-		};
-	});
+	const deviceRows: UnifiedXact[] = deviceXacts.flatMap(({ xact, span }) =>
+		(xact.postings ?? [])
+			.filter((p) => p.account === accountName)
+			.map((posting) => ({
+				date: xact.date ?? '',
+				payee: xact.payee ?? '',
+				narration: xact.note ?? '',
+				amount: posting?.amount ?? 0,
+				currency: posting?.currency ?? '',
+				isDevice: true,
+				xact,
+				span
+			}))
+	);
 
 	// Normalize ledger rows
 	const safeColumns: string[] = columns ?? [];
@@ -88,20 +89,22 @@ WHERE account = '${accountName}'`;
 
 	const ledgerNormalized: UnifiedXact[] = safeRows.map((row) => ({
 		date: row[dateIdx] as string,
-		payee: row[payeeIdx] as string,
+		payee: (row[payeeIdx] as string | null | undefined) ?? '',
 		narration: row[narrationIdx] as string,
 		amount: parseFloat(row[numberIdx] as string),
 		currency: row[currencyIdx] as string,
 		isDevice: false
 	}));
 
-	// Mark ledger rows that match a device row, then add only unmatched device rows
+	// Match each local posting to one occurrence, preserving identical postings and transactions.
 	const unmatchedDeviceRows: UnifiedXact[] = [];
 	for (const dr of deviceRows) {
 		const matchIdx = ledgerNormalized.findIndex(
 			(lr) =>
+				!lr.isDevice &&
 				lr.date === dr.date &&
 				lr.payee === dr.payee &&
+				lr.narration === dr.narration &&
 				lr.amount === dr.amount &&
 				lr.currency === dr.currency
 		);

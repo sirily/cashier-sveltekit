@@ -120,9 +120,31 @@ async function mockServer(page: Page, options: MockOptions = {}) {
 }
 
 async function synchronize(page: Page, expectedLocalNote?: string, expectedError?: string) {
-	await page.getByRole('button', { name: 'Synchronize' }).click();
+	const button = page.getByRole('button', { name: 'Synchronize' });
+	// Arm before clicking: settings persistence precedes disabled=true, and a fast
+	// sync can finish before click() returns. Observe the whole busy/idle cycle.
+	await button.evaluate((element) => {
+		element.removeAttribute('data-test-sync-complete');
+		let started = false;
+		const observer = new MutationObserver((records) => {
+			for (const record of records) {
+				if (record.oldValue === null) started = true;
+			}
+			if (started && !(element as HTMLButtonElement).disabled) {
+				element.setAttribute('data-test-sync-complete', 'true');
+				observer.disconnect();
+			}
+		});
+		observer.observe(element, {
+			attributes: true,
+			attributeFilter: ['disabled'],
+			attributeOldValue: true
+		});
+	});
+	await button.click();
+	await expect(button).toHaveAttribute('data-test-sync-complete', 'true');
 	if (expectedLocalNote) {
-		await expect.poll(() => readCashierFile(page)).not.toContain(expectedLocalNote);
+		expect(await readCashierFile(page)).not.toContain(expectedLocalNote);
 	}
 	if (expectedError) await expect(page.getByRole('alert')).toContainText(expectedError);
 }
