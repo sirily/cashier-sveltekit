@@ -57,9 +57,23 @@ async function storedState(page: Page) {
 async function navigate(page: Page, name: string) {
 	const link = page.locator('aside').getByRole('link', { name, exact: true, includeHidden: true });
 	const details = link.locator('xpath=ancestor::details');
-	if ((await details.count()) && !(await details.evaluate((e) => (e as HTMLDetailsElement).open)))
-		await details.locator('summary').click();
+	if (await details.count()) {
+		if (!(await details.evaluate((e) => (e as HTMLDetailsElement).open)))
+			await details.locator('summary').click();
+		// Expansion can move the link between pointer-down and pointer-up after auto-scrolling.
+		await details.evaluate(async (element) => {
+			await Promise.all(
+				element.getAnimations({ subtree: true }).map((animation) => animation.finished)
+			);
+		});
+	}
+	const destinations: Record<string, string> = {
+		Reports: '/reports',
+		'File Storage': '/opfs',
+		Journal: '/journal'
+	};
 	await link.click();
+	await expect(page).toHaveURL(destinations[name]);
 }
 async function report(page: Page) {
 	await navigate(page, 'Reports');
@@ -84,6 +98,7 @@ async function expectDiagnostics(page: Page, message: string, absent?: string) {
 }
 async function edit(page: Page, path: string, content: string) {
 	await navigate(page, 'File Storage');
+	await expect(page.locator('.navbar').getByText('OPFS Files', { exact: true })).toBeVisible();
 	await page.getByRole('cell').getByText(path, { exact: true }).click();
 	await expect(page.locator('textarea')).toBeVisible();
 	await page.locator('textarea').fill(content);
