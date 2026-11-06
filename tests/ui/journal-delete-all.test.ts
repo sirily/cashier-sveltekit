@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { navigateFromDrawer as navigate } from './fixtures/navigation';
 
 // No hand-built cache: serialize the report's actual worker/WASM book before deletion.
 const draft = `2026-10-02 ! "Deleted local draft"
@@ -60,13 +61,6 @@ async function storedState(page: Page) {
 	});
 }
 
-async function navigate(page: Page, name: string) {
-	const link = page.locator('aside').getByRole('link', { name, exact: true, includeHidden: true });
-	const details = link.locator('xpath=ancestor::details');
-	if ((await details.count()) && !(await details.evaluate((e) => (e as HTMLDetailsElement).open)))
-		await details.locator('summary').click();
-	await link.click();
-}
 async function report(page: Page) {
 	await navigate(page, 'Reports');
 	await page.getByRole('link', { name: 'Income vs Expenses', exact: true }).click();

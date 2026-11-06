@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { navigateFromDrawer as navigate } from './fixtures/navigation';
 import { readFileSync } from 'node:fs';
 import init, { Ledger, version } from '@rustledger/wasm';
 
@@ -124,30 +125,8 @@ async function seed(page: Page, source: Source, caching: boolean) {
 	);
 }
 
-async function navigate(page: Page, group: string, link: string) {
-	const sidebar = page.locator('aside');
-	const section = sidebar
-		.locator('details')
-		.filter({ has: page.getByText(group, { exact: true }) });
-	if (!(await section.evaluate((element) => (element as HTMLDetailsElement).open))) {
-		await section.locator('summary').click();
-	}
-	// The link can have a stable box while its details container is still expanding
-	// and scrolling. Wait for the container transition before pointer activation.
-	await section.evaluate(async (element) => {
-		await Promise.all(
-			element.getAnimations({ subtree: true }).map((animation) => animation.finished)
-		);
-	});
-	const destination = section.getByRole('link', { name: link, exact: true });
-	const href = await destination.getAttribute('href');
-	expect(href).toBeTruthy();
-	await destination.click();
-	await expect(page).toHaveURL(new URL(href!, page.url()).href);
-}
-
 async function openReport(page: Page, report: Report) {
-	await navigate(page, 'Analysis', 'Reports');
+	await navigate(page, 'Reports');
 	await expect(page).toHaveURL(/\/reports$/);
 	await page
 		.locator('article')
@@ -246,7 +225,7 @@ for (const source of ['overlay', 'selected'] as const) {
 			await openReport(page, order[1]);
 			await expectIncomplete(page, order[1]);
 
-			await navigate(page, 'Data', 'File Storage');
+			await navigate(page, 'File Storage');
 			const fileName = source === 'overlay' ? 'cashier.bean' : 'selected.bean';
 			await page.getByRole('cell').getByText(fileName, { exact: true }).click();
 			await expect(page).toHaveURL(
@@ -259,7 +238,7 @@ for (const source of ['overlay', 'selected'] as const) {
 			await expect(page.getByText('File saved successfully', { exact: true })).toBeVisible();
 			await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
 
-			await navigate(page, 'Utilities', 'Validation');
+			await navigate(page, 'Validation');
 			// Save already refreshes the full book: verify before any manual reload can mask staleness.
 			await expect(page.getByText('All clear!', { exact: true })).toBeVisible();
 			await expect(page.getByText('Valid', { exact: true })).toBeVisible();
@@ -298,7 +277,7 @@ for (const source of ['overlay', 'selected'] as const) {
 				}
 			}
 			// Explicit refresh is still supported and must be idempotent after the save-owned refresh.
-			await navigate(page, 'Utilities', 'Validation');
+			await navigate(page, 'Validation');
 			await page.getByRole('button', { name: 'Reload & Validate', exact: true }).click();
 			await expect(page.getByText('All clear!', { exact: true })).toBeVisible();
 			await expect(page.getByText('Valid', { exact: true })).toBeVisible();

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { navigateFromDrawer as navigate } from './fixtures/navigation';
 
 // Cache construction goes through the application's actual worker/WASM, not a
 // hand-built metadata fixture. Each test owns an isolated browser origin store.
@@ -109,18 +110,6 @@ async function assertFiles(page: Page, expected: Record<string, string>) {
 		);
 	}, Object.keys(expected));
 	expect(actual).toEqual(expected);
-}
-async function navigate(page: Page, link: string) {
-	const target = page
-		.locator('aside')
-		.getByRole('link', { name: link, exact: true, includeHidden: true });
-	const details = target.locator('xpath=ancestor::details');
-	if (
-		(await details.count()) &&
-		!(await details.evaluate((element) => (element as HTMLDetailsElement).open))
-	)
-		await details.locator('summary').click();
-	await target.click();
 }
 
 test.beforeEach(async ({ page }) => {
