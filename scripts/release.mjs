@@ -305,6 +305,9 @@ function finishFinal(env = process.env, runner = run, readVersion = packageVersi
 	const latest = inspect(env.RELEASE_IMAGE, 'latest', runner);
 	if (!latest || latest.digest !== image.digest)
 		throw new Error('latest does not point to the final release image');
+	runner('gh', ['release', 'edit', `v${version}`, '--repo', repo, '--latest'], {
+		env: { ...process.env, GH_TOKEN: env.GH_TOKEN }
+	});
 }
 export { semver, packageVersion, planRc, planFinal, checkImage, imageStatus, finishFinal };
 const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

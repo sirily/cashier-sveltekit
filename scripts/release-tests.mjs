@@ -497,6 +497,76 @@ test('finish-final permits an exact existing commit tag without recreating it or
 		f.clean();
 	}
 });
+test('finish-final marks new and existing GitHub releases Latest only after verifying container latest', () => {
+	for (const releaseExists of [false, true]) {
+		const { runner: baseRunner, calls } = makeRunner({
+			tags: releaseExists ? [version] : [],
+			releaseExists
+		});
+		const runner = (command, args, options) => {
+			if (command === 'gh' && args[0] === 'release' && args[1] === 'edit') {
+				assert.equal(options.env.GH_TOKEN, baseEnv.GH_TOKEN);
+			}
+			return baseRunner(command, args);
+		};
+		finishFinal(baseEnv, runner, () => version);
+		assert.deepEqual(calls.at(-1), [
+			'gh',
+			['release', 'edit', `v${version}`, '--repo', repo, '--latest']
+		]);
+		assert.deepEqual(calls.at(-2), [
+			'docker',
+			['buildx', 'imagetools', 'inspect', '--raw', `${image}@${digest}`]
+		]);
+		if (!releaseExists) {
+			const creation = calls.find(
+				([command, args]) => command === 'gh' && args[0] === 'release' && args[1] === 'create'
+			);
+			assert.ok(creation[1].includes('--latest=false'));
+		}
+	}
+});
+
+test('finish-final does not mark GitHub Latest if container latest publication or verification fails', () => {
+	for (const failure of ['push', 'missing', 'mismatch']) {
+		const { runner: baseRunner, calls } = makeRunner();
+		const runner = (command, args) => {
+			if (command === 'docker' && args.includes(`${image}:latest`)) {
+				if (args.includes('create') && failure === 'push') throw Error('registry unavailable');
+				if (args.includes('inspect')) {
+					if (failure === 'missing') throw Error('manifest unknown');
+					if (failure === 'mismatch') return `Digest: sha256:${'e'.repeat(64)}`;
+				}
+			}
+			return baseRunner(command, args);
+		};
+		assert.throws(
+			() => finishFinal(baseEnv, runner, () => version),
+			/registry unavailable|latest does not point to the final release image/
+		);
+		assert.equal(
+			calls.some(([command, args]) => command === 'gh' && args[1] === 'edit'),
+			false
+		);
+	}
+});
+
+test('finish-final surfaces GitHub Latest update failures and permits retrying the existing release', () => {
+	const { runner: baseRunner } = makeRunner({ tags: [version], releaseExists: true });
+	const runner = (command, args) => {
+		if (command === 'gh' && args[0] === 'release' && args[1] === 'edit')
+			throw Error('GitHub unavailable');
+		return baseRunner(command, args);
+	};
+	assert.throws(() => finishFinal(baseEnv, runner, () => version), /GitHub unavailable/);
+	const retry = makeRunner({ tags: [version], releaseExists: true });
+	finishFinal(baseEnv, retry.runner, () => version);
+	assert.deepEqual(retry.calls.at(-1), [
+		'gh',
+		['release', 'edit', `v${version}`, '--repo', repo, '--latest']
+	]);
+});
+
 test('finish-final rejects a conflicting existing tag, newer version, and moved main without writes', () => {
 	const f = fixture();
 	try {
@@ -557,6 +627,10 @@ test('finish-final stops before updating latest if main moves after creating the
 		);
 		assert.equal(
 			calls.some(([cmd, args]) => cmd === 'docker' && args.includes(`${image}:latest`)),
+			false
+		);
+		assert.equal(
+			calls.some(([cmd, args]) => cmd === 'gh' && args[0] === 'release' && args[1] === 'edit'),
 			false
 		);
 	} finally {

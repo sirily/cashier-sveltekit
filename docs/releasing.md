@@ -61,7 +61,7 @@ Open a PR from `releases/X.Y.Z` into `main`. The PR can remain open while work a
 
 #### 3. Build and publish the final release
 
-After a same-repository release PR is merged, publication determines the version from the release branch name and verifies it against `package.json` and both root version entries in `package-lock.json`. The merged PR's API `merge_commit_sha` must equal the event's squash commit. Publication validates the source SHA and version, runs required checks, and builds a fresh production image from that exact squash commit as `X.Y.Z`. It creates `vX.Y.Z` on that commit and updates `latest`. An arbitrary `main` push is not a release.
+After a same-repository release PR is merged, publication determines the version from the release branch name and verifies it against `package.json` and both root version entries in `package-lock.json`. The merged PR's API `merge_commit_sha` must equal the event's squash commit. Publication validates the source SHA and version, runs required checks, and builds a fresh production image from that exact squash commit as `X.Y.Z`. It creates `vX.Y.Z` on that commit and updates the container's `latest` tag. After verifying that `latest` points to the final image digest, it marks the corresponding GitHub Release as Latest. A retry also applies this mark to an existing release. An arbitrary `main` push is not a release.
 
 A retry for a version whose final image already exists must fail closed or complete the same interrupted publication against the exact commit; it must not rebuild over an existing final image, replace different content, or move a final Git tag. Final versions are unique. Failed or stale runs cannot overwrite a newer production release.
 
