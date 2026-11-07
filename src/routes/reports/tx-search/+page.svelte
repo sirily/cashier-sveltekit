@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { tick, onMount } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { page } from '$app/state';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import AccordionSection from '$lib/components/AccordionSection.svelte';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { Xact, Posting } from '$lib/data/model';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import AccordionSection from '#lib/components/AccordionSection.svelte';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { Xact, Posting } from '#lib/data/model';
 
 	// State
 	let isLoading = $state(false);
@@ -114,7 +115,7 @@ ${where} ORDER BY date DESC`;
 		const currencyIdx = columns.indexOf('currency');
 
 		const keyOrder: string[] = [];
-		const groupMap = new Map<string, Xact>();
+		const groupMap = new SvelteMap<string, Xact>();
 
 		for (const row of rows as any[][]) {
 			const date = String(row[dateIdx] ?? '');
@@ -265,7 +266,7 @@ ${where} ORDER BY date DESC`;
 			</div>
 		{:else if queryErrors.length > 0}
 			<div class="rounded-lg border border-error bg-error/10 p-3 flex flex-col gap-1">
-				{#each queryErrors as err}
+				{#each queryErrors as err, i (`${err.line ?? ''}:${err.column ?? ''}:${err.message}:${i}`)}
 					<div class="text-error text-sm font-mono">
 						{#if err.line}<span class="opacity-60">{err.severity} {err.line}:{err.column} — </span>{/if}{err.message}
 					</div>
@@ -279,7 +280,7 @@ ${where} ORDER BY date DESC`;
 			<div class="py-8 text-center text-base-content/50 text-sm">No results.</div>
 		{:else}
 			<div class="flex flex-col divide-y divide-base-200">
-				{#each xacts as xact}
+				{#each xacts as xact (xact)}
 					<div class="py-2">
 						<JournalXactRow {xact} />
 					</div>

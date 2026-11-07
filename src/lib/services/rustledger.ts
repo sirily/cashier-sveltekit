@@ -8,7 +8,7 @@
  * Use fullLedgerService or ledgerService instead.
  */
 
-import { Account } from '$lib/data/model';
+import { Account } from '#lib/data/model';
 import type {
 	ParsedLedger,
 	ParseResult,

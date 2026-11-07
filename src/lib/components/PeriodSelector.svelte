@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
 	import moment from 'moment';
-	import { ISODATEFORMAT } from '$lib/constants';
+	import { ISODATEFORMAT } from '#lib/constants';
 
 	export interface Period {
 		label: string;
@@ -52,7 +52,7 @@
 </script>
 
 <select class="select select-bordered select-sm" bind:value={selectedKey}>
-	{#each periods as period}
+	{#each periods as period (period.key)}
 		<option value={period.key}>{period.label}</option>
 	{/each}
 </select>

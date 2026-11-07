@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-30
+# Optional feature retirement leaves the published business contracts unchanged.
+skip_specs: true

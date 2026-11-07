@@ -93,9 +93,10 @@ export class Price {
 	currency: string | undefined;
 }
 
+/** Legacy IndexedDB record shape, also serialized as scx in outbound backups. */
 export class ScheduledTransaction {
 	id?: number;
-	nextDate: string;
+	nextDate!: string;
 	transaction?: Xact;
 	period?: string;
 	count?: number;
@@ -104,11 +105,6 @@ export class ScheduledTransaction {
 
 	// Transaction Amount, for display only.
 	amount?: Money;
-
-	constructor() {
-		this.nextDate = '';
-		this.period = '';
-	}
 }
 
 export class Xact {

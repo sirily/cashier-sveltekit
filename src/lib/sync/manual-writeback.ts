@@ -6,8 +6,9 @@
  * 3. Reconcile: remove local entries whose cashier_id appears in the pulled ledger
  *    (and was not rejected in the current push batch).
  */
-import * as opfs from '$lib/utils/opfslib';
-import { CASHIER_XACT_FILE } from '$lib/constants';
+import * as opfs from '#lib/utils/opfslib';
+import { syncHttpError } from './http-error';
+import { CASHIER_XACT_FILE } from '#lib/constants';
 
 export interface PendingTransaction {
 	rawText: string;
@@ -19,7 +20,6 @@ export interface WritebackResponse {
 	rejected: Array<{ cashier_id: string | null; reason: string }>;
 }
 
-const CASHIER_ID_RE = /^\s+cashier_id:\s*"([^"]*)"/m;
 const COMPLETED_TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+\*\s/;
 const TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+[*!]\s/;
 
@@ -28,8 +28,16 @@ function generateCashierId(): string {
 }
 
 function extractCashierId(blockText: string): string | null {
-	const match = blockText.match(CASHIER_ID_RE);
-	return match ? match[1] : null;
+	// Skip strings/comments before recognizing metadata, and stop at the first posting:
+	// any later cashier_id belongs to a posting, not the transaction.
+	const tokens = blockText.matchAll(
+		/"(?:\\[\s\S]|[^"\\])*"|;[^\r\n]*|^[\t ]+(?:[^\s][\t ]+)?[\p{Lu}\p{Lt}\p{Lo}][^\s:;"]*(?::[^\s:;"]+)+(?=[\t ;]|$)|^[\t ]+cashier_id:[\t ]*"([^"\r\n]*)"/gmu
+	);
+	for (const match of tokens) {
+		if (match[1] !== undefined) return match[1];
+		if (/^[\t ]/.test(match[0])) break;
+	}
+	return null;
 }
 
 function isCompletedTransactionStart(line: string): boolean {
@@ -142,8 +150,7 @@ export async function pushTransactions(
 	});
 
 	if (!response.ok) {
-		const text = await response.text().catch(() => '');
-		throw new Error(`Server rejected request (${response.status}): ${text || response.statusText}`);
+		throw syncHttpError(response.status, 'Sending local transactions');
 	}
 
 	const data = (await response.json()) as WritebackResponse;

@@ -1,19 +1,23 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { SettingKeys, settings } from '$lib/settings';
-	import Notifier from '$lib/utils/notifier';
-	import appService from '$lib/services/appService';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { SettingKeys, settings } from '#lib/settings';
+	import Notifier from '#lib/utils/notifier';
+	import appService from '#lib/services/appService';
 	import { goto, replaceState } from '$app/navigation';
-	import { DefaultCurrencyStore, PendingSettingsStore } from '$lib/data/mainStore.js';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { BoxIcon, Check, FileBraces, NetworkIcon, RotateCcw } from '@lucide/svelte';
-	import Fab from '$lib/components/FAB.svelte';
+	import { DefaultCurrencyStore, PendingSettingsStore } from '#lib/data/mainStore.js';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import BoxIcon from '@lucide/svelte/icons/box';
+	import Check from '@lucide/svelte/icons/check';
+
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
+	import Fab from '#lib/components/FAB.svelte';
 	import { page } from '$app/state';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { USER_BOOK_FILENAME } from '$lib/constants';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { USER_BOOK_FILENAME } from '#lib/constants';
 
 	Notifier.init();
 
@@ -101,7 +105,7 @@
 		}
 
 		// Remove params from URL without triggering navigation
-		replaceState('', {});
+		replaceState(resolve('/settings'), {});
 	}
 
 	async function loadData() {
@@ -114,16 +118,14 @@
 		savedCurrency = (await appService.getDefaultCurrency()) ?? undefined;
 		savedBookFilename = (await appService.readBookFilename()) ?? null;
 		savedRootInvestmentAccount = (await settings.get<string>(SettingKeys.rootInvestmentAccount)) as
-			| string
-			| undefined;
+			string | undefined;
 		savedRememberLastTransaction = (await settings.get<boolean>(
 			SettingKeys.rememberLastTransaction
 		)) as boolean | undefined;
 		ledgerCacheEnabled = (await settings.get<boolean>(SettingKeys.ledgerCacheEnabled)) ?? true;
 		savedAssetAllocationDefinition =
 			(await settings.get<string>(SettingKeys.assetAllocationDefinition)) ?? null;
-		savedDateFormat =
-			(await settings.get<string>(SettingKeys.dateFormat)) ?? DATE_FORMAT_DEFAULT;
+		savedDateFormat = (await settings.get<string>(SettingKeys.dateFormat)) ?? DATE_FORMAT_DEFAULT;
 
 		// Auto-detect currency from book if not saved yet
 		if (!savedCurrency && bookCurrencies.length > 0) {
@@ -144,7 +146,7 @@
 	}
 
 	async function onOpfsClick() {
-		await goto('/opfs');
+		await goto(resolve('/opfs'));
 	}
 
 	async function saveSettings() {
@@ -162,22 +164,18 @@
 			await appService.writeBookFilename(bookFilename);
 		}
 
-		// invalidateStorageBackendCache();
-
 		// Clear pending store now that everything is saved
 		PendingSettingsStore.set(undefined);
 
 		Notifier.success('Settings saved');
 
-		await goto('/'); // Go to home after saving settings
+		await goto(resolve('/')); // Go to home after saving settings
 	}
 </script>
 
 <Toolbar title="Settings">
 	{#snippet menuItems()}
 		<ToolbarMenuItem text="OPFS Storage" Icon={BoxIcon} onclick={onOpfsClick} />
-		<ToolbarMenuItem text="JSON Editor" Icon={FileBraces} targetNav="/settings/json-editor" />
-		<ToolbarMenuItem text="WebDAV Config" Icon={NetworkIcon} targetNav="/settings/webdav-cfg" />
 	{/snippet}
 </Toolbar>
 
@@ -227,8 +225,8 @@
 	<h3 class="text-xl font-bold">Ledger Configuration</h3>
 
 	<p class="text-sm">
-		<a href="/opfs/import-ledger" class="link">Import Ledger files</a>
-		first, then choose the book file here.
+		Use <a href={resolve('/sync')} class="link">server Sync</a> to download your Beancount book, then
+		choose the downloaded book file here.
 	</p>
 
 	<div class="flex items-center gap-4">
@@ -249,7 +247,10 @@
 		<button
 			class="btn btn-primary btn-sm rounded"
 			type="button"
-			onclick={() => goto(`/opfs/file-picker?returnSetting=${USER_BOOK_FILENAME}`)}
+			onclick={() =>
+				goto(
+					resolve(`/opfs/file-picker?${new URLSearchParams({ returnSetting: USER_BOOK_FILENAME })}`)
+				)}
 		>
 			Select
 		</button>
@@ -276,7 +277,11 @@
 			class="btn btn-primary btn-sm rounded"
 			type="button"
 			onclick={() =>
-				goto(`/opfs/file-picker?returnSetting=${SettingKeys.assetAllocationDefinition}`)}
+				goto(
+					resolve(
+						`/opfs/file-picker?${new URLSearchParams({ returnSetting: SettingKeys.assetAllocationDefinition })}`
+					)
+				)}
 		>
 			Select
 		</button>
@@ -315,15 +320,15 @@
 		<h3 class="text-xl font-bold">Ledger Caching</h3>
 
 		<div class="my-3">
-		<label for="ledger-cache-enabled" class="flex items-center space-x-2">
-			<input
-				id="ledger-cache-enabled"
-				class="checkbox checkbox-primary rounded"
-				type="checkbox"
-				bind:checked={ledgerCacheEnabled}
-			/>
-			<p>Enable ledger cache (load from binary cache on startup).</p>
-		</label>
+			<label for="ledger-cache-enabled" class="flex items-center space-x-2">
+				<input
+					id="ledger-cache-enabled"
+					class="checkbox checkbox-primary rounded"
+					type="checkbox"
+					bind:checked={ledgerCacheEnabled}
+				/>
+				<p>Enable ledger cache (load from binary cache on startup).</p>
+			</label>
 		</div>
 	</section>
 
@@ -335,7 +340,7 @@
 		</label>
 		<div class="flex gap-2">
 			<select id="date-format" class="select rounded flex-1" bind:value={dateFormat}>
-				{#each dateFormatOptions as opt}
+				{#each dateFormatOptions as opt (opt.value)}
 					<option value={opt.value}>{opt.label}</option>
 				{/each}
 			</select>

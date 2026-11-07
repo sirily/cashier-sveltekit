@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import MultiCurrencyBalance from '$lib/components/MultiCurrencyBalance.svelte';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { SettingKeys, settings } from '$lib/settings';
-	import { formatAmount } from '$lib/utils/formatter';
-	import PillToggle from '$lib/components/PillToggle.svelte';
+
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import MultiCurrencyBalance from '#lib/components/MultiCurrencyBalance.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { SettingKeys, settings } from '#lib/settings';
+	import { formatAmount } from '#lib/utils/formatter';
+	import PillToggle from '#lib/components/PillToggle.svelte';
 
 	interface AssetNode {
 		name: string;
@@ -62,7 +65,7 @@
 		valIdx: number,
 		closedAccounts: Set<string>
 	): AssetNode[] {
-		const nodeMap = new Map<string, AssetNode>();
+		const nodeMap = new SvelteMap<string, AssetNode>();
 
 		for (const row of rows) {
 			const fullName = String(row[accountIdx] ?? '');
@@ -148,7 +151,7 @@
 			const closedResult = await fullLedgerService.query(
 				`SELECT account FROM #accounts WHERE account ~ "^Assets" AND close IS NOT NULL`
 			);
-			const closedAccounts = new Set<string>();
+			const closedAccounts = new SvelteSet<string>();
 			if (!closedResult?.errors?.length) {
 				const ci = (closedResult?.columns ?? []).indexOf('account');
 				if (ci !== -1) {
@@ -185,22 +188,24 @@
 	{#if isVisible(node)}
 		{#if visChildren.length > 0}
 			<div>
-				<button
-					class="flex w-full cursor-pointer items-center gap-2 rounded py-1.5 pr-2 hover:bg-base-200"
-					class:opacity-50={node.closed}
-					style="padding-left: {0.5 + node.depth}rem"
-					onclick={() => (node.expanded = !node.expanded)}
-				>
-					<span
-						class="w-3 shrink-0 text-xs text-base-content/40 transition-transform"
-						class:rotate-90={node.expanded}
-					>▶</span>
-					<span class="flex-1 text-left text-sm font-medium">{node.name}</span>
-					{#if showBase}
-						<span class="font-mono text-sm tabular-nums"
-							>{formatAmount(node.value)}&nbsp;{baseCurrency}</span
+				<div class="flex items-center gap-2 pr-2" style="padding-left: {0.5 + node.depth}rem">
+					<button
+						class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded py-1.5 text-left hover:bg-base-200"
+						class:opacity-50={node.closed}
+						onclick={() => (node.expanded = !node.expanded)}
+					>
+						<span
+							class="w-3 shrink-0 text-xs text-base-content/40 transition-transform"
+							class:rotate-90={node.expanded}>▶</span
 						>
-					{:else}
+						<span class="flex-1 text-left text-sm font-medium">{node.name}</span>
+						{#if showBase}
+							<span class="font-mono text-sm tabular-nums"
+								>{formatAmount(node.value)}&nbsp;{baseCurrency}</span
+							>
+						{/if}
+					</button>
+					{#if !showBase}
 						<MultiCurrencyBalance
 							balances={node.position}
 							defaultCurrency={baseCurrency}
@@ -208,29 +213,36 @@
 							class="text-sm"
 						/>
 					{/if}
-				</button>
+				</div>
 				{#if node.expanded}
 					<div>
-						{#each visChildren as child}
+						{#each visChildren as child (child.fullName)}
 							{@render renderNode(child)}
 						{/each}
 					</div>
 				{/if}
 			</div>
 		{:else}
-			<button
-				class="flex w-full cursor-pointer items-center gap-2 rounded py-1.5 pr-2 hover:bg-base-200"
-				class:opacity-50={node.closed}
-				style="padding-left: {0.5 + node.depth}rem"
-				onclick={() => goto(`/accounts/account-xacts/${encodeURIComponent(node.fullName)}`)}
-			>
-				<span class="w-3 shrink-0"></span>
-				<span class="flex-1 text-left text-sm">{node.name}</span>
-				{#if showBase}
-					<span class="font-mono text-sm tabular-nums"
-						>{formatAmount(node.value)}&nbsp;{baseCurrency}</span
-					>
-				{:else}
+			<div class="flex items-center gap-2 pr-2" style="padding-left: {0.5 + node.depth}rem">
+				<button
+					class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded py-1.5 text-left hover:bg-base-200"
+					class:opacity-50={node.closed}
+					onclick={() =>
+						goto(
+							resolve('/accounts/account-xacts/[accountName]', {
+								accountName: encodeURIComponent(node.fullName)
+							})
+						)}
+				>
+					<span class="w-3 shrink-0"></span>
+					<span class="flex-1 text-left text-sm">{node.name}</span>
+					{#if showBase}
+						<span class="font-mono text-sm tabular-nums"
+							>{formatAmount(node.value)}&nbsp;{baseCurrency}</span
+						>
+					{/if}
+				</button>
+				{#if !showBase}
 					<MultiCurrencyBalance
 						balances={node.position}
 						defaultCurrency={baseCurrency}
@@ -238,7 +250,7 @@
 						class="text-sm"
 					/>
 				{/if}
-			</button>
+			</div>
 		{/if}
 	{/if}
 {/snippet}
@@ -279,7 +291,7 @@
 			<div class="py-12 text-center text-sm text-base-content/50">No asset accounts found.</div>
 		{:else}
 			<div class="flex flex-col">
-				{#each roots as root}
+				{#each roots as root (root.fullName)}
 					{@render renderNode(root)}
 				{/each}
 			</div>

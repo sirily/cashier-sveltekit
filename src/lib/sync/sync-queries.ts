@@ -2,8 +2,6 @@
  * Contains queries for the sync, PTA system.
  */
 
-import { PtaSystems } from '$lib/enums';
-
 export interface Queries {
 	accounts(): string;
 	openAccounts(): string;
@@ -14,26 +12,7 @@ export interface Queries {
 	incomeBalance(symbol: string, yieldFrom: string, currency: string): string;
 	gainLoss(symbol: string, currency: string): string;
 	valueBalance(symbol: string, currency: string): string;
-	basis(symbol: string, currency: string): string;
 }
-
-const LedgerQueries: Queries = {
-	accounts: () => 'b --flat --empty --no-total',
-	/**
-	 * This functionality does not exist with Ledger.
-	 */
-	openAccounts: () => 'b --flat --no-total',
-	balances: () => 'b --flat --no-total',
-	currentValues: (rootAccount: string, currency: string) =>
-		`b ^${rootAccount} -X ${currency} --flat --no-total`,
-	lots: (symbol: string) => `b ^Assets and invest and :${symbol}$ --lots --no-total --collapse`,
-	payees: (from: string) => `payees -b ${from}`,
-	incomeBalance: (symbol: string, yieldFrom: string, currency: string) =>
-		`b ^Income and :${symbol}$ -b ${yieldFrom} --flat -X ${currency}`,
-	gainLoss: (symbol: string, currency: string) => `b ^Assets and :${symbol}$ -G -n -X ${currency}`,
-	valueBalance: (symbol: string, currency: string) => `b ^Assets and :${symbol}$ -X ${currency}`,
-	basis: (symbol: string, currency: string) => `b ^Assets and :${symbol}$ -B -n -X ${currency}`
-};
 
 const BeancountQueries: Queries = {
 	/**
@@ -75,16 +54,9 @@ const BeancountQueries: Queries = {
 		// symbol = symbol.replace('.', '-')
 		return `select str(convert(sum(position), '${currency}')) \
                 where currency = '${symbol}'`;
-	},
-	basis: (symbol: string, currency: string) => `b ^Assets and :${symbol}$ -B -n -X ${currency}`
+	}
 };
 
-export function getQueries(ptaSystem: string): Queries {
-	if (ptaSystem === PtaSystems.ledger) {
-		return LedgerQueries;
-	} else if (ptaSystem == PtaSystems.beancount) {
-		return BeancountQueries;
-	} else {
-		throw new Error('Unknown PTA system: ' + ptaSystem);
-	}
+export function getQueries(): Queries {
+	return BeancountQueries;
 }

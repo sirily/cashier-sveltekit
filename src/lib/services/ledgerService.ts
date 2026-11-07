@@ -7,14 +7,16 @@ import {
 	version as wasmVersion
 } from './rustledger';
 import type { Directive, BeancountError, ParsedLedger } from '@rustledger/wasm';
-import { Account, Xact, Posting } from '$lib/data/model';
-import * as opfslib from '$lib/utils/opfslib';
+import { Account, Xact, Posting } from '#lib/data/model';
+import * as opfslib from '#lib/utils/opfslib';
 import {
 	mapDirectiveSpans,
 	replaceDirectiveBySpan,
 	type DirectiveSpan
-} from '$lib/rledger/sourceEditor';
-import { CASHIER_XACT_FILE } from '$lib/constants';
+} from '#lib/rledger/sourceEditor';
+import { CASHIER_XACT_FILE } from '#lib/constants';
+import { xactToBeancountText } from '#lib/utils/xactUtils';
+import { mergeTransactionEdit } from '#lib/rledger/transactionEdit';
 
 interface QueryError {
 	message: string;
@@ -120,7 +122,7 @@ class LedgerService {
 
 	/**
 	 * Edit a transaction in cashier.bean identified by its DirectiveSpan.
-	 * Parses cashier.bean independently, locates the span by startLine,
+	 * Parses cashier.bean independently, verifies the captured source span,
 	 * splices in the new text, writes back, and invalidates.
 	 */
 	async editTransaction(span: DirectiveSpan, newBeancountText: string): Promise<void> {
@@ -129,13 +131,22 @@ class LedgerService {
 		if (!tempLedger) throw new Error('Failed to parse cashier.bean');
 		try {
 			const spans = mapDirectiveSpans(source, tempLedger);
-			const idx = spans.findIndex((s) => s.startLine === span.startLine);
-			if (idx === -1) {
-				throw new Error(
-					`Could not locate directive at line ${span.startLine} in ${CASHIER_XACT_FILE}`
-				);
+			const idx = this.verifyTransactionSpan(spans, span);
+			const entries = await this.getXactsWithSpans();
+			const entry = entries.find((entry) => entry.span.startLine === span.startLine);
+			if (!entry || entry.span.sourceText !== spans[idx].sourceText) {
+				throw new Error('Local transaction source changed. Reload the Journal and try again.');
 			}
-			const updated = replaceDirectiveBySpan(source, spans, idx, newBeancountText.trimEnd());
+			const replacement = mergeTransactionEdit(
+				spans[idx].sourceText,
+				xactToBeancountText(entry.xact).trimEnd(),
+				newBeancountText.trimEnd()
+			);
+			if (replacement === spans[idx].sourceText) return;
+			const updated = replaceDirectiveBySpan(source, spans, idx, replacement);
+			if ((await opfslib.readFile(CASHIER_XACT_FILE)) !== source) {
+				throw new Error('Local journal changed while saving. Reload the Journal and try again.');
+			}
 			await opfslib.saveFile(CASHIER_XACT_FILE, updated);
 		} finally {
 			tempLedger.free();
@@ -145,7 +156,7 @@ class LedgerService {
 
 	/**
 	 * Delete a transaction from cashier.bean identified by its DirectiveSpan.
-	 * Removes the span lines and collapses extra blank lines.
+	 * Verifies the captured span and leaves all surrounding source unchanged.
 	 */
 	async deleteTransaction(span: DirectiveSpan): Promise<void> {
 		const source = (await opfslib.readFile(CASHIER_XACT_FILE)) ?? '';
@@ -153,15 +164,8 @@ class LedgerService {
 		if (!tempLedger) throw new Error('Failed to parse cashier.bean');
 		try {
 			const spans = mapDirectiveSpans(source, tempLedger);
-			const idx = spans.findIndex((s) => s.startLine === span.startLine);
-			if (idx === -1) {
-				throw new Error(
-					`Could not locate directive at line ${span.startLine} in ${CASHIER_XACT_FILE}`
-				);
-			}
-			let updated = replaceDirectiveBySpan(source, spans, idx, '');
-			// Collapse runs of 3+ blank lines down to 2 (one visual separator).
-			updated = updated.replace(/\n{3,}/g, '\n\n');
+			const idx = this.verifyTransactionSpan(spans, span);
+			const updated = replaceDirectiveBySpan(source, spans, idx, '');
 			await opfslib.saveFile(CASHIER_XACT_FILE, updated);
 		} finally {
 			tempLedger.free();
@@ -256,8 +260,8 @@ class LedgerService {
 	}
 
 	/**
-	 * Read cashier.bean, parse it independently, and return all transaction directives
-	 * zipped with their DirectiveSpans (line ranges). Used by the journal page to populate
+	 * Read cashier.bean and parse transactions at their verified DirectiveSpans.
+	 * Used by the journal page to populate
 	 * the list and supply the span needed for editing.
 	 */
 	async getXactsWithSpans(): Promise<Array<{ xact: Xact; span: DirectiveSpan }>> {
@@ -269,53 +273,73 @@ class LedgerService {
 		if (!tempLedger) return [];
 
 		try {
-			const directives: any[] = tempLedger.getDirectives();
-			let spans = mapDirectiveSpans(source, tempLedger);
-
-			// Local cashier.bean files often contain transaction-only fragments with no
-			// open directives. Those parse into transaction directives, but the document
-			// symbol API may return no spans; the Journal still needs source spans for
-			// display/edit/delete.
-			if (spans.length === 0 && directives.some((d) => d.type === 'transaction')) {
-				spans = this.fallbackTransactionSpans(source);
-			}
-
-			const transactionDirectives = directives.filter((d) => d.type === 'transaction');
-			const transactionSpans = spans.filter((span) =>
-				/^\d{4}-\d{2}-\d{2}\s+[*!]/.test(span.sourceText.trimStart())
+			const spans = mapDirectiveSpans(source, tempLedger);
+			const symbols = tempLedger.getDocumentSymbols();
+			const transactionSpans = spans.filter(
+				(span) => symbols[span.symbolIndex].kind === 'transaction'
 			);
-
-			const fallbackSpans = this.fallbackTransactionSpans(source);
-			return transactionDirectives.flatMap((directive, i) => {
-				const span = transactionSpans[i] ?? spans[i] ?? fallbackSpans[i];
-				return span ? [{ xact: this.directiveToXact(directive), span }] : [];
-			});
+			// WASM omits source metadata from directives and sorts them during booking.
+			// Temporary scoped tags give the full-document parse explicit source keys,
+			// without changing headers (which may contain multiline strings/comments).
+			let prefix = 'cashier-source-';
+			while (source.includes(prefix)) prefix += 'x';
+			const lines = source.split('\n');
+			for (const span of [...transactionSpans].reverse()) {
+				const tag = `${prefix}${span.startLine}`;
+				lines.splice(span.endLine + 1, 0, `poptag #${tag}`);
+				lines.splice(span.startLine, 0, `pushtag #${tag}`);
+			}
+			const mapped = createParsedLedger(lines.join('\n'));
+			if (!mapped) throw new Error('Could not map local transaction source. Reload the Journal.');
+			try {
+				const directives = mapped.getDirectives().filter((d) => d.type === 'transaction');
+				const byTag = new Map<string, typeof directives>();
+				for (const directive of directives) {
+					const keys = directive.tags.filter((tag) => tag.startsWith(prefix));
+					if (keys.length !== 1)
+						throw new Error('Ambiguous local transaction source. Reload the Journal.');
+					byTag.set(keys[0], [...(byTag.get(keys[0]) ?? []), directive]);
+				}
+				if (directives.length !== transactionSpans.length)
+					throw new Error('Missing local transaction source. Reload the Journal.');
+				return transactionSpans.map((span) => {
+					const matches = byTag.get(`${prefix}${span.startLine}`);
+					if (matches?.length !== 1)
+						throw new Error('Ambiguous local transaction source. Reload the Journal.');
+					return { xact: this.directiveToXact(matches[0]), span };
+				});
+			} finally {
+				mapped.free();
+			}
 		} finally {
 			tempLedger.free();
 		}
 	}
 
-	private fallbackTransactionSpans(source: string): DirectiveSpan[] {
-		const lines = source.split('\n');
-		const starts: number[] = [];
-		for (let i = 0; i < lines.length; i++) {
-			if (/^\d{4}-\d{2}-\d{2}\s+[*!]/.test(lines[i].trimStart())) {
-				starts.push(i);
-			}
+	private verifyTransactionSpan(spans: DirectiveSpan[], captured: DirectiveSpan): number {
+		const matches = spans.filter((span) => span.startLine === captured.startLine);
+		const current = matches[0];
+		if (
+			matches.length !== 1 ||
+			current.endLine !== captured.endLine ||
+			current.sourceText !== captured.sourceText
+		) {
+			throw new Error(
+				'Local transaction source changed or is missing. Reload the Journal and select it again.'
+			);
 		}
-
-		return starts.map((startLine, index) => {
-			let endLine = (starts[index + 1] ?? lines.length) - 1;
-			while (endLine > startLine && lines[endLine].trim() === '') {
-				endLine--;
+		const entry = createParsedLedger(current.sourceText);
+		if (!entry) throw new Error('Could not verify local transaction source. Reload the Journal.');
+		try {
+			const directives = entry.getDirectives();
+			// Accounting/interpolation failures do not invalidate a directive's identity.
+			if (directives.length !== 1 || directives[0].type !== 'transaction') {
+				throw new Error('Source span does not identify one local transaction. Reload the Journal.');
 			}
-			return {
-				symbolIndex: index,
-				startLine,
-				endLine,
-				sourceText: lines.slice(startLine, endLine + 1).join('\n')
-			};
-		});
+		} finally {
+			entry.free();
+		}
+		return spans.indexOf(current);
 	}
 
 	/** Convert a WASM TransactionDirective to an Xact view model. */

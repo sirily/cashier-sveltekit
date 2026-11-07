@@ -1,22 +1,21 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import SquareButton from '$lib/components/SquareButton.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { ScheduledXact, xact, xactSpan } from '$lib/data/mainStore';
-	import { ScheduledTransaction, Xact } from '$lib/data/model';
-	import appService from '$lib/services/appService';
-	import ledgerService from '$lib/services/ledgerService';
-	import fullLedgerService from '$lib/services/ledgerWorkerClient';
-	import { xactToBeancountText } from '$lib/utils/xactUtils';
-	import Notifier from '$lib/utils/notifier';
-	import {
-		CalendarClockIcon,
-		CopyIcon,
-		ClipboardIcon,
-		SquarePenIcon,
-		TrashIcon
-	} from '@lucide/svelte';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import SquareButton from '#lib/components/SquareButton.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { xact, xactSpan } from '#lib/data/mainStore';
+	import { Xact } from '#lib/data/model';
+	import appService from '#lib/services/appService';
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import Notifier from '#lib/utils/notifier';
+
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import ClipboardIcon from '@lucide/svelte/icons/clipboard';
+	import SquarePenIcon from '@lucide/svelte/icons/square-pen';
+	import TrashIcon from '@lucide/svelte/icons/trash';
 	import { onMount } from 'svelte';
 
 	Notifier.init();
@@ -24,11 +23,10 @@
 	let isDeleteConfirmationOpen = $state(false);
 
 	if (!$xact) {
-		goto('/');
+		goto(resolve('/'));
 	}
 
-	onMount(async () => {
-	});
+	onMount(async () => {});
 
 	/**
 	 * Close all dialogs.
@@ -98,22 +96,11 @@
 		xact.set(newXact);
 		xactSpan.set(undefined);
 
-		goto('/tx', { replaceState: true });
+		goto(resolve('/tx'), { replaceState: true });
 	}
 
 	async function onEditClicked() {
-		await goto('/tx');
-	}
-
-	async function onScheduleClick() {
-		ScheduledXact.set(new ScheduledTransaction());
-
-		// clear the Xact id
-		if ($xact) {
-			$xact.id = undefined;
-		}
-
-		goto('/scx-editor');
+		await goto(resolve('/tx'));
 	}
 </script>
 
@@ -130,13 +117,7 @@
 		<SquareButton Icon={ClipboardIcon} classes="bg-primary text-accent" onclick={onDuplicateClick}>
 			Duplicate
 		</SquareButton>
-		<SquareButton
-			Icon={CalendarClockIcon}
-			classes="bg-accent text-secondary"
-			onclick={onScheduleClick}
-		>
-			Schedule
-		</SquareButton>
+
 		<SquareButton Icon={CopyIcon} classes="bg-primary text-accent" onclick={onCopyClicked}>
 			Copy
 		</SquareButton>

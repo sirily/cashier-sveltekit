@@ -1,20 +1,19 @@
 /*
 	Provide service layer for the application.
 */
-import db from '$lib/data/db';
-import { Account, LastXact, Money, Payee, ScheduledTransaction, Xact } from '$lib/data/model';
-import { settings, SettingKeys } from '$lib/settings';
-import { HomeCardNames, PtaSystems } from '$lib/enums';
-import { DefaultCurrencyStore, ScheduledXact, xact } from '$lib/data/mainStore';
+import db from '#lib/data/db';
+import { Account, LastXact, Money, Payee, Xact } from '#lib/data/model';
+import { settings, SettingKeys } from '#lib/settings';
+import { HomeCardNames } from '#lib/enums';
+import { DefaultCurrencyStore } from '#lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
-import * as LedgerParser from '$lib/utils/ledgerParser';
-import * as BeancountParser from '$lib/utils/beancountParser';
-import { formatAmount } from '$lib/utils/formatter';
-import { readFile, saveFile } from '$lib/utils/opfslib';
-import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '$lib/constants';
+import * as BeancountParser from '#lib/utils/beancountParser';
+import { formatAmount } from '#lib/utils/formatter';
+import { readFile } from '#lib/utils/opfslib';
+import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 import { ensureInitialized, createParsedLedger } from './rustledger';
-import { mapDirectiveSpans } from '$lib/rledger/sourceEditor';
+import { mapDirectiveSpans } from '#lib/rledger/sourceEditor';
 
 // interface AccountIndex {
 // 	[key: string]: Account;
@@ -46,39 +45,20 @@ class AppService {
 		).sort();
 	}
 
-	private parseBalanceSheetAccounts(ptaSystem: string, response: unknown): Account[] {
-		const items = this.normalizeBalanceSheetItems(ptaSystem, response);
+	private parseBalanceSheetAccounts(response: unknown): Account[] {
+		const items = this.normalizeBalanceSheetItems(response);
 		if (items.length === 0) {
 			throw new Error('No balance records received for import!');
 		}
 
 		const accountBalances: Record<string, Account> = {};
-		let pendingBalances: Record<string, number> = {};
 
 		for (const item of items) {
-			if (item === '') continue;
-
-			let account: Account | null = null;
-			if (ptaSystem === PtaSystems.ledger) {
-				account = LedgerParser.parseBalanceSheetRow(item as string);
-			} else if (ptaSystem === PtaSystems.beancount) {
-				account = BeancountParser.parseBalanceSheetRow(item as string[]);
-			} else {
-				throw new Error('Unknown PTA system: ' + ptaSystem);
-			}
+			const account = BeancountParser.parseBalanceSheetRow(item);
 
 			if (!account) {
 				continue;
 			}
-
-			const balances = account.balances ?? {};
-			if (!account.name) {
-				pendingBalances = { ...pendingBalances, ...balances };
-				continue;
-			}
-
-			account.balances = { ...pendingBalances, ...balances };
-			pendingBalances = {};
 
 			const [currency, amount] = Object.entries(account.balances ?? {})[0] ?? [];
 			if (currency && amount != null) {
@@ -90,10 +70,6 @@ class AppService {
 
 			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
 			this.mergeAccountBalance(accountBalances, account);
-		}
-
-		if (Object.keys(pendingBalances).length > 0) {
-			throw new Error('Incomplete Ledger balance output: dangling multi-currency continuation row');
 		}
 
 		const accounts = Object.values(accountBalances).map((account) => {
@@ -108,8 +84,8 @@ class AppService {
 		return accounts;
 	}
 
-	async replaceAccounts(ptaSystem: string, response: unknown): Promise<void> {
-		const accounts = this.parseBalanceSheetAccounts(ptaSystem, response);
+	async replaceAccounts(response: unknown): Promise<void> {
+		const accounts = this.parseBalanceSheetAccounts(response);
 		await db.transaction('rw', db.accounts, async () => {
 			await db.accounts.clear();
 			await db.accounts.bulkPut(accounts);
@@ -131,30 +107,21 @@ class AppService {
 		});
 	}
 
-	private normalizeBalanceSheetItems(
-		ptaSystem: string,
-		response: unknown
-	): Array<string | string[]> {
-		if (ptaSystem === PtaSystems.beancount) {
-			if (Array.isArray(response)) {
-				return response as string[][];
-			}
-
-			if (
-				typeof response === 'object' &&
-				response !== null &&
-				'rows' in response &&
-				Array.isArray((response as { rows?: unknown }).rows)
-			) {
-				return (response as { rows: string[][] }).rows;
-			}
+	private normalizeBalanceSheetItems(response: unknown): string[][] {
+		if (Array.isArray(response)) {
+			return response as string[][];
 		}
 
-		if (ptaSystem === PtaSystems.ledger && Array.isArray(response)) {
-			return response as string[];
+		if (
+			typeof response === 'object' &&
+			response !== null &&
+			'rows' in response &&
+			Array.isArray((response as { rows?: unknown }).rows)
+		) {
+			return (response as { rows: string[][] }).rows;
 		}
 
-		throw new Error(`Unsupported balance sheet response for PTA system: ${ptaSystem}`);
+		throw new Error('Unsupported Beancount balance sheet response');
 	}
 	/**
 	 * Clears Ids and reference Ids in Xact and Postings.
@@ -233,18 +200,13 @@ class AppService {
 	}
 
 	async getVisibleCards(): Promise<string[]> {
-		let visibleCardNames: string[] = (await settings.get(SettingKeys.visibleCards)) as string[];
-		if (!visibleCardNames) {
-			// create the default cards list here
-			visibleCardNames = [
-				HomeCardNames.FAVOURITES,
-				HomeCardNames.JOURNAL,
-				HomeCardNames.SCHEDULED,
-				HomeCardNames.SYNC,
-				HomeCardNames.FORECAST
-			];
+		const visibleCardNames = await settings.get<string[]>(SettingKeys.visibleCards);
+		if (visibleCardNames === null) {
+			return [HomeCardNames.FAVOURITES, HomeCardNames.JOURNAL, HomeCardNames.SYNC];
 		}
-		return visibleCardNames;
+		return visibleCardNames.filter(
+			(name) => name !== 'ForecastCard' && name !== 'ScheduledXactCard'
+		);
 	}
 
 	/**
@@ -325,43 +287,6 @@ class AppService {
 	}
 
 	/**
-	 * Translates Xact into a ledger entry.
-	 * @param {Xact} tx
-	 * @returns {String} A ledger entry
-	 */
-	translateToLedger(tx: Xact) {
-		let output = '';
-
-		// transaction
-		output += tx.date;
-		output += ' ' + tx.payee;
-		output += '\n';
-
-		// note
-		if (tx.note) {
-			output += '    ; ' + tx.note + '\n';
-		}
-
-		// postings
-		for (let i = 0; i < tx.postings.length; i++) {
-			const p = tx.postings[i];
-			if (!p.account) continue;
-
-			output += '    ';
-			output += p.account == null ? '' : p.account;
-			if (p.amount) {
-				output += '  ';
-				output += p.amount == null ? '' : p.amount;
-				output += ' ';
-				output += p.currency == null ? '' : p.currency;
-			}
-			output += '\n';
-		}
-
-		return output;
-	}
-
-	/**
 	 * Format a given value as a number with 2 decimals.
 	 * @param {*} value
 	 */
@@ -409,28 +334,16 @@ class AppService {
 	}
 
 	/**
-	 *
-	 * @returns All Scheduled Xacts, serialized to JSON.
-	 */
-	async getScheduledXactsForExport(): Promise<string> {
-		const records: ScheduledTransaction[] = await db.scheduled.toArray();
-		const output = this.serialize(records);
-		return output;
-	}
-
-	/**
-	 * Imports the accounts list with their balances.
-	 * Populates the Account balances. Reads the balances from a Ledger report.
-	 * 10,000 AUD  Assets:Bank Account
-	 * @param lines Output of `ledger balance --flat`
+	 * Updates accounts from Beancount balance query rows.
+	 * @param response Rows of amount, original currency, and account name.
 	 * @returns The promise resolving to the id of the last record updated (Dexie default)
 	 */
-	async importBalanceSheet(ptaSystem: string, response: unknown): Promise<unknown> {
+	async importBalanceSheet(response: unknown): Promise<unknown> {
 		if (!response) {
 			throw new Error('No balance records received for import!');
 		}
 
-		const accounts = this.parseBalanceSheetAccounts(ptaSystem, response);
+		const accounts = this.parseBalanceSheetAccounts(response);
 		return db.accounts.bulkPut(accounts);
 	}
 
@@ -464,22 +377,6 @@ class AppService {
 		).sort();
 		const payees = uniquePayees.map((name) => new Payee(name));
 		await db.payees.bulkPut(payees);
-	}
-
-	/**
-	 * Imports Scheduled Transactions from a JSON String backup (from the export file).
-	 * @param {String} jsonList
-	 */
-	async importScheduledTransactions(jsonList: string) {
-		if (!jsonList) {
-			throw new Error('The transactions list is required!');
-		}
-
-		const parsed = JSON.parse(jsonList);
-		// first delete all existing records?
-		await db.scheduled.clear();
-
-		await db.scheduled.bulkPut(parsed);
 	}
 
 	// async loadAccount(name: string) {
@@ -541,21 +438,6 @@ class AppService {
 	// 	return accounts;
 	// }
 
-	async loadScheduledXact(id: number): Promise<ScheduledTransaction> {
-		const scx = await db.scheduled.get(id);
-		if (!scx) {
-			throw new Error('Scheduled transaction not found!');
-		}
-		if (!scx.transaction) {
-			throw new Error('Scheduled transaction is missing transaction data!');
-		}
-
-		ScheduledXact.set(scx);
-		xact.set(scx.transaction);
-
-		return scx;
-	}
-
 	// saveAccount(account: Account) {
 	// 	return db.accounts.put(account);
 	// }
@@ -581,17 +463,18 @@ class AppService {
 		return true;
 	}
 
-	serialize(content: unknown) {
-		return JSON.stringify(content);
-	}
-
 	/**
 	 * Creates (or overwrites) cashier.bean with empty content.
 	 * The include directive for the user's book is injected on-the-fly at
 	 * parse time by the ledger worker, so it is never written to disk.
 	 */
 	async createDefaultCashierFile(): Promise<void> {
-		await saveFile(CASHIER_XACT_FILE, '');
+		// Unlike optional OPFS reads, clearing the journal must propagate storage failures.
+		const root = await navigator.storage.getDirectory();
+		const file = await root.getFileHandle(CASHIER_XACT_FILE, { create: true });
+		const stream = await file.createWritable();
+		await stream.write('');
+		await stream.close();
 	}
 
 	/**

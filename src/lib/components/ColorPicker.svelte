@@ -64,7 +64,7 @@
 		>
 			<span class="opacity-50">—</span>
 		</button>
-		{#each presetColors as color}
+		{#each presetColors as color (color.hex)}
 			<button
 				type="button"
 				class="h-8 w-8 rounded border-2 transition-transform {value === color.hex
@@ -96,7 +96,10 @@
 			maxlength={7}
 		/>
 		{#if value}
-			<div class="h-6 w-6 rounded border border-base-content/20" style="background-color: {value};"></div>
+			<div
+				class="h-6 w-6 rounded border border-base-content/20"
+				style="background-color: {value};"
+			></div>
 		{/if}
 	</div>
 </div>

@@ -1,0 +1,19 @@
+{
+	"context_server_timeout": 120,
+	"context_servers": {
+		"serena": {
+			"command": "/home/node/.local/bin/serena",
+			"args": [
+				"start-mcp-server",
+				"--context",
+				"ide",
+				"--project-from-cwd",
+				"--agent-interface",
+				"tools",
+				"--open-web-dashboard",
+				"false"
+			],
+			"remote": true
+		}
+	}
+}

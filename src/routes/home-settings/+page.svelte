@@ -1,17 +1,17 @@
 <script lang="ts">
-	import Fab from '$lib/components/FAB.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import { HomeCardNames } from '$lib/enums';
-	import appService from '$lib/services/appService';
-	import { SettingKeys, settings } from '$lib/settings';
-	import { CheckIcon } from '@lucide/svelte';
+	import Fab from '#lib/components/FAB.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import { HomeCardNames } from '#lib/enums';
+	import appService from '#lib/services/appService';
+	import { SettingKeys, settings } from '#lib/settings';
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
 
 	let visibleCards: string[] = $state([]);
 	let _showFavourites = $state(false);
-	let _showForecast = $state(false);
+
 	let _showJournal = $state(false);
-	let _showScheduled = $state(false);
+
 	let _showSync = $state(false);
 
 	onMount(async () => {
@@ -35,17 +35,12 @@
 		if (visibleCards.includes(HomeCardNames.FAVOURITES)) {
 			_showFavourites = true;
 		}
-		if (visibleCards.includes(HomeCardNames.FORECAST)) {
-			_showForecast = true;
-		}
+
 		if (visibleCards.includes(HomeCardNames.SYNC)) {
 			_showSync = true;
 		}
 		if (visibleCards.includes(HomeCardNames.JOURNAL)) {
 			_showJournal = true;
-		}
-		if (visibleCards.includes(HomeCardNames.SCHEDULED)) {
-			_showScheduled = true;
 		}
 	}
 
@@ -67,21 +62,13 @@
 		} else {
 			removeItem(HomeCardNames.FAVOURITES);
 		}
-		if (_showForecast) {
-			includeItem(HomeCardNames.FORECAST);
-		} else {
-			removeItem(HomeCardNames.FORECAST);
-		}
+
 		if (_showJournal) {
 			includeItem(HomeCardNames.JOURNAL);
 		} else {
 			removeItem(HomeCardNames.JOURNAL);
 		}
-		if (_showScheduled) {
-			includeItem(HomeCardNames.SCHEDULED);
-		} else {
-			removeItem(HomeCardNames.SCHEDULED);
-		}
+
 		if (_showSync) {
 			includeItem(HomeCardNames.SYNC);
 		} else {
@@ -108,18 +95,8 @@
 		</label>
 
 		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showForecast} />
-			<p>Financial Forecast</p>
-		</label>
-
-		<label class="flex items-center space-x-2">
 			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showJournal} />
 			<p>Journal</p>
-		</label>
-
-		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showScheduled} />
-			<p>Scheduled Transactions</p>
 		</label>
 
 		<label class="flex items-center space-x-2">

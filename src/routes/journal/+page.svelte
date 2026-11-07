@@ -1,21 +1,26 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
-	import Fab from '$lib/components/FAB.svelte';
-	import JournalXactRow from '$lib/components/JournalXactRow.svelte';
-	import Toolbar from '$lib/components/Toolbar.svelte';
-	import ToolbarMenuItem from '$lib/components/ToolbarMenuItem.svelte';
-	import { Xact } from '$lib/data/model';
-	import { xact, xactSpan } from '$lib/data/mainStore';
-	import ledgerService from '$lib/services/ledgerService';
-	import type { DirectiveSpan } from '$lib/rledger/sourceEditor';
-	import Notifier from '$lib/utils/notifier';
-	import { FileDownIcon, ImportIcon, PlusIcon, TrashIcon } from '@lucide/svelte';
-	import appService from '$lib/services/appService';
+	import Fab from '#lib/components/FAB.svelte';
+	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import Toolbar from '#lib/components/Toolbar.svelte';
+	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
+	import { Xact } from '#lib/data/model';
+	import { xact, xactSpan } from '#lib/data/mainStore';
+	import ledgerService from '#lib/services/ledgerService';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
+	import Notifier from '#lib/utils/notifier';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import TrashIcon from '@lucide/svelte/icons/trash';
+	import appService from '#lib/services/appService';
 
 	Notifier.init();
 
 	let isDeleteAllConfirmationOpen = $state(false);
+	let isDeletingAll = $state(false);
 	let listContainer: HTMLElement | undefined = $state();
 
 	const lsVersion = ledgerService.version;
@@ -41,26 +46,52 @@
 
 	async function onDeleteAllConfirmed() {
 		closeModal();
-		await appService.createDefaultCashierFile();
-		await ledgerService.invalidate();
-		Notifier.success('All local transactions deleted.');
+		if (isDeletingAll) return;
+		isDeletingAll = true;
+		try {
+			try {
+				await appService.createDefaultCashierFile();
+			} catch (error) {
+				Notifier.error(`Could not delete local transactions: ${String(error)}. Please try again.`);
+				return;
+			}
+
+			xactsWithSpans = [];
+			// Both owners must refresh after the durable write, even if one refresh fails.
+			const refreshes = await Promise.allSettled([
+				fullLedgerService.invalidate(),
+				ledgerService.invalidate()
+			]);
+			const failures = refreshes
+				.filter((result) => result.status === 'rejected')
+				.map((result) => String(result.reason));
+			if (failures.length) {
+				Notifier.error(
+					`Local transactions deleted, but refreshing views failed: ${failures.join('; ')}. Reload the app to retry analysis.`
+				);
+				return;
+			}
+			Notifier.success('All local transactions deleted.');
+		} finally {
+			isDeletingAll = false;
+		}
 	}
 
 	async function onExportClick() {
-		await goto('/export/journal');
+		await goto(resolve('/export/[dataType=exportType]', { dataType: 'journal' }));
 	}
 
 	async function onFab() {
 		const tx = Xact.create();
 		xact.set(tx);
 		xactSpan.set(undefined);
-		await goto('/tx');
+		await goto(resolve('/tx'));
 	}
 
 	async function onRowClick(tx: Xact, span: DirectiveSpan) {
 		xact.set(tx);
 		xactSpan.set(span);
-		goto('/xact-actions');
+		goto(resolve('/xact-actions'));
 	}
 </script>
 
@@ -71,11 +102,6 @@
 			<ToolbarMenuItem text="Export" Icon={FileDownIcon} onclick={onExportClick} />
 			<!-- Delete All -->
 			<ToolbarMenuItem text="Delete All" onclick={onDeleteAllClicked} Icon={TrashIcon} />
-			<ToolbarMenuItem
-				text="Import Ledger item"
-				Icon={ImportIcon}
-				targetNav="/import-ledger-xact"
-			/>
 		{/snippet}
 	</Toolbar>
 
@@ -97,7 +123,12 @@
 </article>
 
 <!-- "Delete All" dialog -->
-<input type="checkbox" id="delete-all-journal-confirmation-modal" class="modal-toggle" bind:checked={isDeleteAllConfirmationOpen} />
+<input
+	type="checkbox"
+	id="delete-all-journal-confirmation-modal"
+	class="modal-toggle"
+	bind:checked={isDeleteAllConfirmationOpen}
+/>
 <dialog class="modal">
 	<div class="modal-box">
 		<header class="flex justify-between">
