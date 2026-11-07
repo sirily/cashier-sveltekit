@@ -96,15 +96,15 @@ Run the checks appropriate to the change and report anything not executed. See
 [AGENTS.md](AGENTS.md) for project conventions.
 
 CI validates GitHub Actions workflows with Actionlint. Linting, Svelte checks, type checks,
-unit tests, and the production build are blocking gates; any lint, Svelte-check, or build warning
-fails its check. The build warning gate uses Vite's logger and `console.warn`, preserving the
-original diagnostic output.
+unit tests, and the production build gate image publication, not PR merging; any lint,
+Svelte-check, or build warning fails its check. The build warning gate uses Vite's logger and
+`console.warn`, preserving the original diagnostic output.
 Unit tests also fail on unexpected `console.warn` or `console.error` calls while preserving
 those calls in the test output. Expected diagnostics must be explicitly mocked and asserted.
 The browser suite covers local offline saving, editing, and synchronization with a mocked API;
 it does not replace integration tests against the Python server.
 
-Dependency auditing runs as a blocking reusable PR check and separately on a weekly schedule. It includes build/development dependencies; findings of any severity fail the audit job, with detailed results available in CI logs. Registry or audit-command failures also fail the audit job. A clean scan does not establish that all installed dependencies are safe.
+Dependency auditing runs as a reusable CI check and separately on a weekly schedule. It includes build/development dependencies. Vulnerability findings of every severity are informational and do not fail the job; full details appear in CI logs and the run summary. Audit infrastructure failures and invalid or inconsistent reports fail the job. A clean scan does not establish that all installed dependencies are safe.
 
 ## Releases and deployment
 

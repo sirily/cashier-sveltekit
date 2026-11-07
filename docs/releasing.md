@@ -51,13 +51,13 @@ The release process verifies that the version in `releases/X.Y.Z` matches `packa
 4. A retry of the same run uses the same tag and must reuse an existing validated image rather than move it. Start a new run for a new RC number.
 5. Any further push produces another RC. No manual candidate-preparation command, special freeze state, or additional approval is needed to continue development.
 
-Required checks cover workflow syntax (Actionlint), formatting and JS/TS linting, Svelte template linting, strict OpenSpec validation, types, unit tests, a production build, successful execution of dependency auditing, and relevant browser tests. Dependency vulnerability findings are informational and do not block CI or publication. Independent checks run when prerequisites succeed; each failed check remains a blocking failure while later checks continue. Lint warnings, Svelte-check warnings, build warnings, and unexpected unit-test `console.warn` or `console.error` calls are failures. The build warning gate uses Vite's logger and `console.warn`, preserving diagnostic output. Run expensive checks in CI; do not claim they passed from documentation validation. RC images are available in GHCR. This release process does not require a test URL or test deployment. The owner decides where and how to inspect a build.
+CI checks cover workflow syntax (Actionlint), formatting and JS/TS linting, Svelte template linting, strict OpenSpec validation, types, unit tests, a production build, successful execution of dependency auditing, and relevant browser tests. Dependency vulnerability findings are informational and do not block CI or publication. Independent checks run when prerequisites succeed; each failed check remains a blocking failure while later checks continue. Lint warnings, Svelte-check warnings, build warnings, and unexpected unit-test `console.warn` or `console.error` calls are failures. The build warning gate uses Vite's logger and `console.warn`, preserving diagnostic output. Run expensive checks in CI; do not claim they passed from documentation validation. RC images are available in GHCR. This release process does not require a test URL or test deployment. The owner decides where and how to inspect a build.
 
 #### 2. Merge to approve
 
 Open a PR from `releases/X.Y.Z` into `main`. The PR can remain open while work accumulates. Required checks must pass on the current proposed integration before merging.
 
-**Merging this PR is the release approval.** There is no additional GitHub Environment approval, acceptance receipt, or required evidence URL. A separate `release/accepted` status is not part of this policy. New source changes require fresh checks, not a second manual acceptance procedure. Merge the PR using squash; the resulting squash commit is the release commit.
+**Merging this PR is the release approval.** There is no additional GitHub Environment approval, acceptance receipt, or required evidence URL. A separate `release/accepted` status is not part of this policy. New source changes trigger fresh CI runs, not a second manual acceptance procedure. Merge the PR using squash; the resulting squash commit is the release commit.
 
 #### 3. Build and publish the final release
 
@@ -73,15 +73,17 @@ The implementation of this policy must enforce, rather than delegate to an agent
 
 - Release-branch/version syntax and agreement with package metadata.
 - Automatic, concurrency-safe RC numbering and unique final versions.
-- Required PR checks; no unreviewed direct pushes or force-pushes to shared release/production branches.
+- CI checks before RC and final image publication; these publication gates do not impose a PR merge gate.
 - Release-PR detection and verification that the merged PR's `merge_commit_sha` equals the event's squash commit before final builds; no final publication from work branches, RCs, arbitrary `main` commits, or untrusted PR code.
 - Separate publication permissions from untrusted PR checks; never expose registry write credentials to fork code.
-- Protection against rewriting final Git tags and published versioned image tags.
+- Protection against updating or deleting final Git tags and rewriting published versioned image tags.
 - Safe retries and serialized production updates so a late job cannot replace a newer `latest`.
 
 Dependency auditing includes development/build dependencies. Findings of every severity, including high and critical, are informational: they retain their original severity and full details in both the audit step's CI logs and the GitHub Actions run summary, emit a GitHub Actions notice, and do not fail the audit job. The summary is published through `GITHUB_STEP_SUMMARY`; no separate downloadable report artifacts are created. Audit infrastructure failures and invalid or inconsistent reports still fail and must not be presented as a clean scan. Mocked API browser tests verify client behavior, not the server's own validation or deduplication.
 
-The workflows require the repository's `GITHUB_TOKEN` to have `contents: write` for Git tag creation and `packages: write` for GHCR publication. Branch protection and token settings are separate from workflow code. Required checks and permissions must be configured and verified by the owner. An optional retry can use the existing workflow run in GitHub's UI. The release script tests can be run with `node --test scripts/release-tests.mjs`.
+The workflows require the repository's `GITHUB_TOKEN` to have `contents: write` for Git tag creation and `packages: write` for GHCR publication. Repository-level protection of release branches is not required by this policy. An optional retry can use the existing workflow run in GitHub's UI. The release script tests can be run with `node --test scripts/release-tests.mjs`.
+
+Protect final Git tags with an active tag ruleset targeting `v*`: enable **Restrict updates** and **Restrict deletions**, leave **Restrict creations** disabled, and keep the bypass list empty. This allows the publication workflow to create new version tags without permitting existing ones to move or disappear. Tag rules apply independently of branch protection; protecting `main` alone does not protect tags. The ruleset protects Git references, not GHCR image tags.
 
 ### Hotfixes and rollback
 

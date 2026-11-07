@@ -56,9 +56,13 @@ It is implemented as a PWA using Svelte and DaisyUI frameworks.
   Do not recreate `docs/completed-projects/` or treat upstream plans and generic feature lists as requirements.
 - Read the release policy before creating or merging release branches, preparing tags or
   images, publishing, or deploying. Do not substitute manual agent actions for the required
-  release automation; its current implementation limits are documented there.
+  release automation.
 - Consult the visual-design guide and actual theme tokens before changing interface colors.
 - Do not commit, push, tag, merge, publish, or deploy without the owner's corresponding request.
+- PR descriptions describe the changes and their purpose, not transient state. Never put current
+  CI/test results, RC numbers, completion or readiness checklists, session reports, verification
+  disclaimers, or statements about what the user decided into a PR description. Keep verification
+  results in CI or the review conversation.
 
 ## Usage
 
