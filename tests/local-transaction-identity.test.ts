@@ -87,6 +87,26 @@ test('local editor save and reopen preserve existing identity and neighboring so
 	expect(network).not.toHaveBeenCalled();
 });
 
+test.each([false, true])(
+	'returned edit span supports consecutive saves after a no-op first save: %s',
+	async (noOpFirstSave) => {
+		const [{ xact, span }] = await ledgerService.getXactsWithSpans();
+		const model = JSON.parse(JSON.stringify(xact));
+		model.note = noOpFirstSave ? 'Original' : 'First correction\nwith another line';
+		const savedSpan = await ledgerService.editTransaction(span, xactToBeancountText(model));
+		expect(savedSpan.sourceText).toContain(model.note);
+		expect(savedSpan.endLine - savedSpan.startLine).toBe(
+			savedSpan.sourceText.split('\n').length - 1
+		);
+		model.note = 'Second correction';
+		await ledgerService.editTransaction(savedSpan, xactToBeancountText(model));
+		expect(state.files.get('cashier.bean')).toBe(
+			prefix + transaction.replace('Original', 'Second correction') + neighbor
+		);
+		expect(persistedIds()).toEqual(['existing-local-id', 'neighbor-id']);
+	}
+);
+
 test('edit after accepted send with no pull retries the same identity and exposes a server conflict', async () => {
 	const network = vi
 		.fn()

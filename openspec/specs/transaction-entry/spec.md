@@ -93,6 +93,18 @@ records SHALL be read-only through this editor.
 - **THEN** that directive is replaced in place in `cashier.bean`, rather than appended again
 - **AND** neighboring transactions, directives, and comments remain unchanged
 
+#### Scenario: Repeat edit directly after saving
+
+- **GIVEN** the owner saves an existing local transaction and returns to Transaction Actions
+- **WHEN** the owner immediately selects Edit again and saves another correction, without
+  reselecting the transaction from Journal
+- **THEN** the same source directive is updated in place, preserving its identity, metadata,
+  and neighboring source
+- **AND** this also applies when the first save changed no fields and when the journal
+  contains only transactions without metadata or `open` directives
+- **AND** if the saved source mapping becomes stale, the next save is rejected without
+  appending an entry or changing the journal, and the edited form remains available
+
 #### Scenario: Edit a transaction-only file
 
 - **GIVEN** `cashier.bean` contains multiple transactions and no `open` directives

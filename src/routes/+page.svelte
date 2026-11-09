@@ -6,7 +6,7 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Toolbar from '../lib/components/Toolbar.svelte';
 	import { goto } from '$app/navigation';
-	import { xact } from '#lib/data/mainStore';
+	import { xact, xactSpan } from '#lib/data/mainStore';
 	import { Xact } from '#lib/data/model';
 	import FavouritesCard from '#lib/components/FavouritesCard.svelte';
 	import SyncCard from '#lib/components/SyncCard.svelte';
@@ -52,6 +52,7 @@
 		// create a new transaction in the app store
 		const tx = Xact.create();
 		xact.set(tx);
+		xactSpan.set(undefined);
 
 		await goto(resolve('/tx'));
 	}

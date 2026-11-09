@@ -55,11 +55,10 @@ import ShieldCheck from '@lucide/svelte/icons/shield-check';
 		const span = get(xactSpan);
 
 		if (span) {
-			await ledgerService.editTransaction(span, beancountText);
+			xactSpan.set(await ledgerService.editTransaction(span, beancountText));
 		} else {
 			await ledgerService.appendTransaction(beancountText);
 		}
-		xactSpan.set(undefined);
 
 		// Remember Last Transaction?
 		const remember = await settings.get(SettingKeys.rememberLastTransaction);
