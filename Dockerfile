@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM caddy:2.11.3-alpine
+FROM caddy:2-alpine
 
 # Ensure caddy user exists and has ownership of runtime files
 RUN if ! grep -q '^caddy:' /etc/group; then addgroup -S caddy; fi \
