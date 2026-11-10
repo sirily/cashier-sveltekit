@@ -55,8 +55,18 @@ async function selectAccount(page: Page, row: number, account: string, currency:
 	await page.getByTitle('Currency', { exact: true }).nth(row).fill(currency);
 }
 
-async function expectBalancedAndValidate(page: Page) {
+async function expectBalancedAndValidate(page: Page, currency = 'USD') {
 	await expect(page.getByText('unbalanced', { exact: true })).toHaveCount(0);
+	const rate = page.getByLabel('Exchange rate');
+	if (await rate.count()) {
+		await expect(rate).toHaveCount(1);
+		await expect(rate).toContainText(new RegExp(`^1 [A-Z]+ = [\\d.]+ ${currency}$`));
+		await expect(rate.locator('..')).toContainText('Postings');
+		await expect(page.getByLabel('Weighted residual')).toHaveCount(0);
+	} else {
+		await expect(page.getByLabel('Weighted residual')).toContainText(`0 ${currency}`);
+		await expect(page.getByLabel('Weighted residual').locator('data')).toHaveCount(1);
+	}
 	await page.locator('.navbar .dropdown > button').click();
 	await page.getByText('Validate', { exact: true }).click();
 	const dialog = page.getByRole('dialog');
@@ -109,7 +119,7 @@ test('sign changes preserve trailing decimals and reverse the inferred exchange 
 	await receivedSign.click();
 	await expect(received).toHaveValue('-12.30');
 	await expect(page.locator('main')).toContainText(/1 USD = [\d.]+ GBP/);
-	await expectBalancedAndValidate(page);
+	await expectBalancedAndValidate(page, 'GBP');
 	await spentSign.click();
 	await receivedSign.click();
 	await expect(spent).toHaveValue('-10.00');
@@ -425,4 +435,45 @@ test('ordinary same-currency capture stays unpriced and validates unchanged', as
 	expect(source).toContain('Expenses:Travel  10 USD');
 	expect(source).not.toContain('@');
 	expect(source.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(1);
+});
+
+test('weighted residual keeps unmatched currencies separate and agrees with Validate', async ({
+	page
+}) => {
+	await seed(
+		page,
+		accounts +
+			`2025-01-02 ! "Unpriced split"
+  Assets:GBP -10 GBP
+  Assets:USD 12.30 USD
+  Expenses:Travel 1 USD
+`
+	);
+	await reopen(page, 'Unpriced split');
+	const residual = page.getByLabel('Weighted residual');
+	await expect(residual).toContainText('-10 GBP');
+	await expect(residual).toContainText('13.3 USD');
+	await expect(residual.locator('data')).toHaveCount(2);
+	await expect(page.getByText('unbalanced', { exact: true })).toBeVisible();
+	await page.locator('.navbar .dropdown > button').click();
+	await page.getByText('Validate', { exact: true }).click();
+	await expect(page.getByRole('dialog')).toContainText("Postings for GBP don't balance");
+	await expect(page.getByRole('dialog')).toContainText("Postings for USD don't balance");
+});
+
+test('weighted residual distinguishes an automatic amount from a numeric remainder', async ({
+	page
+}) => {
+	await seed(
+		page,
+		accounts +
+			`2025-01-02 ! "Automatic amount"
+  Assets:USD -10 USD
+  Expenses:Travel
+`
+	);
+	await reopen(page, 'Automatic amount');
+	await expect(page.getByLabel('Weighted residual')).toContainText('Automatic balance');
+	await expect(page.getByLabel('Weighted residual').locator('data')).toHaveCount(0);
+	await expect(page.getByText('unbalanced', { exact: true })).toHaveCount(0);
 });

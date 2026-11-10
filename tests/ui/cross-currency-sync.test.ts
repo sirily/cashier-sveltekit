@@ -10,13 +10,13 @@ const accounts = `option "operating_currency" "USD"
 const exchange = `2025-01-02 * "Exchange" "Confirmed exchange"
   cashier_id: "exchange-browser-id"
   receipt: "original.pdf"
-  Assets:GBP  -10 GBP @@ 12.30 USD ; spent
-  Assets:USD  12.30 USD ; received
+  Assets:GBP  -10 GBP @@ 2.123456789 USD ; spent
+  Assets:USD  2.123456789 USD ; received
 `;
 const incomplete = `2025-01-03 ! "Exchange" "Incomplete exchange"
   cashier_id: "incomplete-browser-id"
-  Assets:GBP  -3 GBP @@ 10.00 USD
-  Assets:USD  10.00 USD
+  Assets:GBP  -3 GBP @@ 1.23456789 USD
+  Assets:USD  1.23456789 USD
 `;
 
 async function readFile(page: Page, name = 'cashier.bean') {
@@ -195,13 +195,22 @@ test('mock API only: @@ retries stay raw, rejection vetoes removal, and confirme
 	await expect(page).toHaveURL(/\/accounts\/account-xacts\/Assets(?:%3A|:)USD$/);
 	const history = page.locator('article > section');
 	await expect(history.getByText('Exchange | Confirmed exchange', { exact: true })).toHaveCount(1);
-	await expect(history.locator('header')).toContainText('22.30USD');
+	await expect(history.locator('header')).toContainText('3.358USD');
+	const confirmedRow = history
+		.getByText('Exchange | Confirmed exchange', { exact: true })
+		.locator('..');
+	await expect(confirmedRow.locator('data').last()).toHaveText('2.123456789 USD');
+	const localRow = history.getByRole('button').filter({ hasText: 'Incomplete exchange' });
+	await expect(localRow.locator('data').last()).toHaveText('1.23456789 USD');
 	await expect(history.getByRole('button').filter({ hasText: 'Incomplete exchange' })).toHaveCount(
 		1
 	);
 	await expect(history.getByRole('alert')).toHaveCount(0);
 	await page.reload();
 	await expect(history.getByText('Exchange | Confirmed exchange', { exact: true })).toHaveCount(1);
+	await expect(confirmedRow.locator('data').last()).toHaveText('2.123456789 USD');
+	await expect(localRow.locator('data').last()).toHaveText('1.23456789 USD');
+	await expect(history.locator('header')).toContainText('3.358USD');
 	await expect(history.getByRole('button').filter({ hasText: 'Incomplete exchange' })).toHaveCount(
 		1
 	);

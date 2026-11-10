@@ -12,7 +12,6 @@
 	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '#lib/utils/xactUtils';
 	import { Posting, type Xact } from '#lib/data/model';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
-	import SigmaIcon from '@lucide/svelte/icons/sigma';
 	import TrashIcon from '@lucide/svelte/icons/trash';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
@@ -22,13 +21,7 @@
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import { Big } from 'big.js';
-	import {
-		exchangeRate,
-		postingAmountText,
-		postingBalance,
-		setPostingAmount
-	} from '#lib/utils/postingWeights';
+	import { exchangeRate, postingBalance, setPostingAmount } from '#lib/utils/postingWeights';
 	import moment from 'moment';
 
 	Notifier.init();
@@ -44,17 +37,15 @@
 		return moment($xact.date).format(dateFormatValue);
 	});
 
-	let sum = $derived.by(() => {
-		if (!$xact?.postings?.length) return new Big(0);
-		return $xact.postings.reduce(
-			(acc, posting) => acc.plus((postingAmountText(posting) ?? '0').replace(/^\+/, '')),
-			new Big(0)
-		);
-	});
+	let balance = $derived(postingBalance($xact?.postings ?? []));
+	let hasAutomaticAmount = $derived(
+		$xact?.postings?.some((p) => p.account && p.amount == null && p.amountText === undefined) ??
+			false
+	);
 
 	let hasPlaceholder = $derived($xact?.postings?.some((p) => !p.account) ?? false);
 
-	let isBalanced = $derived(postingBalance($xact?.postings ?? []).isBalanced);
+	let isBalanced = $derived(balance.isBalanced);
 	let rate = $derived(exchangeRate($xact?.postings ?? []));
 
 	$effect(() => {
@@ -317,13 +308,30 @@
 	</div>
 
 	<!-- Postings -->
-	<!-- actions and sum -->
+	<!-- posting actions and price-aware residuals -->
 	<div class="bg-primary/25 space-y-2 rounded-lg p-3">
-		<div class="flex flex-row">
+		<div class="flex flex-wrap items-center justify-between gap-2">
 			<span class="grow text-center">Postings</span>
-			<div><SigmaIcon /></div>
-			<data class="pl-2">{sum}</data>
+			{#if rate}
+				<data class="text-sm" aria-label="Exchange rate">{rate}</data>
+			{/if}
 		</div>
+		{#if !rate}
+			<div class="text-center text-sm" aria-label="Weighted residual">
+				<span>Weighted residual:</span>
+				{#if balance.invalid}
+					<span>Enter valid amounts</span>
+				{:else if hasAutomaticAmount && balance.isBalanced}
+					<span>Automatic balance</span>
+				{:else}
+					{#each Object.entries(balance.totals) as [currency, amount] (currency)}
+						<data class="ml-2">{amount.toFixed()} {currency}</data>
+					{:else}
+						<span>—</span>
+					{/each}
+				{/if}
+			</div>
+		{/if}
 		<div class="flex flex-row justify-center space-x-10">
 			<button
 				type="button"
@@ -340,9 +348,7 @@
 			</a>
 		</div>
 	</div>
-	{#if rate}
-		<p class="text-center text-sm" aria-label="Exchange rate">{rate}</p>
-	{/if}
+
 	<!-- posting list -->
 	<div class="flex-1 overflow-y-auto">
 		{#each $xact?.postings as posting, index (posting)}
