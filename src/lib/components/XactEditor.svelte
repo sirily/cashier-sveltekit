@@ -12,17 +12,23 @@
 	import { applyAutoIncompleteFlag, getEmptyPostingIndex } from '#lib/utils/xactUtils';
 	import { Posting, type Xact } from '#lib/data/model';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
-import SigmaIcon from '@lucide/svelte/icons/sigma';
-import TrashIcon from '@lucide/svelte/icons/trash';
-import UserIcon from '@lucide/svelte/icons/user';
-import CalendarIcon from '@lucide/svelte/icons/calendar';
-import FileTextIcon from '@lucide/svelte/icons/file-text';
-import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
-import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
-import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
-import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
-import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import SigmaIcon from '@lucide/svelte/icons/sigma';
+	import TrashIcon from '@lucide/svelte/icons/trash';
+	import UserIcon from '@lucide/svelte/icons/user';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import FileTextIcon from '@lucide/svelte/icons/file-text';
+	import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Big } from 'big.js';
+	import {
+		exchangeRate,
+		postingAmountText,
+		postingBalance,
+		setPostingAmount
+	} from '#lib/utils/postingWeights';
 	import moment from 'moment';
 
 	Notifier.init();
@@ -41,27 +47,15 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	let sum = $derived.by(() => {
 		if (!$xact?.postings?.length) return new Big(0);
 		return $xact.postings.reduce(
-			(acc, posting) => (posting.amount ? acc.plus(new Big(posting.amount)) : acc),
+			(acc, posting) => acc.plus((postingAmountText(posting) ?? '0').replace(/^\+/, '')),
 			new Big(0)
 		);
 	});
 
-	let hasPlaceholder = $derived(
-		$xact?.postings?.some((p) => !p.account) ?? false
-	);
+	let hasPlaceholder = $derived($xact?.postings?.some((p) => !p.account) ?? false);
 
-	let isBalanced = $derived.by(() => {
-		if (!$xact?.postings?.length) return true;
-		const hasAutoBalance = $xact.postings.some((p) => p.account && p.amount == null);
-		const byCurrency: Record<string, number> = {};
-		for (const p of $xact.postings) {
-			if (!p.account || p.amount == null || !p.currency) continue;
-			byCurrency[p.currency] = (byCurrency[p.currency] ?? 0) + p.amount;
-		}
-		// Auto-balance only resolves within a single currency; cross-currency needs a price annotation.
-		if (hasAutoBalance && Object.keys(byCurrency).length <= 1) return true;
-		return Object.values(byCurrency).every((s) => Math.abs(s) <= 0.005);
-	});
+	let isBalanced = $derived(postingBalance($xact?.postings ?? []).isBalanced);
+	let rate = $derived(exchangeRate($xact?.postings ?? []));
 
 	$effect(() => {
 		if ($xact) {
@@ -142,7 +136,8 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 					const index = $selectionMetadata.postingIndex;
 
 					if (index !== undefined && $xact?.postings[index]) {
-						$xact.postings[index].amount = amount;
+						setPostingAmount($xact.postings[index], amount);
+						xact.update((tx) => tx);
 					}
 				}
 
@@ -224,13 +219,14 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 		autoIncomplete = false;
 		$xact.flag = flag;
 	}
-
 </script>
 
 <div class="flex h-full flex-col space-y-3 py-2">
 	<div class="flex items-center">
 		<CalendarIcon class="h-5 w-5 mr-2 opacity-70" />
-		<button type="button" class="btn btn-ghost h-11 w-11 p-0" onclick={() => shiftDate(-1)}><ChevronLeftIcon class="h-4 w-4" /></button>
+		<button type="button" class="btn btn-ghost h-11 w-11 p-0" onclick={() => shiftDate(-1)}
+			><ChevronLeftIcon class="h-4 w-4" /></button
+		>
 		<div class="relative flex-1">
 			<button
 				type="button"
@@ -250,7 +246,9 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 				bind:value={$xact.date}
 			/>
 		</div>
-		<button type="button" class="btn btn-ghost h-11 w-11 p-0" onclick={() => shiftDate(1)}><ChevronRightIcon class="h-4 w-4" /></button>
+		<button type="button" class="btn btn-ghost h-11 w-11 p-0" onclick={() => shiftDate(1)}
+			><ChevronRightIcon class="h-4 w-4" /></button
+		>
 	</div>
 	<div class="flex items-center">
 		<UserIcon class="h-5 w-5 mr-2 opacity-70" />
@@ -304,7 +302,10 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 				</button>
 			</div>
 			{#if !isBalanced}
-				<span class="text-error text-xs flex items-center gap-1" title="Amounts don't balance — run Validate for details">
+				<span
+					class="text-error text-xs flex items-center gap-1"
+					title="Amounts don't balance — run Validate for details"
+				>
 					<TriangleAlertIcon class="h-3 w-3" />
 					unbalanced
 				</span>
@@ -339,13 +340,13 @@ import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 			</a>
 		</div>
 	</div>
+	{#if rate}
+		<p class="text-center text-sm" aria-label="Exchange rate">{rate}</p>
+	{/if}
 	<!-- posting list -->
 	<div class="flex-1 overflow-y-auto">
 		{#each $xact?.postings as posting, index (posting)}
-			<PostingEditor
-				{index}
-				onAccountClicked={(event) => onPostingAccountClicked(index)}
-			/>
+			<PostingEditor {index} onAccountClicked={(event) => onPostingAccountClicked(index)} />
 		{/each}
 	</div>
 </div>

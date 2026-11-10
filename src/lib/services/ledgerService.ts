@@ -17,6 +17,7 @@ import {
 import { CASHIER_XACT_FILE } from '#lib/constants';
 import { xactToBeancountText } from '#lib/utils/xactUtils';
 import { mergeTransactionEdit } from '#lib/rledger/transactionEdit';
+import { restorePostingSource } from '#lib/rledger/postingSource';
 
 interface QueryError {
 	message: string;
@@ -313,7 +314,13 @@ class LedgerService {
 					const matches = byTag.get(`${prefix}${span.startLine}`);
 					if (matches?.length !== 1)
 						throw new Error('Ambiguous local transaction source. Reload the Journal.');
-					return { xact: this.directiveToXact(matches[0]), span };
+					const xact = this.directiveToXact(matches[0]);
+					restorePostingSource(
+						xact.postings,
+						span.sourceText,
+						(symbols[span.symbolIndex].children ?? []).filter((child) => child.kind === 'posting')
+					);
+					return { xact, span };
 				});
 			} finally {
 				mapped.free();

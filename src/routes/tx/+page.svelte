@@ -2,7 +2,7 @@
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import Check from '@lucide/svelte/icons/check';
-import ShieldCheck from '@lucide/svelte/icons/shield-check';
+	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import { xact, xactSpan } from '#lib/data/mainStore';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
@@ -14,6 +14,7 @@ import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import ledgerService from '#lib/services/ledgerService';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import { postingBalance } from '#lib/utils/postingWeights';
 	import { resolve } from '$app/paths';
 	import TransactionEditor from '#lib/components/XactEditor.svelte';
 	import type { Xact } from '#lib/data/model';
@@ -74,28 +75,15 @@ import ShieldCheck from '@lucide/svelte/icons/shield-check';
 
 	function checkBalance(tx: Xact): ValidationIssue[] {
 		const issues: ValidationIssue[] = [];
-		const byCurrency: Record<string, number[]> = {};
-		let hasAutoBalance = false;
-
-		for (const p of tx.postings) {
-			if (!p.account) continue;
-			if (p.amount != null && p.currency) {
-				if (!byCurrency[p.currency]) byCurrency[p.currency] = [];
-				byCurrency[p.currency].push(p.amount);
-			} else if (p.amount == null) {
-				hasAutoBalance = true;
-			}
-		}
-
-		for (const [currency, amounts] of Object.entries(byCurrency)) {
-			const sum = amounts.reduce((a, b) => a + b, 0);
-			if (Math.abs(sum) > 0.005 && !hasAutoBalance) {
-				const sign = sum > 0 ? '+' : '';
-				issues.push({
-					kind: 'error',
-					message: `Postings for ${currency} don't balance: sum is ${sign}${sum.toFixed(2)} ${currency}`
-				});
-			}
+		const balance = postingBalance(tx.postings);
+		if (balance.invalid)
+			issues.push({ kind: 'error', message: 'Enter finite decimal posting amounts and prices.' });
+		for (const [currency, sum] of balance.imbalances) {
+			const sign = sum.gt(0) ? '+' : '';
+			issues.push({
+				kind: 'error',
+				message: `Postings for ${currency} don't balance: sum is ${sign}${sum.toFixed(2)} ${currency}`
+			});
 		}
 
 		return issues;

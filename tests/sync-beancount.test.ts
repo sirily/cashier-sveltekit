@@ -368,6 +368,76 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(cashierContentsWhenUiLedgerRefreshes).toEqual(['', '']);
 	});
 
+	test('mock Sync preserves exact @@ through failed pull, unconfirmed acknowledgement, rejection and confirmed retry', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, 'main.bean');
+		const exchange = `2026-06-01 * "Exchange" "One exchange" #travel
+  cashier_id: "exchange-sync-id"
+  receipt: "original.pdf"
+  Assets:GBP  -10 GBP @@ 12.30 USD ; original spent
+  Assets:USD  12.30 USD ; original received`;
+		const incomplete = `2026-06-02 ! "Exchange" "Still local"
+  cashier_id: "incomplete-exchange-id"
+  Assets:GBP  -3 GBP @@ 10.00 USD
+  Assets:USD  10.00 USD`;
+		const local = `${exchange}\n\n${incomplete}\n`;
+		const accounts = '2000-01-01 open Assets:GBP GBP\n2000-01-01 open Assets:USD USD\n';
+		mockState.opfsFiles.set('cashier.bean', local);
+		const refreshSources: Array<string | undefined> = [];
+		mockState.invalidate.mockImplementation(async () => {
+			refreshSources.push(mockState.opfsFiles.get('cashier.bean'));
+		});
+		mockState.pushTransactions.mockImplementation(async (_url, pending) => {
+			expect(mockState.opfsFiles.get('cashier.bean')).toBe(local);
+			expect(pending).toEqual([{ cashierId: 'exchange-sync-id', rawText: exchange }]);
+			return { synchronized: ['exchange-sync-id'], rejected: [] };
+		});
+		const read = vi
+			.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles')
+			.mockRejectedValueOnce(new Error('Mock pull lost'))
+			.mockResolvedValueOnce(new Map([['main.bean', accounts]]))
+			.mockResolvedValue(new Map([['main.bean', accounts + exchange + '\n']]));
+		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(local);
+		expect(mockState.invalidate).not.toHaveBeenCalled();
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(local);
+		expect(refreshSources).toEqual([local]);
+
+		mockState.pushTransactions.mockResolvedValueOnce({
+			synchronized: [],
+			rejected: [{ cashier_id: 'exchange-sync-id', reason: 'Mock same-ID conflict' }]
+		});
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		expect(mockState.opfsFiles.get('main.bean')).toContain(exchange);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(local);
+		expect(getLastDiagnostics()?.syncErrors).toContainEqual({
+			stage: 'send',
+			message: 'Mock same-ID conflict',
+			cashierId: 'exchange-sync-id'
+		});
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		expect(read).toHaveBeenCalledTimes(4);
+		expect(mockState.pushTransactions).toHaveBeenCalledTimes(4);
+		for (const call of mockState.pushTransactions.mock.calls) {
+			expect(call[1]).toEqual([{ cashierId: 'exchange-sync-id', rawText: exchange }]);
+		}
+		const reconciled = mockState.opfsFiles.get('cashier.bean');
+		expect(reconciled?.trim()).toBe(incomplete);
+		expect(refreshSources).toEqual([local, local, reconciled]);
+		expect(mockState.createdLedgers.at(-1)).toEqual({
+			entryPoint: 'main.bean',
+			files: { 'main.bean': accounts + exchange + '\n' }
+		});
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		expect(mockState.pushTransactions).toHaveBeenCalledTimes(4);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(reconciled);
+		consoleError.mockRestore();
+	});
+
 	test('preserves existing cashier.bean and rewrites synced includes', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
