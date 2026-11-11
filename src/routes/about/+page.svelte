@@ -35,34 +35,25 @@
 	<section class="space-y-4 p-1">
 		<h1 class="text-5xl font-bold">Cashier</h1>
 		<p>
-			This Beancount client-server fork is based on
-			<a class="link link-primary" href="https://cashier.alensiljak.eu.org">Cashier</a>, built with
-			Svelte.
+			Cashier is a personal finance assistant for Beancount. Capture transactions, review your
+			accounts, and explore reports on your device, including while offline.
 		</p>
 
 		<p>
-			Capture manual transactions in the device Journal, including while offline.
-			More on plain-text accounting at
+			Keep entries in your local Journal and use Server Sync when you are ready to send completed
+			transactions and refresh your book. For setup and daily use, see
+			<a class="link link-primary" href={resolve('/help')}>Help</a>.
+		</p>
+
+		<p>
+			Learn about keeping your accounts in text files at
 			<a class="link link-primary" href="https://plaintextaccounting.org/">Plain Text Accounting</a
 			>.
 		</p>
 
-		<p>
-			Explicit Server Sync sends completed local entries to the authoritative Python Beancount
-			server, downloads the book, and removes local copies only after confirmation.
-			For setup and daily use, see the
-			<a class="link link-primary" href={resolve("/help")}>Help</a> section.
-		</p>
-
-		<p>
-			RustLedger calculates balances, account history and reports locally from the downloaded
-			book and pending Journal, even offline. Journal export is optional; it does not synchronize
-			or remove local entries.
-		</p>
-
 		<h3 class="text-3xl font-semibold">Links</h3>
 		<p>
-			Repository: at
+			Source code and project documentation:
 			<a class="link link-primary" href="https://github.com/sirily/cashier-sveltekit">GitHub</a>
 		</p>
 
@@ -91,15 +82,16 @@
 			<p>Could not check for updates.</p>
 		{/if}
 
-		<h3 class="text-3xl font-semibold">Experiments</h3>
-
-		<ul>
-			<li>
-				<a class="link link-primary" href={resolve("/ledger")}>Parsed Ledger</a>
-			</li>
-			<li>
-				<a class="link link-primary" href={resolve("/ledger/multi")}>Parsed Multi Ledger</a>
-			</li>
-		</ul>
+		<h3 class="text-3xl font-semibold">Credits and license</h3>
+		<p>
+			With thanks to the <a class="link link-primary" href="https://cashier.alensiljak.eu.org"
+				>Cashier contributors</a
+			>. Cashier is free software under the
+			<a
+				class="link link-primary"
+				href="https://github.com/sirily/cashier-sveltekit/blob/main/LICENSE"
+				>GNU Affero General Public License v3</a
+			>.
+		</p>
 	</section>
 </article>

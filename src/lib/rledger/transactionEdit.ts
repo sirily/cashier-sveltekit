@@ -1,4 +1,5 @@
 import Big from 'big.js';
+import { sourcePostingRows, type SourcePosting, type SourceToken } from './postingSource';
 
 interface Token {
 	text: string;
@@ -45,7 +46,7 @@ function postingRows(body: string) {
 	for (const line of body.split('\n')) {
 		if (line.trim()) {
 			if (
-				!/^[\t ]+[\p{Lu}\p{Lt}\p{Lo}][^\s:;"]*(?::[^\s:;"]+)+(?:[\t ]+-?(?:\d+(?:\.\d*)?|\.\d+)[\t ]+[^\s;{}@]+)?[\t ]*\r?$/u.test(
+				!/^[\t ]+[\p{Lu}\p{Lt}\p{Lo}][^\s:;"]*(?::[^\s:;"]+)+(?:[\t ]+[+-]?(?:\d+(?:\.\d*)?|\.\d+)[\t ]+[^\s;{}@]+)?[\t ]*\r?$/u.test(
 					line
 				)
 			)
@@ -64,7 +65,212 @@ function postingRows(body: string) {
 	return rows;
 }
 
+function exchangeRows(rows: SourcePosting[]) {
+	if (
+		rows.length !== 2 ||
+		rows.some(
+			(row) =>
+				!row.supported || !row.amount || !row.currency || !Number.isFinite(Number(row.amount.text))
+		)
+	)
+		return;
+	const negative = rows.findIndex((row) => new Big(row.amount!.text.replace(/^\+/, '')).lt(0));
+	const positive = rows.findIndex((row) => new Big(row.amount!.text.replace(/^\+/, '')).gt(0));
+	if (
+		negative < 0 ||
+		positive < 0 ||
+		negative === positive ||
+		rows[0].currency!.text === rows[1].currency!.text
+	)
+		return;
+	if (rows[positive].price || (rows[negative].price && rows[negative].price!.kind !== 'total'))
+		return;
+	if (rows[negative].price && new Big(rows[negative].price!.amount.text.replace(/^\+/, '')).lte(0))
+		return;
+	return { negative, positive };
+}
+
+/** A serializer-inferred price is not itself a form edit. Compare entered row values. */
+function samePostingInputs(a: SourcePosting[], b: SourcePosting[]): boolean {
+	return (
+		a.length === b.length &&
+		a.every((row, index) => {
+			const other = b[index];
+			return (
+				row.supported &&
+				other.supported &&
+				row.account.text === other.account.text &&
+				row.amount?.text === other.amount?.text &&
+				row.currency?.text === other.currency?.text &&
+				(!row.price ||
+					!other.price ||
+					(row.price.kind === other.price.kind &&
+						row.price.amount.text === other.price.amount.text &&
+						row.price.currency.text === other.price.currency.text))
+			);
+		})
+	);
+}
+
+/** Add inferred pricing only when the original plain rows have a lossless positional baseline. */
+function mergeNewExchangePostings(
+	source: string,
+	baseline: string,
+	edited: string
+): string | undefined {
+	const original = sourcePostingRows(source);
+	const before = sourcePostingRows(baseline);
+	const after = sourcePostingRows(edited);
+	const pair = exchangeRows(after.rows);
+	if (
+		!original.supported ||
+		!before.supported ||
+		!after.supported ||
+		!pair ||
+		original.rows.length !== 2 ||
+		before.rows.length !== 2 ||
+		original.rows.some((row) => !row.supported || row.price) ||
+		before.rows.some((row) => !row.supported || row.price) ||
+		!after.rows[pair.negative].price
+	)
+		return;
+	if (
+		original.rows.some(
+			(row, i) =>
+				row.account.text !== before.rows[i].account.text ||
+				row.amount?.text !== before.rows[i].amount?.text ||
+				row.currency?.text !== before.rows[i].currency?.text
+		)
+	)
+		unsupported();
+	if (
+		after.rows.some(
+			(row, i) =>
+				row.account.text !== before.rows[i].account.text &&
+				before.rows.some((other, j) => i !== j && other.account.text === row.account.text)
+		)
+	)
+		unsupported();
+	if (samePostingInputs(before.rows, after.rows)) return source;
+	const positive = after.rows[pair.positive];
+	const price = after.rows[pair.negative].price!;
+	if (
+		!new Big(price.amount.text.replace(/^\+/, '')).eq(positive.amount!.text.replace(/^\+/, '')) ||
+		price.currency.text !== positive.currency!.text
+	)
+		unsupported();
+	const changes: SourceToken[] = [];
+	for (let i = 0; i < 2; i++) {
+		const a = original.rows[i];
+		const c = after.rows[i];
+		if (a.account.text !== c.account.text) changes.push({ ...a.account, text: c.account.text });
+		const annotation =
+			i === pair.negative ? ` @@ ${positive.amount!.text} ${positive.currency!.text}` : '';
+		if (!a.amount) {
+			changes.push({
+				start: a.account.end,
+				end: a.account.end,
+				text: `  ${c.amount!.text} ${c.currency!.text}${annotation}`
+			});
+		} else {
+			if (a.amount.text !== c.amount!.text) changes.push({ ...a.amount, text: c.amount!.text });
+			if (a.currency!.text !== c.currency!.text)
+				changes.push({ ...a.currency!, text: c.currency!.text });
+			if (annotation)
+				changes.push({ start: a.currency!.end, end: a.currency!.end, text: annotation });
+		}
+	}
+	for (const change of changes.sort((a, b) => b.start - a.start)) {
+		source = source.slice(0, change.start) + change.text + source.slice(change.end);
+	}
+	return source;
+}
+
+function mergeTotalPricePostings(
+	source: string,
+	baseline: string,
+	edited: string
+): string | undefined {
+	const original = sourcePostingRows(source);
+	const before = sourcePostingRows(baseline);
+	const after = sourcePostingRows(edited);
+	if (!original.supported || !before.supported || !after.supported) return;
+	const pair = exchangeRows(original.rows);
+	const previous = exchangeRows(before.rows);
+	const next = exchangeRows(after.rows);
+	// Explicit @ and unknown/cost syntax never enter the total-price rewrite path.
+	if (
+		!pair ||
+		!previous ||
+		!next ||
+		pair.negative !== previous.negative ||
+		pair.negative !== next.negative
+	)
+		return;
+	const sourcePrice = original.rows[pair.negative].price;
+	if (
+		sourcePrice &&
+		(!new Big(sourcePrice.amount.text.replace(/^\+/, '')).eq(
+			original.rows[pair.positive].amount!.text.replace(/^\+/, '')
+		) ||
+			sourcePrice.currency.text !== original.rows[pair.positive].currency!.text ||
+			!after.rows[pair.negative].price)
+	)
+		unsupported();
+	if (
+		original.rows.some(
+			(row, i) =>
+				row.account.text !== before.rows[i].account.text ||
+				row.amount!.text !== before.rows[i].amount!.text ||
+				row.currency!.text !== before.rows[i].currency!.text
+		)
+	)
+		unsupported();
+	if (samePostingInputs(before.rows, after.rows)) return source;
+	if (
+		after.rows.some(
+			(row, i) =>
+				row.account.text !== before.rows[i].account.text &&
+				before.rows.some((other, j) => i !== j && other.account.text === row.account.text)
+		)
+	)
+		unsupported();
+	const changes: Array<SourceToken> = [];
+	const correct = (token: SourceToken, oldValue: SourceToken, newValue: SourceToken) => {
+		if (oldValue.text !== newValue.text) changes.push({ ...token, text: newValue.text });
+	};
+	for (let i = 0; i < 2; i++) {
+		const a = original.rows[i];
+		const b = before.rows[i];
+		const c = after.rows[i];
+		correct(a.account, b.account, c.account);
+		correct(a.amount!, b.amount!, c.amount!);
+		correct(a.currency!, b.currency!, c.currency!);
+	}
+	const negative = original.rows[pair.negative];
+	const positive = after.rows[pair.positive];
+	if (negative.price) {
+		// The received row owns total price, even when the form retained a stale explicit price.
+		correct(negative.price.amount, before.rows[pair.positive].amount!, positive.amount!);
+		correct(negative.price.currency, before.rows[pair.positive].currency!, positive.currency!);
+	} else {
+		changes.push({
+			start: negative.currency!.end,
+			end: negative.currency!.end,
+			text: ` @@ ${positive.amount!.text} ${positive.currency!.text}`
+		});
+	}
+	for (const change of changes.sort((a, b) => b.start - a.start)) {
+		source = source.slice(0, change.start) + change.text + source.slice(change.end);
+	}
+	return source;
+}
+
 function mergePostings(source: string, baseline: string, edited: string): string {
+	const newExchangeEdit = mergeNewExchangePostings(source, baseline, edited);
+	if (newExchangeEdit !== undefined) return newExchangeEdit;
+	const totalPriceEdit = mergeTotalPricePostings(source, baseline, edited);
+	if (totalPriceEdit !== undefined) return totalPriceEdit;
 	const original = postingRows(source);
 	const before = postingRows(baseline);
 	const after = postingRows(edited);
@@ -75,7 +281,9 @@ function mergePostings(source: string, baseline: string, edited: string): string
 		return (
 			a.length === b.length &&
 			a[0].text === b[0].text &&
-			(a.length === 1 || (new Big(a[1].text).eq(b[1].text) && a[2].text === b[2].text))
+			(a.length === 1 ||
+				(new Big(a[1].text.replace(/^\+/, '')).eq(b[1].text.replace(/^\+/, '')) &&
+					a[2].text === b[2].text))
 		);
 	});
 	if (before.length !== after.length) {

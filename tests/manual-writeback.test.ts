@@ -278,6 +278,59 @@ describe('prepareLocalTransactions', () => {
 // pushTransactions
 // ---------------------------------------------------------------------------
 
+describe('cross-currency raw writeback (mock HTTP, not Python-server acceptance)', () => {
+	const exchange = `2026-06-01 * "Exchange" "Exact total price" #travel ^receipt-31 ; header
+  reference: "keep metadata"
+  Assets:GBP  -10 GBP @@ 12.30 USD ; spent
+  Assets:USD  12.30 USD ; received`;
+	const incomplete = `2026-06-02 ! "Exchange" "Not ready"
+  cashier_id: "incomplete-exchange"
+  Assets:GBP  -3 GBP @@ 10.000000000000000001 USD
+  Assets:USD  10.000000000000000001 USD`;
+
+	test.each([false, true])(
+		'preparation and retry preserve raw @@ and decimals, existing identity=%s',
+		async (existingId) => {
+			const original = existingId
+				? exchange.replace('  reference:', '  cashier_id: "existing-exchange"\n  reference:')
+				: exchange;
+			mockState.opfsFiles.set('cashier.bean', `${original}\n\n${incomplete}\n`);
+			const prepared = await prepareLocalTransactions();
+			const id = existingId ? 'existing-exchange' : 'uuid-001';
+			const expected = existingId
+				? original
+				: exchange.replace('\n', `\n    cashier_id: "${id}"\n`);
+			expect(prepared).toEqual([{ cashierId: id, rawText: expected }]);
+			const persisted = mockState.opfsFiles.get('cashier.bean');
+			expect(persisted).toBe(`${expected}\n\n${incomplete}\n`);
+
+			mockState.fetch.mockImplementation(async (_url, init) => {
+				expect(mockState.opfsFiles.get('cashier.bean')).toBe(persisted);
+				expect(JSON.parse(init.body)).toEqual({ transactions: [expected] });
+				return {
+					ok: true,
+					json: async () => ({
+						synchronized: [],
+						rejected: [{ cashier_id: id, reason: 'Mock conflict' }]
+					})
+				};
+			});
+			await expect(pushTransactions('https://cashier.example.test/api', prepared)).resolves.toEqual(
+				{
+					synchronized: [],
+					rejected: [{ cashier_id: id, reason: 'Mock conflict' }]
+				}
+			);
+			const retry = await prepareLocalTransactions();
+			expect(retry).toEqual(prepared);
+			await pushTransactions('https://cashier.example.test/api', retry);
+			expect(mockState.fetch).toHaveBeenCalledTimes(2);
+			expect(mockState.opfsFiles.get('cashier.bean')).toBe(persisted);
+			expect(persisted?.match(/"Exact total price"/g)).toHaveLength(1);
+		}
+	);
+});
+
 describe('pushTransactions', () => {
 	const SERVER_URL = 'https://cashier.example.test/api';
 
