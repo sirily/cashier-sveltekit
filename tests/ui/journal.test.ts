@@ -222,6 +222,124 @@ for (const { name, savedNote, rejectPostingEdit } of [
 	});
 }
 
+for (const richSource of [false, true]) {
+	for (const scenario of ['changed first save', 'no-op first save', 'stale second save']) {
+		test(`immediate repeat edit: ${richSource ? 'metadata-rich' : 'bare transaction-only'} source, ${scenario}`, async ({
+			page
+		}) => {
+			const offlineToast = page.locator('.toast').filter({ hasText: 'App ready to work offline' });
+			await page.addLocatorHandler(offlineToast, async (toast) => {
+				await toast.getByRole('button', { name: 'Close', exact: true }).click();
+			});
+			const browserErrors = await openReadyJournal(page);
+			const originalNote = 'Repeat edit target';
+			const prefix = richSource
+				? `option "operating_currency" "USD"\n2000-01-01 open Assets:Cash USD\n2000-01-01 open Expenses:Food USD\n`
+				: '';
+			const before = `2025-01-01 ! "Before" "Untouched before"\n  Expenses:Food  1.00 USD\n  Assets:Cash  -1.00 USD\n\n`;
+			const transaction = richSource
+				? `2025-01-02 * "Cafe" "${originalNote}" #groceries ^receipt-29 ; header-comment
+  cashier_id: "repeat-edit-id"
+  custom: "keep-custom-metadata"
+  ; transaction-comment
+  Expenses:Food  12.50 USD ; food-comment
+    category: "lunch"
+  Assets:Cash  -12.50 USD
+`
+				: `2025-01-02 * "Cafe" "${originalNote}"\n  Expenses:Food  12.50 USD\n  Assets:Cash  -12.50 USD\n`;
+			const after = `\n; untouched neighbor comment\n2025-01-03 ! "After" "Untouched after"\n  Expenses:Food  3.00 USD\n  Assets:Cash  -3.00 USD\n`;
+			const source = prefix + before + transaction + after;
+			await writeLocalJournal(page, source);
+			await page.reload();
+			await expect(page.getByRole('main')).toContainText(originalNote);
+			await page.getByText(originalNote, { exact: false }).click();
+			await expect(page).toHaveURL(/\/xact-actions$/);
+
+			let expected = source;
+			let previousNote = originalNote;
+			const firstNote = scenario === 'no-op first save' ? originalNote : 'First saved correction';
+			const notes = [firstNote, 'Second saved correction with a longer note'];
+			for (const [index, note] of notes.entries()) {
+				// Do not reselect from Journal: that would repair the lost source span from issue #29.
+				await page.getByRole('button', { name: 'Edit', exact: true }).click();
+				await expect(page).toHaveURL(/\/tx$/);
+				await expect(page.getByTitle('Note', { exact: true })).toHaveValue(previousNote);
+				if (note !== previousNote) await page.getByTitle('Note', { exact: true }).fill(note);
+
+				const rejectSave = index === 1 && scenario === 'stale second save';
+				const writes: string[] = [];
+				if (rejectSave) {
+					expected =
+						'; concurrent journal change\n' +
+						expected.replace(`"${previousNote}"`, '"Concurrent correction"');
+					await writeLocalJournal(page, expected);
+					await page.exposeFunction('recordRejectedSaveWrite', (write: string) =>
+						writes.push(write)
+					);
+					await page.evaluate(() => {
+						const record = (write: string) =>
+							(
+								window as unknown as { recordRejectedSaveWrite: (write: string) => Promise<void> }
+							).recordRejectedSaveWrite(write);
+						const original = FileSystemFileHandle.prototype.createWritable;
+						FileSystemFileHandle.prototype.createWritable = function (...args) {
+							void record(`OPFS.${this.name}.createWritable`);
+							return original.apply(this, args);
+						};
+						for (const method of ['add', 'put', 'delete', 'clear'] as const) {
+							const original = IDBObjectStore.prototype[method];
+							Object.defineProperty(IDBObjectStore.prototype, method, {
+								configurable: true,
+								value: function (this: IDBObjectStore, ...args: unknown[]) {
+									void record(`IndexedDB.${this.name}.${method}`);
+									return Reflect.apply(original, this, args);
+								}
+							});
+						}
+					});
+				}
+
+				await page.locator('.navbar .dropdown > button').click();
+				await page.getByRole('menu').getByRole('button', { name: 'Save', exact: true }).click();
+				if (rejectSave) {
+					await expect(page.locator('#toast-container .alert-error')).toContainText(
+						'Reload the Journal'
+					);
+					await expect(page).toHaveURL(/\/tx$/);
+					await expect(page.getByTitle('Note', { exact: true })).toHaveValue(note);
+					expect(await readLocalJournal(page)).toBe(expected);
+					expect(writes).toEqual([]);
+				} else {
+					await expect(page).toHaveURL(/\/xact-actions$/);
+					await expect(page.locator('main').last()).toContainText(note);
+					expected = expected.replace(`"${previousNote}"`, `"${note}"`);
+					expect(await readLocalJournal(page)).toBe(expected);
+				}
+				previousNote = note;
+			}
+			const saved = await readLocalJournal(page);
+			expect(saved.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(3);
+			expect(saved.match(/^[ \t]+cashier_id:.*$/gm) ?? []).toEqual(
+				richSource ? ['  cashier_id: "repeat-edit-id"'] : []
+			);
+			if (scenario !== 'stale second save') {
+				await page.getByRole('link', { name: 'Home', exact: true }).click();
+				await expect(page).toHaveURL(/\/$/);
+				await page.locator('button.fixed').click();
+				await expect(page).toHaveURL(/\/tx$/);
+				await page.getByTitle('Note', { exact: true }).fill('New entry after editing');
+				await page.locator('button.fixed').click();
+				await expect(page).toHaveURL(/\/$/);
+				const withNewEntry = await readLocalJournal(page);
+				expect(withNewEntry.startsWith(saved.trimEnd() + '\n\n')).toBe(true);
+				expect(withNewEntry.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(4);
+				expect(withNewEntry).toContain('New entry after editing');
+			}
+			expect(browserErrors).toEqual([]);
+		});
+	}
+}
+
 test('saves a journal entry offline and persists it after reload', async ({ page, context }) => {
 	const browserErrors = await openReadyJournal(page);
 	const note = `Offline UI ${Date.now()}`;

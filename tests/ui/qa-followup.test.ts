@@ -100,28 +100,34 @@ test('D1 production pointer reorder survives return and save/reopen', async ({ p
 	expect(await readJournal(page)).toContain('qa-edit-id');
 });
 
-test('D6 About and Help explain the fork and retain controls', async ({ page }) => {
+test('D6 About and Help describe user workflows and retain application controls', async ({
+	page
+}) => {
 	await page.goto('/about');
-	await expect(page.locator('main')).toContainText('Python Beancount');
-	await expect(page.locator('main')).toContainText('RustLedger');
-	await expect(page.locator('main')).not.toContainText('Ledger Import');
+	await expect(page.getByRole('heading', { name: 'Cashier', exact: true })).toBeVisible();
+	await expect(page.locator('main')).toContainText('Beancount');
+	await expect(page.locator('main')).not.toContainText(/fork|upstream|Experiments|Ledger Import/i);
+	await expect(page.locator('main a[href="/ledger"], main a[href="/ledger/multi"]')).toHaveCount(0);
+	await expect(page.getByRole('heading', { name: 'Version', exact: true })).toBeVisible();
+	await expect(page.locator('main')).toContainText('Build:');
+	await expect(
+		page.getByRole('link', { name: /GNU Affero General Public License/ })
+	).toHaveAttribute('href', 'https://github.com/sirily/cashier-sveltekit/blob/main/LICENSE');
 	await expect(page.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
 		'href',
 		'https://github.com/sirily/cashier-sveltekit'
 	);
 	await expect(page.getByRole('button', { name: 'Check for updates' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Parsed Ledger', exact: true })).toHaveAttribute(
-		'href',
-		'/ledger'
-	);
-	await expect(page.getByRole('link', { name: 'Parsed Multi Ledger' })).toHaveAttribute(
-		'href',
-		'/ledger/multi'
-	);
+	await expect(page.getByRole('link', { name: /Parsed.*Ledger/ })).toHaveCount(0);
 	await page.getByRole('link', { name: 'Help', exact: true }).last().click();
 	await expect(page.locator('main')).toContainText('including while offline');
+	await expect(page.locator('main')).not.toContainText(/fork|upstream|CRDT|RustLedger/i);
+	await expect(page.locator('main')).toContainText('Do not delete local entries');
+	await expect(page.locator('main')).toContainText('Clearing site data');
 	await expect(page.locator('main a[href*=cashier-book]')).toHaveCount(0);
-	await expect(page.locator('main a[href="/sync"]')).toBeVisible();
+	for (const route of ['/sync', '/journal', '/reports', '/export/journal', '/util/validation']) {
+		await expect(page.locator(`main a[href="${route}"]`)).toBeVisible();
+	}
 });
 
 for (const currencyInput of ['USD', 'USD ', 'usd', '/USD', '/NQH21']) {

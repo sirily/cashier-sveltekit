@@ -67,7 +67,14 @@ export class Posting {
 	// transactionId: number | undefined
 	account: string;
 	amount?: number;
+	/** Original decimal input; usable only while it agrees with the numeric projection. */
+	amountText?: string;
 	currency: string;
+	price?: { kind: 'unit' | 'total'; amount: string; currency: string };
+	/** Verified received units before editing an explicit two-posting total price. */
+	priceBasis?: { amount: string; currency: string };
+	/** Unrepresented source syntax must never trigger automatic pricing. */
+	sourceAnnotated?: boolean;
 
 	constructor() {
 		// Id is inserted automatically.

@@ -43,14 +43,14 @@
 	onMount(loadAndParse);
 </script>
 
-<Toolbar title="Multi-File Ledger Debug" />
+<Toolbar title="Full Local Ledger Inspector" />
 
 <main class="mx-auto max-w-5xl space-y-4 p-4">
 	<!-- Controls -->
 	<section class="card bg-base-100 shadow-xl">
 		<div class="card-body p-4">
 			<div class="flex items-center gap-4">
-				<h2 class="card-title m-0">parseMultiFile Inspector</h2>
+				<h2 class="card-title m-0">Full local analysis book</h2>
 				<button class="btn btn-sm btn-primary" onclick={loadAndParse} disabled={isLoading}>
 					{#if isLoading}
 						<span class="loading loading-spinner loading-xs"></span> Loading...
@@ -60,8 +60,9 @@
 				</button>
 			</div>
 			<p class="text-sm text-base-content/60">
-				Reads beancount files from the filesystem (resolving includes) and parses them with
-				parseMultiFile. Useful for debugging multi-file parsing.
+				Inspect parsed directives and diagnostics from the selected Beancount book, its included
+				files, and pending local Journal entries. Reload refreshes the full local analysis book
+				without changing accounting source files.
 			</p>
 			{#if error}
 				<div class="alert alert-error mt-2 py-2 text-sm">{error}</div>
