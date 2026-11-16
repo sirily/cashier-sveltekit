@@ -8,6 +8,10 @@ The app captures manual transactions locally, synchronizes with
 account history and analysis. Ledger files are stored in browser OPFS; application settings
 and reference data use IndexedDB.
 
+Sync is explicit: send completed local entries, download and validate the server book,
+then reconcile confirmed local copies and refresh local analysis. Accounts and Payees
+have no separate synchronization actions.
+
 ## Development
 
 Use Node.js 24.15 or newer (Node.js 24.15 is the CI version), npm, and the versions recorded in `package.json` and `package-lock.json`.

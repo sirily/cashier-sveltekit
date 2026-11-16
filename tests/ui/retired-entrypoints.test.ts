@@ -874,9 +874,10 @@ async function updateSyncSettings(
 	);
 }
 
+// Retired setting keys are inert fixtures for data-nonmutation checks, not supported Sync choices.
 for (const source of ['filesystem', 'ledger', 'beancount']) {
 	for (const syncLedgerFiles of [false, true]) {
-		test(`server Sync loads ${source} configuration (book sync ${syncLedgerFiles}) without requests, permissions or data changes`, async ({
+		test(`server Sync loads ${source} configuration (stored legacy book flag ${syncLedgerFiles}) without requests, permissions or data changes`, async ({
 			page
 		}) => {
 			await seedStoredData(page);
@@ -899,15 +900,22 @@ for (const source of ['filesystem', 'ledger', 'beancount']) {
 					'retired-entrypoint-test-only-secret'
 				);
 				await expect(page.getByLabel('Remote root book file')).toHaveValue('books/personal.bean');
-				await expect(page.getByLabel('Accounts', { exact: true })).toBeChecked();
-				await expect(page.getByLabel('Payees', { exact: true })).not.toBeChecked();
-				await expect(page.getByLabel('Send → pull → reconcile')).toBeChecked({
-					checked: syncLedgerFiles
-				});
 				await expect(
-					page.getByText('Send completed local transactions', { exact: true })
-				).toHaveCount(syncLedgerFiles ? 1 : 0);
-				await expect(page.locator('main select')).toHaveCount(0);
+					page.locator('main input[type="checkbox"], main input[type="radio"], main select')
+				).toHaveCount(0);
+				await expect(
+					page.getByRole('columnheader', { name: 'Send → pull → reconcile', exact: true })
+				).toBeVisible();
+				for (const stage of [
+					'Send completed local transactions',
+					'Download server book',
+					'Select downloaded root book',
+					'Validate downloaded server book',
+					'Reconcile local journal'
+				]) {
+					await expect(page.getByRole('cell', { name: stage, exact: true })).toBeVisible();
+				}
+				await expect(page.getByRole('button', { name: 'Synchronize', exact: true })).toBeEnabled();
 				await expect(page.getByLabel('Opening balances', { exact: true })).toHaveCount(0);
 				expect(await readStoredData(page)).toEqual(before);
 			}
@@ -917,7 +925,7 @@ for (const source of ['filesystem', 'ledger', 'beancount']) {
 }
 
 for (const partial of [false, true]) {
-	test(`${partial ? 'partial' : 'fresh'} Sync configuration offers Beancount directly without inventing credentials or automatically syncing`, async ({
+	test(`${partial ? 'partial' : 'fresh'} Sync configuration presents the full cycle without inventing credentials or automatically syncing`, async ({
 		page
 	}) => {
 		await seedStoredData(page);
@@ -940,15 +948,27 @@ for (const partial of [false, true]) {
 		);
 		await expect(page.getByLabel('API token')).toHaveValue('');
 		await expect(page.getByLabel('Remote root book file')).toHaveValue('main.bean');
-		await expect(page.getByLabel('Send → pull → reconcile')).not.toBeChecked();
-		await expect(page.getByLabel('Accounts', { exact: true })).toBeChecked({ checked: partial });
-		await expect(page.locator('main select')).toHaveCount(0);
+		await expect(
+			page.locator('main input[type="checkbox"], main input[type="radio"], main select')
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('columnheader', { name: 'Send → pull → reconcile', exact: true })
+		).toBeVisible();
+		for (const stage of [
+			'Send completed local transactions',
+			'Download server book',
+			'Select downloaded root book',
+			'Validate downloaded server book',
+			'Reconcile local journal'
+		]) {
+			await expect(page.getByRole('cell', { name: stage, exact: true })).toBeVisible();
+		}
+		await expect(page.getByRole('button', { name: 'Synchronize', exact: true })).toBeEnabled();
 		expect(await readStoredData(page)).toEqual(before);
 		await page.reload();
 		await expect(page.getByLabel('API token')).toHaveValue('');
 		expect(await readStoredData(page)).toEqual(before);
 		if (!partial) {
-			await page.getByLabel('Accounts', { exact: true }).check();
 			const beforeSync = await readStoredData(page);
 			await page.getByRole('button', { name: 'Synchronize', exact: true }).click();
 			await expect(page.locator('#toast-container')).toContainText(
@@ -1005,49 +1025,4 @@ test('Sync exposes Synchronize without server Reload and opening it leaves local
 	await expect(page.getByRole('button', { name: 'Synchronize', exact: true })).toBeEnabled();
 	expect(await readStoredData(page)).toEqual(before);
 	expect(observations).toEqual({ permissions: [], requests: [] });
-});
-
-test('metadata-only server Sync refreshes selected references without sending, pulling or reconciling the journal', async ({
-	page
-}) => {
-	await seedStoredData(page);
-	await updateSyncSettings(page, {
-		ledgerDataSource: 'filesystem',
-		syncBeancountRootFile: 'main.bean',
-		syncServerSelectionCleared: false,
-		syncAccounts: true,
-		syncPayees: false,
-		syncLedgerFiles: false,
-		syncOpeningBalances: true,
-		syncAaValues: true,
-		syncAssetAllocation: true
-	});
-	const observations = await watchRetiredIngress(page);
-	const queries: string[] = [];
-	await page.route('https://cashier.test/api?**', async (route) => {
-		const request = route.request();
-		const query = new URL(request.url()).searchParams.get('query');
-		expect(request.method()).toBe('GET');
-		expect(request.headers().authorization).toBe('Bearer retired-entrypoint-test-only-secret');
-		expect(query).toBe('SELECT sum(number), currency, account ORDER BY account');
-		queries.push(request.url());
-		await route.fulfill({ json: { rows: [['0', 'USD', 'Assets:Cash']] } });
-	});
-	await page.goto('/sync');
-	await expect(page.getByLabel('Accounts', { exact: true })).toBeChecked();
-	await expect(page.getByLabel('Send → pull → reconcile')).not.toBeChecked();
-	await expect(page.getByText('Send completed local transactions', { exact: true })).toHaveCount(0);
-	const before = await readStoredData(page);
-	await page.getByRole('button', { name: 'Synchronize', exact: true }).click();
-	await expect(page.locator('#toast-container')).toContainText(
-		'Metadata synchronization completed successfully'
-	);
-	await expect(page.getByText('metadata-only', { exact: true })).toBeVisible();
-	expect(queries).toHaveLength(1);
-	const after = await readStoredData(page);
-	expect(after.files).toEqual(before.files);
-	for (const name of Object.keys(before.records).filter((name) => name !== 'accounts')) {
-		expect(after.records[name]).toEqual(before.records[name]);
-	}
-	expect(observations).toEqual({ permissions: [], requests: [`GET ${queries[0]}`] });
 });

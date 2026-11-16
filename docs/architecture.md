@@ -50,7 +50,7 @@ The editor saves transactions into `cashier.bean`. Saving completes through loca
 
 `src/lib/sync/sync-beancount.ts` orchestrates synchronization. `src/lib/sync/manual-writeback.ts` handles transaction preparation, submission, and local reconciliation.
 
-With ledger-file synchronization enabled:
+Each explicit Sync:
 
 1. Prepare completed local entries and persist missing `cashier_id` values.
 2. Submit entries to `POST /api/xact` using the configured Bearer credential.
@@ -60,9 +60,9 @@ With ledger-file synchronization enabled:
 
 A server acceptance response starts the confirmation process. Removal of a local copy follows confirmation in the successfully downloaded and validated server book. Entries awaiting confirmation remain in the local journal, and retries reuse their persisted identities.
 
-Metadata-only synchronization refreshes selected reference data. The Sync option “Send → pull → reconcile” controls transaction writeback, book download and confirmation-based local reconciliation. The drawer and home card both open `/sync`.
+Sync always sends eligible local entries, pulls the book and reconciles confirmed copies; an empty send batch still proceeds with the pull. Accounts and Payees have no independent synchronization requests or controls. The drawer and home card both open `/sync`.
 
-Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book and sync choices intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
+Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
 
 The server prepares snapshots with Python-plugin results materialized. The PWA validates the server snapshot separately from the pending local journal, then combines the accepted book with local entries for display and analysis.
 

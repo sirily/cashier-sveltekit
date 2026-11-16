@@ -6,8 +6,6 @@ const mockState = vi.hoisted(() => {
 	return {
 		settingsStore,
 		opfsFiles,
-		syncAccounts: vi.fn(async () => {}),
-		syncPayees: vi.fn(async () => {}),
 		deleteCache: vi.fn(async () => {}),
 		invalidate: vi.fn(async () => {}),
 		getErrors: vi.fn<() => Promise<unknown[]>>(async () => []),
@@ -83,14 +81,6 @@ vi.mock('#lib/services/rustledger', () => ({
 			getErrors: () => mockState.parseErrors,
 			free: vi.fn()
 		};
-	})
-}));
-
-vi.mock('#lib/sync/sync-common', () => ({
-	syncAccounts: mockState.syncAccounts,
-	syncPayees: mockState.syncPayees,
-	syncCurrentValues: vi.fn(async () => {
-		throw new Error('not used in tests');
 	})
 }));
 
@@ -228,8 +218,6 @@ describe('CashierSyncBeancount ledger file download', () => {
 		vi.restoreAllMocks();
 		mockState.settingsStore.clear();
 		mockState.opfsFiles.clear();
-		mockState.syncAccounts.mockClear();
-		mockState.syncPayees.mockClear();
 		mockState.deleteCache.mockClear();
 		mockState.invalidate.mockClear();
 		mockState.getErrors.mockReset();
@@ -319,6 +307,64 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect('shutdown' in sync).toBe(false);
 	});
 
+	test('always pulls and refreshes the full book without reference-data HTTP queries', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test/api');
+		mockState.settingsStore.set(SettingKeys.syncApiToken, 'device-token');
+		const network = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, options) => {
+			const url = new URL(String(input));
+			expect(url.pathname).toBe('/api/infrastructure');
+			expect(url.searchParams.has('query')).toBe(false);
+			expect(new Headers(options?.headers).get('Authorization')).toBe('Bearer device-token');
+			return new Response(JSON.stringify({ content: '2026-01-01 open Assets:Cash' }));
+		});
+		const reconcile = vi.spyOn(manualWriteback, 'reconcileLocalJournalFromPaths');
+
+		await expect(synchronize()).resolves.toBe(true);
+
+		expect(network).toHaveBeenCalledTimes(1);
+		expect(mockState.pushTransactions).not.toHaveBeenCalled();
+		expect(reconcile).toHaveBeenCalledWith([], ['main.bean']);
+		expect(reconcile.mock.invocationCallOrder[0]).toBeLessThan(
+			mockState.invalidate.mock.invocationCallOrder[0]
+		);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe('');
+		expect(getLastDiagnostics()).toMatchObject({
+			parseResult: 'ok',
+			refreshResult: 'ok'
+		});
+	});
+
+	test.each(['deleteCache', 'invalidate'] as const)(
+		'reports %s failure separately without restoring confirmed overlays',
+		async (method) => {
+			mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+			const confirmed =
+				'2026-01-01 * "Confirmed"\n    cashier_id: "confirmed-id"\n    Expenses:Food  1 USD\n    Assets:Cash  -1 USD';
+			mockState.opfsFiles.set('cashier.bean', confirmed);
+			mockState.pushTransactions.mockResolvedValueOnce({
+				synchronized: ['confirmed-id'],
+				rejected: []
+			});
+			vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+				new Map([['main.bean', confirmed]])
+			);
+			mockState[method].mockRejectedValueOnce(new Error('analysis unavailable'));
+
+			await expect(synchronize()).resolves.toBe(false);
+
+			expect(mockState.opfsFiles.get('cashier.bean')?.trim()).toBe('');
+			expect(mockState.opfsFiles.get('main.bean')).toBe(confirmed);
+			expect(getLastDiagnostics()).toMatchObject({
+				parseResult: 'ok',
+				refreshResult: 'error',
+				syncErrors: [
+					{ stage: 'refresh', message: 'Failed to refresh local analysis: analysis unavailable' }
+				]
+			});
+			expect(get(syncProgress).find((step) => step.id === 9)?.status).toBe('completed');
+		}
+	);
+
 	test('sends only completed entries and retries persisted identities with exact total prices', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		const draft = '2026-01-02 ! "Draft"\n    Assets:Cash  -1 USD\n    Expenses:Food  1 USD';
@@ -332,9 +378,9 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
 		);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		await expect(synchronize()).resolves.toBe(true);
 		const afterFirstRun = mockState.opfsFiles.get('cashier.bean');
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		await expect(synchronize()).resolves.toBe(true);
 
 		expect(mockState.pushTransactions).toHaveBeenCalledTimes(2);
 		const firstBatch = mockState.pushTransactions.mock.calls[0][1];
@@ -365,8 +411,6 @@ describe('CashierSyncBeancount ledger file download', () => {
 			rejected: []
 		});
 
-		vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockResolvedValue({ rows: [] });
-		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue([]);
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
 			new Map([
 				[
@@ -386,12 +430,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 			cashierContentsWhenUiLedgerRefreshes.push(mockState.opfsFiles.get('cashier.bean'));
 		});
 
-		await expect(
-			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
-		).resolves.toBe(true);
-		await expect(
-			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
-		).resolves.toBe(true);
+		await expect(synchronize()).resolves.toBe(true);
+		await expect(synchronize()).resolves.toBe(true);
 
 		expect(mockState.opfsFiles.get('cashier.bean')?.trim()).toBe('');
 		expect(cashierContentsWhenUiLedgerRefreshes).toEqual(['', '']);
@@ -403,10 +443,6 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.opfsFiles.set('cashier.bean', '2026-01-01 * "Local"');
 		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: ['uuid-001'], rejected: [] });
 
-		vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockResolvedValue({
-			rows: [['10', 'USD', 'Assets:Cash']]
-		});
-		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue(['Shop']);
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
 			new Map([
 				['main.bean', ['include "accounts.bean"', 'include "prices/2026.bean"'].join('\n')],
@@ -415,9 +451,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 			])
 		);
 
-		await expect(
-			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: true })
-		).resolves.toBe(true);
+		await expect(synchronize()).resolves.toBe(true);
 
 		expect(mockState.pushTransactions).toHaveBeenCalledTimes(1);
 		expect(mockState.pushTransactions).toHaveBeenCalledWith(
@@ -439,76 +473,11 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(mockState.deleteCache).toHaveBeenCalledTimes(1);
 		expect(mockState.invalidate).toHaveBeenCalledTimes(1);
 		expect(getLastDiagnostics()).toMatchObject({
-			accountsCount: 1,
-			payeesCount: 1,
 			ledgerFilesCount: 3,
 			selectedRootBookFilename: 'main.bean',
 			parseResult: 'ok'
 		});
 	});
-
-	const persistentFailureCases: Array<{
-		name: string;
-		options: Parameters<typeof synchronize>[0];
-		arrange: () => void;
-		message: string;
-		stage: 'accounts' | 'payees' | 'other';
-		error: Error;
-	}> = [
-		{
-			name: 'accounts',
-			options: { syncAccounts: true },
-			error: new Error('accounts unavailable'),
-			arrange: function () {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockRejectedValueOnce(this.error);
-			},
-			message: 'accounts unavailable',
-			stage: 'accounts'
-		},
-		{
-			name: 'payees',
-			options: { syncPayees: true },
-			error: new Error('payees unavailable'),
-			arrange: function () {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockRejectedValueOnce(this.error);
-			},
-			message: 'payees unavailable',
-			stage: 'payees'
-		},
-		{
-			name: 'asset-allocation',
-			error: new Error('Stage 1 sync does not support asset allocation definition import'),
-			options: { syncAssetAllocation: true },
-			arrange: () => {},
-			message: 'Stage 1 sync does not support asset allocation definition import',
-			stage: 'other'
-		},
-		{
-			name: 'account-current-values',
-			options: { syncAaValues: true },
-			error: new Error('values unavailable'),
-			arrange: function () {
-				vi.spyOn(CashierSyncBeancount.prototype, 'readCurrentValues').mockRejectedValueOnce(
-					this.error
-				);
-			},
-			message: 'values unavailable',
-			stage: 'other'
-		}
-	];
-
-	for (const testCase of persistentFailureCases) {
-		test(`records a persistent ${testCase.name} failure`, async () => {
-			const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-			mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
-			testCase.arrange();
-			await expect(synchronize(testCase.options)).resolves.toBe(false);
-			expect(getLastDiagnostics()?.syncErrors).toEqual([
-				{ stage: testCase.stage, message: testCase.message }
-			]);
-			expect(consoleError.mock.calls).toEqual([[testCase.error]]);
-		});
-	}
 
 	test('records pull, root-book-selection, and parse failures separately', async () => {
 		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -518,7 +487,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValueOnce(pullError);
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'pull', message: 'pull unavailable' }
 		]);
@@ -529,7 +498,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		vi.spyOn(settings, 'set')
 			.mockImplementationOnce(async () => undefined)
 			.mockRejectedValueOnce(bookSelectionError);
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'other', message: 'book selection unavailable' }
 		]);
@@ -538,7 +507,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
 		);
 		mockState.parseErrors = [{ message: 'parse unavailable' }];
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'parse', message: 'Full ledger parsed with 1 errors for main.bean' }
 		]);
@@ -563,14 +532,14 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
 		);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'send', message: 'first rejection', cashierId: 'local-1' },
 			{ stage: 'send', message: 'second rejection', cashierId: 'local-2' }
 		]);
 
 		mockState.pushTransactions.mockResolvedValueOnce({ synchronized: [], rejected: [] });
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		await expect(synchronize()).resolves.toBe(true);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([]);
 	});
 
@@ -589,7 +558,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Error('reconcile unavailable')
 		);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 		expect(getLastDiagnostics()?.syncErrors).toEqual([
 			{ stage: 'reconcile', message: 'Failed to reconcile local journal: reconcile unavailable' }
 		]);
@@ -608,7 +577,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 		);
 
 		// mockState.pushTransactions already rejects by default
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 
 		const steps = get(syncProgress);
 		const step0 = steps.find((s) => s.id === 0);
@@ -647,7 +616,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Map([['main.bean', '2026-01-01 open Assets:Physical:Cash']])
 		);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 
 		const steps = get(syncProgress);
 		expect(steps.find((s) => s.id === 0)?.status).toBe('error');
@@ -655,12 +624,19 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect(getLastDiagnostics()).toMatchObject({
 			parseResult: 'ok',
 			parseErrorCount: 0,
-			lastError: 'Unknown account(s): Assets:NoSuchBank:Cash',
+			refreshResult: 'error',
+			lastError:
+				'Failed to refresh local analysis: Account Assets:NoSuchBank:Cash was never opened',
 			syncErrors: [
 				{
 					stage: 'send',
 					message: 'Unknown account(s): Assets:NoSuchBank:Cash',
 					cashierId: '11111111-1111-4111-8111-111111111111'
+				},
+				{
+					stage: 'refresh',
+					message:
+						'Failed to refresh local analysis: Account Assets:NoSuchBank:Cash was never opened'
 				}
 			]
 		});
@@ -701,8 +677,8 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Map([['main.bean', '2026-01-01 open Assets:Physical:Cash']])
 		);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 
 		expect(mockState.notifier.warning).toHaveBeenCalledWith(
 			'Unknown account(s): Assets:NoSuchBank:Cash'
@@ -726,7 +702,6 @@ describe('CashierSyncBeancount ledger file download', () => {
 		mockState.opfsFiles.set('accounts.bean', 'old include');
 		mockState.parseErrors = [{ message: 'parse failed' }];
 
-		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue(['Shop']);
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
 			new Map([
 				['main.bean', 'include "accounts.bean"'],
@@ -734,7 +709,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 			])
 		);
 
-		await expect(synchronize({ syncPayees: true, syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 
 		expect(mockState.settingsStore.get(SettingKeys.bookFilename)).toBe('previous.bean');
 		expect(mockState.opfsFiles.get('main.bean')).toBe('old root');
@@ -761,7 +736,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 			new Map([['/workspace/cashier.bean', 'server content']])
 		);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 
 		expect(mockState.opfsFiles.get('cashier.bean')).toMatch(
 			/^2026-01-01 \* "Local"\n    cashier_id: "[^"]+"$/
@@ -773,27 +748,6 @@ describe('CashierSyncBeancount ledger file download', () => {
 		]);
 	});
 
-	test('metadata-only sync records skipped parse diagnostics and writes no files', async () => {
-		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
-
-		vi.spyOn(CashierSyncBeancount.prototype, 'readAccounts').mockResolvedValue({
-			rows: [['10', 'USD', 'Assets:Cash']]
-		});
-		vi.spyOn(CashierSyncBeancount.prototype, 'readPayees').mockResolvedValue(['Shop']);
-
-		await expect(
-			synchronize({ syncAccounts: true, syncPayees: true, syncLedgerFiles: false })
-		).resolves.toBe(true);
-
-		expect(mockState.opfsFiles.size).toBe(0);
-		expect(getLastDiagnostics()).toMatchObject({
-			syncMode: 'metadata-only',
-			parseResult: 'skipped',
-			accountsCount: 1,
-			payeesCount: 1
-		});
-	});
-
 	test('failed include fetch rejects before OPFS writes', async () => {
 		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 		const error = new Error('missing /workspace/accounts.bean');
@@ -802,7 +756,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 
 		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockRejectedValue(error);
 
-		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(false);
+		await expect(synchronize()).resolves.toBe(false);
 
 		expect(vi.mocked(opfs.saveFile)).not.toHaveBeenCalled();
 		expect(getLastDiagnostics()).toMatchObject({ parseResult: 'error' });
@@ -810,7 +764,7 @@ describe('CashierSyncBeancount ledger file download', () => {
 	});
 });
 
-for (const method of ['readAccounts', 'readPayees', 'readFiles'] as const) {
+for (const method of ['readFiles'] as const) {
 	for (const status of [401, 403, 500]) {
 		test(`D4 ${method} classifies HTTP ${status} without response secrets`, async () => {
 			vi.stubGlobal(
@@ -818,8 +772,7 @@ for (const method of ['readAccounts', 'readPayees', 'readFiles'] as const) {
 				vi.fn().mockResolvedValue(new Response('Authorization: Bearer sensitive-token', { status }))
 			);
 			const client = new CashierSyncBeancount('https://cashier.test/api', 'sensitive-token');
-			const call = () =>
-				method === 'readFiles' ? client.readFiles('main.bean') : client[method]();
+			const call = () => client.readFiles('main.bean');
 			await expect(call()).rejects.toThrow(`HTTP ${status}`);
 			await expect(call()).rejects.not.toThrow('sensitive-token');
 			vi.unstubAllGlobals();
@@ -828,9 +781,7 @@ for (const method of ['readAccounts', 'readPayees', 'readFiles'] as const) {
 	test(`D4 ${method} transport failure is not invalid-token diagnosis`, async () => {
 		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
 		const client = new CashierSyncBeancount('https://cashier.test/api');
-		await expect(
-			method === 'readFiles' ? client.readFiles('main.bean') : client[method]()
-		).rejects.toThrow('Failed to fetch');
+		await expect(client.readFiles('main.bean')).rejects.toThrow('Failed to fetch');
 		vi.unstubAllGlobals();
 	});
 }
