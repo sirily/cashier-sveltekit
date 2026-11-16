@@ -9,7 +9,7 @@ The system SHALL pull the authoritative Beancount book from the configured serve
 #### Scenario: Successful pull
 
 - **WHEN** the user starts Sync against a reachable configured server
-- **THEN** the full cycle sends eligible local entries, downloads and validates the book, reconciles confirmed local copies, and refreshes local analysis and account/payee lists
+- **THEN** the book is stored locally
 - **AND** the downloaded root is selected only as part of a successful book update
 - **AND** each stage has a visible outcome
 

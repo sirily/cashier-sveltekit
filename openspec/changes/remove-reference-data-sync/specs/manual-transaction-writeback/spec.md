@@ -23,16 +23,16 @@ The system SHALL perform writeback within the existing explicit Sync action in t
 - **THEN** the system records the send failure and still attempts the full-ledger pull
 - **AND** subsequent reconciliation obeys the confirmation and unresolved-outcome safeguards rather than treating a successful pull as proof that sending succeeded
 
-+ #### Scenario: Mixed drafts and exact total prices
-+
-+ GIVEN the local journal contains a completed transaction
-+ with an exact `@@` total and an incomplete `!` transaction
-+ WHEN full Sync prepares, sends, pulls, validates,
-+ and reconciles the entries
-+ THEN only the completed transaction is sent,
-+ with its exact authored total-price value rather than
-+ a reconstructed rounded unit price
-+ AND the `!` entry remains local and unchanged by writeback
-+ AND retry uses the same persisted `cashier_id` and content,
-+ and safe confirmation removes only the completed local copy
-+ without creating another transaction
+* #### Scenario: Mixed drafts and exact total prices
+*
+* GIVEN the local journal contains a completed transaction
+* with an exact `@@` total and an incomplete `!` transaction
+* WHEN full Sync prepares, sends, pulls, validates,
+* and reconciles the entries
+* THEN only the completed transaction is sent,
+* with its exact authored total-price value rather than
+* a reconstructed rounded unit price
+* AND the `!` entry remains local and unchanged by writeback
+* AND retry uses the same persisted `cashier_id` and content,
+* and safe confirmation removes only the completed local copy
+* without creating another transaction
