@@ -319,6 +319,35 @@ describe('CashierSyncBeancount ledger file download', () => {
 		expect('shutdown' in sync).toBe(false);
 	});
 
+	test('sends only completed entries and retries persisted identities with exact total prices', async () => {
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		const draft = '2026-01-02 ! "Draft"\n    Assets:Cash  -1 USD\n    Expenses:Food  1 USD';
+		const totalPrice = '    Assets:Broker  3 LONGCOIN @@ 10.01 USD';
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			`2026-01-01 * "Trade"\n${totalPrice}\n    Assets:Cash  -10.01 USD\n\n${draft}\n`
+		);
+		mockState.pushTransactions.mockResolvedValue({ synchronized: [], rejected: [] });
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([['main.bean', '2026-01-01 open Assets:Cash']])
+		);
+
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+		const afterFirstRun = mockState.opfsFiles.get('cashier.bean');
+		await expect(synchronize({ syncLedgerFiles: true })).resolves.toBe(true);
+
+		expect(mockState.pushTransactions).toHaveBeenCalledTimes(2);
+		const firstBatch = mockState.pushTransactions.mock.calls[0][1];
+		expect(firstBatch).toEqual([
+			expect.objectContaining({ rawText: expect.stringContaining(totalPrice) })
+		]);
+		expect(firstBatch).toEqual(mockState.pushTransactions.mock.calls[1][1]);
+		expect(JSON.stringify(firstBatch)).not.toContain('Draft');
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(afterFirstRun);
+		expect(afterFirstRun).toContain(draft);
+		expect(afterFirstRun?.match(/cashier_id:/g)).toHaveLength(1);
+	});
+
 	test('does not reintroduce a confirmed local overlay on repeated sync', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');
