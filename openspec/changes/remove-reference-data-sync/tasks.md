@@ -17,11 +17,11 @@ The accepted delta specifications are the source of truth. These tasks implement
 
 ## 3. Remove IndexedDB supplementation from existing list queries
 
-- [ ] 3.1 Keep existing local-book account/payee queries and remove the subsequent IndexedDB reference reads/merges; remove unused DAL accessors after caller checks, without writing, migrating, or clearing the old tables. Verify tests seed contradictory reference rows, show they cannot add/override list results, and confirm the seeded rows remain unchanged.
-- [ ] 3.2 Verify ordinary query/selection behavior after fallback removal: existing open accounts without postings, declared and unrestricted multi-currency accounts, and existing payee selection/free-text controls. Use focused real-worker/WASM and existing editor tests; adjust extraction only for a demonstrated retained-behavior failure, and introduce no account or payee feature.
-- [ ] 3.3 Verify current lists after the existing post-reconciliation book refresh, including just-synchronized transactions and remaining local entries, and preserve existing cold/offline Journal and book analysis behavior. Use unit/browser regressions with cache enabled and disabled; add no missing-book message, first-run UI, reference-readiness state machine, or separate
+- [x] 3.1 Keep existing local-book account/payee queries and remove the subsequent IndexedDB reference reads/merges; remove unused DAL accessors after caller checks, without writing, migrating, or clearing the old tables. Verify tests seed contradictory reference rows, show they cannot add/override list results, and confirm the seeded rows remain unchanged.
+- [x] 3.2 Verify ordinary query/selection behavior after fallback removal: existing open accounts without postings, declared and unrestricted multi-currency accounts, and existing payee selection/free-text controls. Use focused real-worker/WASM and existing editor tests; adjust extraction only for a demonstrated retained-behavior failure, and introduce no account or payee feature.
+- [x] 3.3 Verify current lists after the existing post-reconciliation book refresh, including just-synchronized transactions and remaining local entries, and preserve existing cold/offline Journal and book analysis behavior. Use unit/browser regressions with cache enabled and disabled; add no missing-book message, first-run UI, reference-readiness state machine, or separate
       refresh stage.
-- [ ] 3.4 Update architecture/README descriptions to remove IndexedDB as an active list source and describe the existing local query path. Verify documentation neither requests cleanup of stored rows nor claims new account, payee, offline, or analysis behavior.
+- [x] 3.4 Update architecture/README descriptions to remove IndexedDB as an active list source and describe the existing local query path. Verify documentation neither requests cleanup of stored rows nor claims new account, payee, offline, or analysis behavior.
 
 ## 4. Preserve existing writeback and data-safety guarantees
 

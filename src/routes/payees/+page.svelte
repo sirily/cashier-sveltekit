@@ -9,7 +9,7 @@
 	import { ListSearch } from '#lib/utils/ListSearch';
 	import Notifier from '#lib/utils/notifier';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
-	import CashierDAL from '#lib/data/dbdal';
+
 
 	Notifier.init();
 
@@ -37,11 +37,7 @@
 
 		const payeeIdx = result.columns.indexOf('payee');
 		const ledgerPayees = result.rows.map((row: any) => row[payeeIdx] as string).filter(Boolean);
-		const dal = await CashierDAL.create();
-		const syncedPayees = (await dal.loadPayees()).map((payee) => payee.name).filter(Boolean);
-		payees = Array.from(new Set([...ledgerPayees, ...syncedPayees])).sort((a, b) =>
-			a.localeCompare(b)
-		);
+		payees = ledgerPayees.sort((a, b) => a.localeCompare(b));
 
 		filteredPayees = payees;
 

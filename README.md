@@ -6,7 +6,8 @@ an offline-capable Beancount finance assistant built with SvelteKit, Svelte, and
 The app captures manual transactions locally, synchronizes with
 [Cashier Server](https://github.com/sirily/cashier-server-python), and provides full-book
 account history and analysis. Ledger files are stored in browser OPFS; application settings
-and reference data use IndexedDB.
+use IndexedDB. Account and payee lists query the downloaded book combined with `cashier.bean`.
+Legacy reference tables remain untouched and do not supplement these lists.
 
 Sync is explicit: send completed local entries, download and validate the server book,
 then reconcile confirmed local copies and refresh local analysis. Accounts and Payees

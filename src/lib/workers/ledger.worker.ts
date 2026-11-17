@@ -440,10 +440,31 @@ async function handleMessage(e: MessageEvent<WorkerRequest>): Promise<void> {
 				const result = ledger.query(bql);
 				const accountCol = (result.columns ?? []).indexOf('account');
 				const currenciesCol = (result.columns ?? []).indexOf('currencies');
-				const accounts = ((result.rows ?? []) as any[]).map((row) => ({
+				const accounts: Array<{ name: string; currencies: string[] }> = (
+					(result.rows ?? []) as any[]
+				).map((row) => ({
 					name: accountCol !== -1 ? (row[accountCol] ?? '') : '',
-					currencies: currenciesCol !== -1 ? (row[currenciesCol] ?? []) : []
+					currencies: currenciesCol !== -1 ? [...(row[currenciesCol] ?? [])] : []
 				}));
+				// Unrestricted opens have no declared currencies; postings supply their actual commodities.
+				const accountByName = new Map(accounts.map((account) => [account.name, account]));
+				const postings = ledger.query(
+					'SELECT DISTINCT account, currency ORDER BY account, currency'
+				);
+				const postingAccountCol = (postings.columns ?? []).indexOf('account');
+				const postingCurrencyCol = (postings.columns ?? []).indexOf('currency');
+				for (const row of (postings.rows ?? []) as unknown[][]) {
+					const account = accountByName.get(row[postingAccountCol] as string);
+					const currency = row[postingCurrencyCol];
+					if (
+						account &&
+						typeof currency === 'string' &&
+						currency &&
+						!account.currencies.includes(currency)
+					) {
+						account.currencies.push(currency);
+					}
+				}
 				reply({ type: 'all-accounts-done', accounts });
 				break;
 			}
