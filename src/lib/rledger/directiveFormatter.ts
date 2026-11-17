@@ -361,7 +361,9 @@ class DirectiveFormatter {
 		if (!price) {
 			return '';
 		}
-		return ` @ ${this.formatAmount(price)}`;
+		const kind =
+			typeof price === 'object' && (price as { kind?: string }).kind === 'total' ? '@@' : '@';
+		return ` ${kind} ${this.formatAmount(price)}`;
 	}
 
 	private static formatExtraFields(

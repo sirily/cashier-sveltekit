@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
@@ -47,7 +48,7 @@
 
 <main class="mx-auto max-w-4xl space-y-4 p-4">
 	<!-- Controls -->
-	<div class="flex items-center gap-3">
+	<div class="flex flex-wrap items-center gap-3">
 		<button
 			class="btn btn-primary"
 			onclick={() => runValidation(true)}
@@ -60,6 +61,7 @@
 				Reload &amp; Validate
 			{/if}
 		</button>
+		<a class="btn btn-outline" href={resolve('/ledger/multi')}>Inspect parsed ledger</a>
 
 		{#if status === 'done'}
 			<div class="badge {isValid ? 'badge-success' : 'badge-error'} gap-1 text-sm">
@@ -77,8 +79,18 @@
 	<!-- Load error -->
 	{#if status === 'error' && loadError}
 		<div class="alert alert-error">
-			<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-6 w-6 shrink-0 stroke-current"
+				fill="none"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+				/>
 			</svg>
 			<div>
 				<p class="font-semibold">Failed to load ledger</p>
@@ -107,8 +119,18 @@
 	{#if status === 'done'}
 		{#if totalIssues === 0}
 			<div class="alert alert-success">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-6 w-6 shrink-0 stroke-current"
+					fill="none"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+					/>
 				</svg>
 				<span><strong>All clear!</strong> No errors or warnings found in the ledger.</span>
 			</div>

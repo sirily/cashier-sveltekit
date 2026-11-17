@@ -9,12 +9,17 @@ import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 import { ensureInitialized } from '#lib/data/initializer';
 import { get } from 'svelte/store';
 import type { PageLoad } from './$types';
+import Big from 'big.js';
+import { postingAmountText } from '#lib/utils/postingWeights';
+
+const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 export type UnifiedXact = {
 	date: string;
 	payee: string;
 	narration: string;
 	amount: number;
+	amountText?: string;
 	currency: string;
 	isDevice: boolean;
 	xact?: Xact;
@@ -66,16 +71,21 @@ WHERE account = '${accountName}'`;
 	const deviceRows: UnifiedXact[] = deviceXacts.flatMap(({ xact, span }) =>
 		(xact.postings ?? [])
 			.filter((p) => p.account === accountName)
-			.map((posting) => ({
-				date: xact.date ?? '',
-				payee: xact.payee ?? '',
-				narration: xact.note ?? '',
-				amount: posting?.amount ?? 0,
-				currency: posting?.currency ?? '',
-				isDevice: true,
-				xact,
-				span
-			}))
+			.map((posting) => {
+				const currentAmountText = postingAmountText(posting);
+				return {
+					date: xact.date ?? '',
+					payee: xact.payee ?? '',
+					narration: xact.note ?? '',
+					amount: currentAmountText === undefined ? NaN : posting.amount!,
+					// A numeric fallback is not authoritative source text for exact matching.
+					amountText: posting.amountText === currentAmountText ? currentAmountText : undefined,
+					currency: posting.currency ?? '',
+					isDevice: true,
+					xact,
+					span
+				};
+			})
 	);
 
 	// Normalize ledger rows
@@ -87,14 +97,22 @@ WHERE account = '${accountName}'`;
 	const numberIdx = safeColumns.indexOf('number');
 	const currencyIdx = safeColumns.indexOf('currency');
 
-	const ledgerNormalized: UnifiedXact[] = safeRows.map((row) => ({
-		date: row[dateIdx] as string,
-		payee: (row[payeeIdx] as string | null | undefined) ?? '',
-		narration: row[narrationIdx] as string,
-		amount: parseFloat(row[numberIdx] as string),
-		currency: row[currencyIdx] as string,
-		isDevice: false
-	}));
+	const ledgerNormalized: UnifiedXact[] = safeRows.map((row) => {
+		const value = row[numberIdx];
+		const amountText =
+			(typeof value === 'string' || typeof value === 'number') && decimal.test(String(value))
+				? String(value)
+				: undefined;
+		return {
+			date: row[dateIdx] as string,
+			payee: (row[payeeIdx] as string | null | undefined) ?? '',
+			narration: row[narrationIdx] as string,
+			amount: amountText === undefined ? NaN : Number(amountText),
+			amountText,
+			currency: (row[currencyIdx] as string | null | undefined) ?? '',
+			isDevice: false
+		};
+	});
 
 	// Match each local posting to one occurrence, preserving identical postings and transactions.
 	const unmatchedDeviceRows: UnifiedXact[] = [];
@@ -105,11 +123,15 @@ WHERE account = '${accountName}'`;
 				lr.date === dr.date &&
 				lr.payee === dr.payee &&
 				lr.narration === dr.narration &&
-				lr.amount === dr.amount &&
+				(dr.amountText !== undefined && lr.amountText !== undefined
+					? new Big(lr.amountText.replace(/^\+/, '')).eq(dr.amountText.replace(/^\+/, ''))
+					: lr.amount === dr.amount || (Number.isNaN(lr.amount) && Number.isNaN(dr.amount))) &&
 				lr.currency === dr.currency
 		);
 		if (matchIdx !== -1) {
 			ledgerNormalized[matchIdx].isDevice = true;
+			ledgerNormalized[matchIdx].amountText =
+				dr.amountText ?? ledgerNormalized[matchIdx].amountText;
 			ledgerNormalized[matchIdx].xact = dr.xact;
 			ledgerNormalized[matchIdx].span = dr.span;
 		} else {

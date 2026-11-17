@@ -1,5 +1,6 @@
 import { Posting, type Xact } from '#lib/data/model';
 import { DirectiveFormatter } from '#lib/rledger/directiveFormatter';
+import { effectivePostings, postingAmountText } from '#lib/utils/postingWeights';
 
 export const PLACEHOLDER_ACCOUNT = 'Expenses:Uncategorized';
 
@@ -39,10 +40,13 @@ export function xactToBeancountText(tx: Xact): string {
 		narration: tx.note ?? '',
 		tags: [],
 		links: [],
-		postings: tx.postings.map((p) => {
+		postings: effectivePostings(tx.postings).map((p) => {
 			let units: { number: string; currency: string } | undefined;
-			if (p.amount != null) {
-				units = { number: String(p.amount), currency: p.currency };
+			if (p.amount != null || p.amountText !== undefined) {
+				const amount = postingAmountText(p);
+				if (amount === undefined)
+					throw new Error('Enter a finite decimal posting amount before saving.');
+				units = { number: amount, currency: p.currency };
 			} else if (!p.account && p.currency) {
 				// No account but currency set — default to 0 to preserve the placeholder posting.
 				units = { number: '0', currency: p.currency };
@@ -50,7 +54,10 @@ export function xactToBeancountText(tx: Xact): string {
 			// Account set with no amount, or neither → omit units (Beancount auto-balance posting).
 			return {
 				account: p.account || PLACEHOLDER_ACCOUNT,
-				units
+				units,
+				price: p.price
+					? { number: p.price.amount, currency: p.price.currency, kind: p.price.kind }
+					: undefined
 			};
 		})
 	};

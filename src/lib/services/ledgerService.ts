@@ -17,6 +17,7 @@ import {
 import { CASHIER_XACT_FILE } from '#lib/constants';
 import { xactToBeancountText } from '#lib/utils/xactUtils';
 import { mergeTransactionEdit } from '#lib/rledger/transactionEdit';
+import { restorePostingSource } from '#lib/rledger/postingSource';
 
 interface QueryError {
 	message: string;
@@ -125,10 +126,11 @@ class LedgerService {
 	 * Parses cashier.bean independently, verifies the captured source span,
 	 * splices in the new text, writes back, and invalidates.
 	 */
-	async editTransaction(span: DirectiveSpan, newBeancountText: string): Promise<void> {
+	async editTransaction(span: DirectiveSpan, newBeancountText: string): Promise<DirectiveSpan> {
 		const source = (await opfslib.readFile(CASHIER_XACT_FILE)) ?? '';
 		const tempLedger = createParsedLedger(source);
 		if (!tempLedger) throw new Error('Failed to parse cashier.bean');
+		let savedSpan: DirectiveSpan;
 		try {
 			const spans = mapDirectiveSpans(source, tempLedger);
 			const idx = this.verifyTransactionSpan(spans, span);
@@ -142,16 +144,22 @@ class LedgerService {
 				xactToBeancountText(entry.xact).trimEnd(),
 				newBeancountText.trimEnd()
 			);
-			if (replacement === spans[idx].sourceText) return;
+			if (replacement === spans[idx].sourceText) return spans[idx];
 			const updated = replaceDirectiveBySpan(source, spans, idx, replacement);
 			if ((await opfslib.readFile(CASHIER_XACT_FILE)) !== source) {
 				throw new Error('Local journal changed while saving. Reload the Journal and try again.');
 			}
 			await opfslib.saveFile(CASHIER_XACT_FILE, updated);
+			savedSpan = {
+				...spans[idx],
+				endLine: spans[idx].startLine + replacement.split('\n').length - 1,
+				sourceText: replacement
+			};
 		} finally {
 			tempLedger.free();
 		}
 		await this.invalidate();
+		return savedSpan;
 	}
 
 	/**
@@ -306,7 +314,13 @@ class LedgerService {
 					const matches = byTag.get(`${prefix}${span.startLine}`);
 					if (matches?.length !== 1)
 						throw new Error('Ambiguous local transaction source. Reload the Journal.');
-					return { xact: this.directiveToXact(matches[0]), span };
+					const xact = this.directiveToXact(matches[0]);
+					restorePostingSource(
+						xact.postings,
+						span.sourceText,
+						(symbols[span.symbolIndex].children ?? []).filter((child) => child.kind === 'posting')
+					);
+					return { xact, span };
 				});
 			} finally {
 				mapped.free();
