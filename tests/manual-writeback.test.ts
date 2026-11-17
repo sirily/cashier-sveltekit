@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import init, { ParsedLedger } from '@rustledger/wasm';
+import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const SEQ_UUIDS = ['uuid-001', 'uuid-002', 'uuid-003', 'uuid-004'];
 
@@ -34,6 +36,14 @@ vi.mock('#lib/utils/opfslib', () => ({
 	})
 }));
 
+vi.mock('#lib/sync/journal-storage', () => ({
+	readJournal: async () => mockState.opfsFiles.get('cashier.bean'),
+	saveJournal: async (_expected: string, content: string) => {
+		const opfs = await import('#lib/utils/opfslib');
+		await opfs.saveFile('cashier.bean', content);
+	}
+}));
+
 vi.mock('#lib/constants', () => ({
 	CASHIER_XACT_FILE: 'cashier.bean'
 }));
@@ -41,10 +51,41 @@ vi.mock('#lib/constants', () => ({
 import {
 	prepareLocalTransactions,
 	pushTransactions,
-	reconcileLocalJournal,
 	reconcileLocalJournalFromPaths
 } from '#lib/sync/manual-writeback';
 import type { PendingTransaction } from '#lib/sync/manual-writeback';
+
+beforeAll(async () => {
+	await init({
+		module_or_path: readFileSync(
+			new URL(import.meta.resolve('@rustledger/wasm/rustledger_wasm_bg.wasm'))
+		)
+	});
+});
+
+function parsedConfirmation(paths: string[]): string[] {
+	const source = paths
+		.map((path) => mockState.opfsFiles.get(path) ?? '')
+		.join('\n')
+		.replace(/^include[^\r\n]*/gm, '');
+	const parsed = new ParsedLedger(source);
+	try {
+		expect(parsed.getParseErrors()).toEqual([]);
+		const result = parsed.query("SELECT DISTINCT entry_meta('cashier_id') WHERE flag = '*'");
+		expect(result.errors).toEqual([]);
+		return result.rows.flatMap((row) => (typeof row[0] === 'string' && row[0] ? [row[0]] : []));
+	} finally {
+		parsed.free();
+	}
+}
+
+async function reconcileAcceptedLocal(rejectedIds: string[], paths: string[]): Promise<void> {
+	const accepted = await prepareLocalTransactions();
+	await reconcileLocalJournalFromPaths(rejectedIds, paths, {
+		accepted,
+		confirmedIds: parsedConfirmation(paths)
+	});
+}
 
 let uuidSeqIndex = 0;
 
@@ -426,7 +467,7 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		// The synced transaction should be removed from cashier.bean
 		const saved = mockState.opfsFiles.get('cashier.bean');
@@ -445,7 +486,10 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal(['rejected-uuid']);
+		await reconcileAcceptedLocal(
+			['rejected-uuid'],
+			['main.bean', 'accounts.bean', 'manual_transactions.bean']
+		);
 
 		// Even though the pulled ledger has this ID (manual_transactions.bean),
 		// we keep it because it was rejected in this batch
@@ -464,7 +508,7 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).toContain('local-uuid');
@@ -503,7 +547,7 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		// The * transaction should be removed (it's completed and synced)
@@ -516,11 +560,15 @@ describe('reconcileLocalJournal', () => {
 		mockState.opfsFiles.set('cashier.bean', '');
 
 		// Should not throw
-		await expect(reconcileLocalJournal([])).resolves.toBeUndefined();
+		await expect(
+			reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean'])
+		).resolves.toBeUndefined();
 	});
 
 	test('handles missing cashier.bean gracefully', async () => {
-		await expect(reconcileLocalJournal([])).resolves.toBeUndefined();
+		await expect(
+			reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean'])
+		).resolves.toBeUndefined();
 	});
 
 	test('mixed batch: removes synced, keeps rejected', async () => {
@@ -551,7 +599,10 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal(['bad-uuid']);
+		await reconcileAcceptedLocal(
+			['bad-uuid'],
+			['main.bean', 'accounts.bean', 'manual_transactions.bean']
+		);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		// good-uuid is in pulled ledger and not rejected → removed
@@ -584,7 +635,7 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).not.toContain('synced-adjacent');
@@ -618,7 +669,7 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).toContain('comment-only');
@@ -639,7 +690,7 @@ describe('reconcileLocalJournal', () => {
 		// Pulled ledger has no non-cashier .bean files with this ID
 		mockState.opfsFiles.delete('manual_transactions.bean');
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).toContain('never-pushed');
@@ -665,7 +716,7 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournalFromPaths([], ['main.bean', 'accounts.bean']);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).toContain('stale-only');
@@ -686,10 +737,150 @@ describe('reconcileLocalJournal', () => {
 			].join('\n')
 		);
 
-		await reconcileLocalJournal([]);
+		await reconcileAcceptedLocal([], ['main.bean', 'accounts.bean', 'manual_transactions.bean']);
 
 		const saved = mockState.opfsFiles.get('cashier.bean');
 		expect(saved).toContain('; User comment');
 		expect(saved).toContain('option "title" "Test"');
+	});
+});
+
+describe('POST response validation', () => {
+	test.each([
+		null,
+		[],
+		{},
+		{ synchronized: [] },
+		{ rejected: [] },
+		{ synchronized: null, rejected: [] },
+		{ synchronized: [42], rejected: [] },
+		{ synchronized: [''], rejected: [] },
+		{ synchronized: [], rejected: null },
+		{ synchronized: [], rejected: [null] },
+		{ synchronized: [], rejected: [{ cashier_id: 'id' }] },
+		{ synchronized: [], rejected: [{ cashier_id: 42, reason: 'Conflict' }] },
+		{ synchronized: [], rejected: [{ cashier_id: 'id', reason: '' }] }
+	])('rejects malformed success body %j as unresolved', async (body) => {
+		mockState.fetch.mockResolvedValueOnce({ ok: true, json: async () => body });
+		await expect(
+			pushTransactions('https://cashier.test', [{ cashierId: 'id', rawText: 'raw' }])
+		).rejects.toThrow(/malformed response; send outcomes are unresolved/);
+	});
+
+	test('preserves concrete unattributed rejection reasons', async () => {
+		const body = {
+			synchronized: [],
+			rejected: [{ cashier_id: null, reason: 'Cannot validate batch' }]
+		};
+		mockState.fetch.mockResolvedValueOnce({ ok: true, json: async () => body });
+		expect(
+			await pushTransactions('https://cashier.test', [{ cashierId: 'id', rawText: 'raw' }])
+		).toEqual(body);
+	});
+
+	test('does not manufacture acceptance for omitted outcomes', async () => {
+		mockState.fetch.mockResolvedValueOnce({
+			ok: true,
+			json: async () => ({ synchronized: [], rejected: [] })
+		});
+		expect(
+			await pushTransactions('https://cashier.test', [{ cashierId: 'id', rawText: 'raw' }])
+		).toEqual({ synchronized: [], rejected: [] });
+	});
+
+	test('propagates undecodable JSON as an unresolved send failure', async () => {
+		mockState.fetch.mockResolvedValueOnce({
+			ok: true,
+			json: async () => {
+				throw new SyntaxError('Invalid JSON');
+			}
+		});
+		await expect(
+			pushTransactions('https://cashier.test', [{ cashierId: 'id', rawText: 'raw' }])
+		).rejects.toThrow('Invalid JSON');
+	});
+});
+
+describe('parsed confirmation and accepted-source safeguards', () => {
+	const rawText =
+		'2026-06-01 * "Accepted" "Original"\n  cashier_id: "accepted-id"\n  Expenses:Food  3 ITEM @@ 10.01 USD\n  Assets:Cash  -10.01 USD';
+	const accepted = [{ cashierId: 'accepted-id', rawText }];
+	const draft =
+		'2026-06-02 ! "Draft" "Exact bytes"\n\tcashier_id: "draft-id"\n\tExpenses:Food  5 USD\n\tAssets:Cash\n';
+
+	test('removes only unchanged accepted and confirmed completed source; never reads raw server files', async () => {
+		mockState.opfsFiles.set('cashier.bean', rawText + '\n\n' + draft);
+		// The runtime confirmation is authoritative even when OPFS raw text differs.
+		const read = vi.mocked((await import('#lib/utils/opfslib')).readFile);
+		await reconcileLocalJournalFromPaths([], ['unreadable.bean'], {
+			accepted,
+			confirmedIds: ['accepted-id', 'draft-id']
+		});
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe('\n\n' + draft);
+		expect(read).not.toHaveBeenCalled();
+	});
+
+	test.each([
+		{ accepted: [], confirmedIds: ['accepted-id'] },
+		{ accepted, confirmedIds: [] },
+		{ accepted: [{ cashierId: 'other-id', rawText }], confirmedIds: ['accepted-id'] },
+		{
+			accepted: [{ cashierId: 'accepted-id', rawText: rawText.replace('Original', 'Older') }],
+			confirmedIds: ['accepted-id']
+		}
+	])('retains unresolved, unconfirmed, or different accepted source %j', async (confirmation) => {
+		mockState.opfsFiles.set('cashier.bean', rawText + '\n\n' + draft);
+		mockState.opfsFiles.set('server.bean', rawText);
+		await reconcileLocalJournalFromPaths([], ['server.bean'], confirmation);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(rawText + '\n\n' + draft);
+	});
+
+	test('rejection vetoes an otherwise accepted and confirmed match', async () => {
+		mockState.opfsFiles.set('cashier.bean', rawText);
+		await reconcileLocalJournalFromPaths(['accepted-id'], [], {
+			accepted,
+			confirmedIds: ['accepted-id']
+		});
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(rawText);
+	});
+
+	test('keeps a same-ID edit, a completion-flag change, and a new append made after sending', async () => {
+		for (const changed of [rawText.replace('Original', 'Edited'), rawText.replace(' * ', ' ! ')]) {
+			mockState.opfsFiles.set('cashier.bean', changed + '\n\n' + draft);
+			await reconcileLocalJournalFromPaths([], [], {
+				accepted,
+				confirmedIds: ['accepted-id', 'draft-id']
+			});
+			expect(mockState.opfsFiles.get('cashier.bean')).toBe(changed + '\n\n' + draft);
+		}
+	});
+
+	test('an append before reconciliation survives removal of the original accepted entry', async () => {
+		const appended = rawText.replaceAll('accepted-id', 'new-id').replace('Original', 'Appended');
+		mockState.opfsFiles.set('cashier.bean', rawText + '\n\n' + appended + '\n\n' + draft);
+		await reconcileLocalJournalFromPaths([], [], {
+			accepted,
+			confirmedIds: ['accepted-id', 'new-id']
+		});
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe('\n\n' + appended + '\n\n' + draft);
+	});
+
+	test('a non-transaction directive after a removed transaction remains byte-for-byte intact', async () => {
+		const tail =
+			'\n\n; Keep comment\n2026-06-02 balance Assets:Cash  99 USD\n  cashier_id: "not-a-transaction"\n';
+		mockState.opfsFiles.set('cashier.bean', rawText + tail);
+		await reconcileLocalJournalFromPaths([], [], { accepted, confirmedIds: ['accepted-id'] });
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(tail);
+	});
+
+	test('missing confirmation fails closed without reading stale OPFS files', async () => {
+		mockState.opfsFiles.set('cashier.bean', rawText);
+		mockState.opfsFiles.set('stale.bean', rawText);
+		// @ts-expect-error Exercise an untyped caller omitting required confirmation.
+		await expect(reconcileLocalJournalFromPaths([], undefined)).rejects.toThrow(
+			/requires explicit acceptance/
+		);
+		expect(mockState.opfsFiles.get('cashier.bean')).toBe(rawText);
+		expect((await import('#lib/utils/opfslib')).listFileTree).not.toHaveBeenCalled();
 	});
 });
