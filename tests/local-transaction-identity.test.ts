@@ -9,6 +9,15 @@ vi.mock('#lib/utils/opfslib', () => ({
 		state.files.set(path, content);
 	}
 }));
+vi.mock('#lib/sync/journal-storage', () => ({
+	readJournal: async () => state.files.get('cashier.bean'),
+	saveJournal: async (expected: string, content: string) => {
+		if (state.files.get('cashier.bean') !== expected) {
+			throw new Error('Local journal changed during Sync; retry without overwriting local edits.');
+		}
+		state.files.set('cashier.bean', content);
+	}
+}));
 vi.mock('#lib/services/rustledger', async () => {
 	const wasm = await import('@rustledger/wasm');
 	return {

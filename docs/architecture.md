@@ -8,22 +8,22 @@ The client stores pending transactions and a downloaded copy of the server book.
 
 ## Data storage
 
-| Data                                               | Storage                        | Responsibility                                                            |
-| -------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
-| Authoritative accounting book                      | Server's Beancount workspace   | Server validation, accepted transactions, and snapshot preparation        |
-| Pending transactions                               | `cashier.bean` in browser OPFS | Durable local journal, including completed `*` and incomplete `!` entries |
-| Downloaded book                                    | Beancount files in OPFS        | Offline copy of the server data used for analysis                         |
-| Settings, reference data, legacy scheduled records | IndexedDB through Dexie        | Structured application data managed by `src/lib/data/db.ts`               |
-| API credential                                     | Local settings in IndexedDB    | Bearer authentication for protected server requests                       |
-| Parsed-book cache                                  | Binary file in OPFS            | Faster loading of the local analysis book                                 |
+| Data                                          | Storage                        | Responsibility                                                            |
+| --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| Authoritative accounting book                 | Server's Beancount workspace   | Server validation, accepted transactions, and snapshot preparation        |
+| Pending transactions                          | `cashier.bean` in browser OPFS | Durable local journal, including completed `*` and incomplete `!` entries |
+| Downloaded book                               | Beancount files in OPFS        | Offline copy of the server data used for analysis                         |
+| Settings, legacy reference and scheduled rows | IndexedDB through Dexie        | Structured application data managed by `src/lib/data/db.ts`               |
+| API credential                                | Local settings in IndexedDB    | Bearer authentication for protected server requests                       |
+| Parsed-book cache                             | Binary file in OPFS            | Faster loading of the local analysis book                                 |
 
 **OPFS** (Origin Private File System) is disk storage managed by the browser for a particular website origin. It holds files that the application reads and writes. Its lifetime follows browser site data: clearing site data removes local files.
 
 `src/lib/storage/` exports `OPFSBackend` and its `StorageBackend` file-operation interface. The serialization tool uses this backend directly. Journal editing, server book persistence, and OPFS browsing and selection use the shared utilities in `src/lib/utils/opfslib.ts`. The analysis worker reads source files and its binary cache directly through browser OPFS handles.
 
-**IndexedDB** is the browser's structured local database. Cashier accesses it through Dexie. `CashierDAL` in `src/lib/data/dbdal.ts` provides account and payee access and implements the `DAL` interface in `src/lib/data/dal.ts`. Legacy scheduled records and settings use the same application database. The existing `scheduled` table and its rows remain available to outbound backup.
+**IndexedDB** is the browser's structured local database, accessed through Dexie. Settings and legacy scheduled records use this database. Legacy `accounts` and `payees` tables and their rows remain untouched, but no longer supply account or payee lists. The existing `scheduled` table and its rows remain available to outbound backup.
 
-The Python server supplies the accounting book and reference data through explicit Sync. The client persists the downloaded snapshot in OPFS and reference data in IndexedDB. Manual entry creates pending journal records on the device.
+The Python server supplies the accounting book through explicit Sync. The client persists the downloaded snapshot in OPFS. Account and payee lists query its local composition with `cashier.bean`, without an IndexedDB merge. Manual entry creates pending journal records on the device.
 
 ## Transaction flow
 
@@ -50,7 +50,7 @@ The editor saves transactions into `cashier.bean`. Saving completes through loca
 
 `src/lib/sync/sync-beancount.ts` orchestrates synchronization. `src/lib/sync/manual-writeback.ts` handles transaction preparation, submission, and local reconciliation.
 
-With ledger-file synchronization enabled:
+Each explicit Sync:
 
 1. Prepare completed local entries and persist missing `cashier_id` values.
 2. Submit entries to `POST /api/xact` using the configured Bearer credential.
@@ -60,9 +60,9 @@ With ledger-file synchronization enabled:
 
 A server acceptance response starts the confirmation process. Removal of a local copy follows confirmation in the successfully downloaded and validated server book. Entries awaiting confirmation remain in the local journal, and retries reuse their persisted identities.
 
-Metadata-only synchronization refreshes selected reference data. The Sync option “Send → pull → reconcile” controls transaction writeback, book download and confirmation-based local reconciliation. The drawer and home card both open `/sync`.
+Sync always sends eligible local entries, pulls the book and reconciles confirmed copies; an empty send batch still proceeds with the pull. Accounts and Payees have no independent synchronization requests or controls. The drawer and home card both open `/sync`.
 
-Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book and sync choices intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
+Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
 
 The server prepares snapshots with Python-plugin results materialized. The PWA validates the server snapshot separately from the pending local journal, then combines the accepted book with local entries for display and analysis.
 
@@ -97,7 +97,7 @@ Protected API calls carry the locally configured token in the `Authorization: Be
 
 Journal export produces Beancount text for copying or downloading, with explicit `.bean` download filenames. Export leaves local entries and their synchronization identities in place.
 
-Outbound local backup contains settings and existing legacy scheduled records in `scx`, with credentials filtered out. Journal files and the downloaded book have their own export paths. Server Sync supplies the accounting book and reference data on a configured device.
+Outbound local backup contains settings and existing legacy scheduled records in `scx`, with credentials filtered out. Journal files and the downloaded book have their own export paths. Server Sync supplies the accounting book on a configured device.
 
 OPFS tools browse and select stored files, create text files, and edit existing source text. Settings select the stored book and asset-allocation definition. Ordinary settings controls persist local configuration in IndexedDB. Stored forecast preferences remain passive configuration data.
 

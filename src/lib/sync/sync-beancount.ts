@@ -4,22 +4,18 @@ import { syncFeedback } from './sync-feedback.svelte';
  * Fetches data from the CashierSync server over HTTP.
  */
 import { settings, SettingKeys } from '#lib/settings';
-import moment from 'moment';
 import { syncHttpError } from './http-error';
-import { CASHIER_XACT_FILE, ISODATEFORMAT } from '#lib/constants';
-import * as opfs from '#lib/utils/opfslib';
+import { CASHIER_XACT_FILE } from '#lib/constants';
+import { readJournal } from '#lib/sync/journal-storage';
 import fullLedgerService from '#lib/services/ledgerWorkerClient';
 import { createLedger, ensureInitialized } from '#lib/services/rustledger';
-import { getQueries } from './sync-queries';
-import type { Queries } from './sync-queries';
 import Notifier from '#lib/utils/notifier';
-import * as SyncCommon from '#lib/sync/sync-common';
-import type { SyncSteps } from '#lib/sync/sync-common';
 import { initializeSyncProgress, updateSyncStep } from '#lib/stores/syncProgressStore';
 import {
 	prepareLocalTransactions,
 	pushTransactions,
-	reconcileLocalJournalFromPaths
+	reconcileLocalJournalFromPaths,
+	type PendingTransaction
 } from '#lib/sync/manual-writeback';
 
 Notifier.init();
@@ -36,15 +32,13 @@ interface InfrastructureGlobResponse {
 }
 
 export interface SyncError {
-	stage: 'send' | 'accounts' | 'payees' | 'pull' | 'parse' | 'reconcile' | 'other';
+	stage: 'send' | 'pull' | 'parse' | 'reconcile' | 'refresh' | 'other';
 	message: string;
 	cashierId?: string;
 }
 
 export interface BeancountSyncDiagnostics {
-	syncMode?: 'metadata-only' | 'offline-ledger';
-	accountsCount?: number;
-	payeesCount?: number;
+	refreshResult?: 'ok' | 'error' | 'skipped';
 	ledgerFilesCount?: number;
 	selectedRootBookFilename?: string;
 	rootBookSize?: number;
@@ -81,11 +75,26 @@ function recordSyncError(error: SyncError): void {
 async function parseDownloadedLedger(
 	files: Map<string, string>,
 	entryPoint: string
-): Promise<unknown[]> {
+): Promise<{ errors: unknown[]; confirmedIds: string[] }> {
 	await ensureInitialized();
 	const ledger = createLedger(Object.fromEntries(files), entryPoint);
 	try {
-		return ledger.getErrors();
+		const errors = ledger.getErrors();
+		if (errors.length > 0) return { errors, confirmedIds: [] };
+		// WASM 0.14.1's directives and transactions table omit metadata. ENTRIES
+		// retains transaction metadata and includes transactions without postings.
+		const confirmation = ledger.query(
+			"SELECT DISTINCT entry_meta('cashier_id') AS cashier_id FROM entries WHERE type = 'transaction' AND flag = '*'"
+		);
+		if (confirmation.errors.length > 0) {
+			throw new Error(
+				`Failed to read server confirmation: ${describeParseErrors(confirmation.errors).join('; ')}`
+			);
+		}
+		const confirmedIds = confirmation.rows.flatMap((row) =>
+			typeof row[0] === 'string' && row[0] ? [row[0]] : []
+		);
+		return { errors, confirmedIds };
 	} finally {
 		ledger.free();
 	}
@@ -253,22 +262,91 @@ function ensureSafeLocalLedgerFiles(files: Map<string, string>): void {
 	}
 }
 
+// Snapshot recovery cannot use OPFS helpers that turn inaccessible storage into
+// an absent file or silently skip a write when obtaining a handle fails.
+async function snapshotFileHandle(path: string, create = false): Promise<FileSystemFileHandle> {
+	let directory = await navigator.storage.getDirectory();
+	const parts = path.split('/');
+	const name = parts.pop()!;
+	for (const part of parts) directory = await directory.getDirectoryHandle(part, { create });
+	return directory.getFileHandle(name, { create });
+}
+
+async function readSnapshotFile(path: string): Promise<string | undefined> {
+	if (path === CASHIER_XACT_FILE) return readJournal();
+	let handle: FileSystemFileHandle;
+	try {
+		handle = await snapshotFileHandle(path);
+	} catch (error) {
+		if (error instanceof DOMException && error.name === 'NotFoundError') return undefined;
+		throw error;
+	}
+	return (await handle.getFile()).text();
+}
+
+async function saveSnapshotFile(path: string, content: string): Promise<void> {
+	const handle = await snapshotFileHandle(path, true);
+	const stream = await handle.createWritable();
+	try {
+		// A journal may have appeared since the absence check. Never replace it
+		// with an empty overlay, including while rolling back a failed pull.
+		if (path === CASHIER_XACT_FILE && (await readJournal()) !== '') {
+			await stream.abort();
+			return;
+		}
+		await stream.write(new TextEncoder().encode(content));
+		if (path === CASHIER_XACT_FILE && (await readJournal()) !== '') {
+			await stream.abort();
+			return;
+		}
+		await stream.close();
+	} catch (error) {
+		try {
+			await stream.abort();
+		} catch {
+			// Keep the original persistence failure for the recovery diagnostics.
+		}
+		throw error;
+	}
+}
+
+async function removeSnapshotFile(path: string): Promise<void> {
+	try {
+		let directory = await navigator.storage.getDirectory();
+		const parts = path.split('/');
+		const name = parts.pop()!;
+		for (const part of parts) directory = await directory.getDirectoryHandle(part);
+		if (path === CASHIER_XACT_FILE) {
+			const current = await readJournal();
+			if (current === undefined) return;
+			if (current !== '') throw new Error('Journal changed during Sync; preserved local content');
+		}
+		await directory.removeEntry(name);
+	} catch (error) {
+		if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
+	}
+}
+
 async function snapshotExistingFiles(paths: string[]): Promise<Map<string, string | undefined>> {
 	const snapshot = new Map<string, string | undefined>();
-	for (const path of paths) {
-		snapshot.set(path, await opfs.readFile(path));
-	}
+	for (const path of paths) snapshot.set(path, await readSnapshotFile(path));
 	return snapshot;
 }
 
-async function restoreFiles(snapshot: Map<string, string | undefined>) {
+async function restoreFiles(snapshot: Map<string, string | undefined>): Promise<string[]> {
+	const errors: string[] = [];
 	for (const [path, content] of snapshot) {
-		if (content === undefined) {
-			await opfs.deleteFile(path);
-		} else {
-			await opfs.saveFile(path, content);
+		try {
+			if (content === undefined) {
+				await removeSnapshotFile(path);
+			} else {
+				await saveSnapshotFile(path, content);
+			}
+		} catch (error) {
+			errors.push(`${path}: ${describeError(error)}`);
 		}
 	}
+	return errors;
 }
 
 /**
@@ -281,7 +359,6 @@ type CashierRequestOptions = RequestInit & { timeout?: number };
 class CashierSyncBeancount {
 	serverUrl: string;
 	apiToken: string;
-	queries: Queries;
 
 	constructor(serverUrl: string, apiToken = '') {
 		if (!serverUrl) {
@@ -292,8 +369,6 @@ class CashierSyncBeancount {
 		}
 		this.serverUrl = serverUrl;
 		this.apiToken = apiToken.trim();
-
-		this.queries = getQueries();
 	}
 
 	private requestOptions(options?: CashierRequestOptions): RequestInit {
@@ -309,21 +384,6 @@ class CashierSyncBeancount {
 		return response;
 	}
 
-	createUrl(query: string): URL {
-		const url = new URL(this.serverUrl);
-		url.searchParams.set('query', query);
-		return url;
-	}
-
-	/**
-	 * Sends a ledger query to the Ledger server and returns the response.
-	 */
-	async send(query: string, options?: CashierRequestOptions) {
-		const url = this.createUrl(query);
-		const response = await fetch(url, this.requestOptions(options));
-		return response;
-	}
-
 	/**
 	 * See if the server is running
 	 */
@@ -335,64 +395,6 @@ class CashierSyncBeancount {
 
 		const text = await result.text();
 		return text;
-	}
-
-	/**
-	 * Retrieve the list of accounts with their balances.
-	 */
-	async readAccounts(): Promise<Record<string, unknown>> {
-		const accountsQuery = this.queries.accounts();
-		const response = await this.send(accountsQuery);
-		if (!response.ok) {
-			throw syncHttpError(response.status, 'Reading accounts');
-		}
-
-		const content = await response.json();
-
-		return content;
-	}
-
-	/**
-	 * Retrieve the account balances for all accounts.
-	 */
-	async readBalances(): Promise<string[]> {
-		const balancesQuery = this.queries.balances();
-		const response = await this.send(balancesQuery);
-		const content: string[] = await response.json();
-
-		return content;
-	}
-
-	/**
-	 * Get current account values in the base currency.
-	 */
-	async readCurrentValues(): Promise<any> {
-		const rootAccount = (await settings.get(SettingKeys.rootInvestmentAccount)) as string;
-		if (!rootAccount) {
-			throw new Error('No root investment account set!');
-		}
-		const currency = await settings.get<string>(SettingKeys.currency);
-		if (!currency) {
-			throw new Error('No default currency set!');
-		}
-
-		const query = this.queries.currentValues(rootAccount, currency);
-		const response = await this.send(query);
-		const result: any = await response.json();
-
-		return result;
-	}
-
-	/**
-	 * Read infrastructure files from Cashier server.
-	 */
-	async readFile(filePath: string): Promise<string> {
-		const files = await this.readFiles(filePath);
-		const content = files.get(normalizeRemotePath(filePath));
-		if (content === undefined) {
-			throw new Error(`Error reading infrastructure file: ${filePath}`);
-		}
-		return content;
 	}
 
 	async readFiles(filePath: string): Promise<Map<string, string>> {
@@ -432,332 +434,214 @@ class CashierSyncBeancount {
 		await visit(rootPath);
 		return files;
 	}
-
-	async readLots(symbol: string) {
-		const query = this.queries.lots(symbol);
-
-		const response = await this.send(query);
-		if (!response.ok) throw new Error('error fetching lots: ' + response.text());
-
-		const result: string[] = await response.json();
-
-		// remove "Assets" account title
-		const lastIndex = result.length - 1;
-		const lastLine = result[lastIndex];
-		if (lastLine.includes('Assets')) {
-			const parts = lastLine.split('Assets');
-			const value = parts[0];
-			result[lastIndex] = value;
-		}
-
-		return result;
-	}
-
-	/**
-	 * Retrieve the list of Payees
-	 */
-	async readPayees(): Promise<string[]> {
-		const from = moment().subtract(20, 'years').format(ISODATEFORMAT);
-
-		const query = this.queries.payees(from);
-		const response = await this.send(query, { timeout: 20000 });
-		if (!response.ok) {
-			throw syncHttpError(response.status, 'Reading payees');
-		}
-
-		const content = (await response.json()) as string[][];
-		return content.map((row) => row[0]);
-	}
 }
 
 /**
  * Entry point
  * @returns
  */
-async function synchronize(syncOptions?: SyncSteps): Promise<boolean> {
-	// defaults
-	if (!syncOptions) {
-		syncOptions = {
-			syncAccounts: true,
-			syncAaValues: false,
-			syncAssetAllocation: false,
-			syncPayees: true,
-			syncLedgerFiles: true
-		};
-	}
-
-	// Initialize sync progress
+async function synchronize(): Promise<boolean> {
 	initializeSyncProgress();
-	syncFeedback.diagnostics = {
-		syncMode: syncOptions.syncLedgerFiles ? 'offline-ledger' : 'metadata-only',
-		parseResult: 'skipped',
-		syncErrors: []
-	};
-
-	// Cashier Sync synchronization
-
-	// const activeUrl = getActiveServerUrlOrNotify();
+	syncFeedback.diagnostics = { parseResult: 'skipped', refreshResult: 'skipped', syncErrors: [] };
 	const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
 	if (!activeUrl) return false;
 	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken)) ?? '';
-
 	const sync = new CashierSyncBeancount(activeUrl, apiToken);
 	let hasRetryableWritebackFailure = false;
-
 	try {
-		if (syncOptions.syncAccounts) {
-			updateSyncStep(1, 'in-progress');
-			try {
-				await synchronizeAccounts(sync);
-			} catch (error) {
-				recordSyncError({ stage: 'accounts', message: describeError(error) });
-				updateSyncStep(1, 'error');
-				throw error;
-			}
-			updateSyncStep(1, 'completed');
-		}
-
-		// Asset Allocation definition (.toml)
-		if (syncOptions.syncAssetAllocation) {
-			const message = 'Stage 1 sync does not support asset allocation definition import';
-			updateSyncStep(3, 'in-progress');
-			recordSyncError({ stage: 'other', message });
-			updateSyncStep(3, 'error');
-			throw new Error(message);
-		}
-
-		if (syncOptions.syncAaValues) {
-			updateSyncStep(4, 'in-progress');
-			try {
-				await synchronizeAaValues(sync);
-			} catch (error) {
-				recordSyncError({ stage: 'other', message: describeError(error) });
-				updateSyncStep(4, 'error');
-				throw error;
-			}
-			updateSyncStep(4, 'completed');
-		}
-		if (syncOptions.syncPayees) {
-			updateSyncStep(5, 'in-progress');
-			try {
-				await synchronizePayees(sync);
-			} catch (error) {
-				recordSyncError({ stage: 'payees', message: describeError(error) });
-				updateSyncStep(5, 'error');
-				throw error;
-			}
-			updateSyncStep(5, 'completed');
-		}
-		if (syncOptions.syncLedgerFiles) {
-			// Stage 2 writeback: push local completed transactions before pulling
-			updateSyncStep(0, 'in-progress');
-			const rejectedIds: string[] = [];
-			try {
-				const pending = await prepareLocalTransactions();
-				if (pending.length > 0) {
-					const response = await pushTransactions(activeUrl, pending, apiToken);
-					const synced = response.synchronized.length;
-					if (synced > 0) {
-						Notifier.success(`Sent ${synced} transaction(s)`);
-					}
-					for (const r of response.rejected) {
-						if (r.cashier_id) rejectedIds.push(r.cashier_id);
-						const message = r.reason || 'Transaction rejected';
-						recordSyncError({ stage: 'send', message, cashierId: r.cashier_id ?? undefined });
-						Notifier.warning(message);
-					}
-					if (response.rejected.length > 0) {
-						hasRetryableWritebackFailure = true;
-						updateSyncStep(0, 'error');
-					} else {
-						updateSyncStep(0, 'completed');
-					}
+		// Send completed local entries before pulling the authoritative book.
+		updateSyncStep(0, 'in-progress');
+		const rejectedIds: string[] = [];
+		let accepted: PendingTransaction[] = [];
+		try {
+			const pending = await prepareLocalTransactions();
+			if (pending.length > 0) {
+				const response = await pushTransactions(activeUrl, pending, apiToken);
+				if (
+					!response ||
+					!Array.isArray(response.synchronized) ||
+					!response.synchronized.every((id) => typeof id === 'string') ||
+					!Array.isArray(response.rejected) ||
+					!response.rejected.every(
+						(rejection) =>
+							rejection &&
+							(typeof rejection.cashier_id === 'string' || rejection.cashier_id === null) &&
+							typeof rejection.reason === 'string'
+					)
+				)
+					throw new Error('Malformed transaction writeback response');
+				const rejected = new Set(response.rejected.map((entry) => entry.cashier_id));
+				const synchronized = new Set(response.synchronized);
+				accepted = pending.filter(
+					(entry) => synchronized.has(entry.cashierId) && !rejected.has(entry.cashierId)
+				);
+				const synced = accepted.length;
+				if (synced > 0) {
+					Notifier.success(`Sent ${synced} transaction(s)`);
+				}
+				for (const r of response.rejected) {
+					if (r.cashier_id) rejectedIds.push(r.cashier_id);
+					const message = r.reason || 'Transaction rejected';
+					recordSyncError({ stage: 'send', message, cashierId: r.cashier_id ?? undefined });
+					Notifier.warning(message);
+				}
+				const unresolved = pending.filter(
+					(entry) => !synchronized.has(entry.cashierId) && !rejected.has(entry.cashierId)
+				);
+				for (const entry of unresolved) {
+					const message = 'Server omitted the transaction outcome; retry Sync to resolve it.';
+					recordSyncError({ stage: 'send', message, cashierId: entry.cashierId });
+					Notifier.warning(message);
+				}
+				if (response.rejected.length > 0 || unresolved.length > 0) {
+					hasRetryableWritebackFailure = true;
+					updateSyncStep(0, 'error');
 				} else {
 					updateSyncStep(0, 'completed');
 				}
-			} catch (error) {
-				hasRetryableWritebackFailure = true;
-				const message = `Failed to send local transactions: ${describeError(error)}`;
-				recordSyncError({ stage: 'send', message });
-				Notifier.warning(message);
-				updateSyncStep(0, 'error');
+			} else {
+				updateSyncStep(0, 'completed');
 			}
-
-			const pulledLedgerPaths = await synchronizeLedgerFiles(sync);
-
-			// Stage 2 writeback: reconcile local journal after successful pull
-			updateSyncStep(9, 'in-progress');
-			try {
-				await reconcileLocalJournalFromPaths(rejectedIds, pulledLedgerPaths);
-				// Refresh the UI ledger only after confirmed local overlays have been
-				// removed. Refreshing earlier parses both the pulled server copy and
-				// cashier.bean, leaving the in-memory ledger duplicated until OPFS is
-				// cleared or another reload happens.
-				try {
-					await fullLedgerService.deleteCache();
-					await fullLedgerService.invalidate();
-				} catch {
-					// Rejected/pending local entries may still be invalid against the
-					// server book. Reconciliation itself succeeded, so keep the sync
-					// result focused on the validated downloaded ledger.
-				}
-				updateSyncStep(9, 'completed');
-			} catch (error) {
-				hasRetryableWritebackFailure = true;
-				const message = `Failed to reconcile local journal: ${describeError(error)}`;
-				recordSyncError({ stage: 'reconcile', message });
-				updateSyncStep(9, 'error');
-				Notifier.warning(message);
-			}
+		} catch (error) {
+			accepted = [];
+			hasRetryableWritebackFailure = true;
+			const message = `Failed to send local transactions: ${describeError(error)}`;
+			recordSyncError({ stage: 'send', message });
+			Notifier.warning(message);
+			updateSyncStep(0, 'error');
 		}
-	} catch (error: any) {
+
+		const { paths, confirmedIds } = await synchronizeLedgerFiles(sync);
+
+		// Persist confirmed overlay removal before refreshing the combined book.
+		updateSyncStep(9, 'in-progress');
+		try {
+			await reconcileLocalJournalFromPaths(rejectedIds, paths, { accepted, confirmedIds });
+			updateSyncStep(9, 'completed');
+		} catch (error) {
+			hasRetryableWritebackFailure = true;
+			const message = `Failed to reconcile local journal: ${describeError(error)}`;
+			recordSyncError({ stage: 'reconcile', message });
+			updateSyncStep(9, 'error');
+			Notifier.warning(message);
+			return false;
+		}
+		try {
+			await fullLedgerService.deleteCache();
+			await fullLedgerService.invalidate();
+			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, refreshResult: 'ok' };
+		} catch (error) {
+			hasRetryableWritebackFailure = true;
+			recordSyncError({
+				stage: 'refresh',
+				message: `Failed to refresh local analysis: ${describeError(error)}`
+			});
+			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, refreshResult: 'error' };
+		}
+	} catch (error) {
 		console.error(error);
 		if ((syncFeedback.diagnostics?.syncErrors?.length ?? 0) === 0) {
 			recordSyncError({ stage: 'other', message: describeError(error) });
 		}
-		Notifier.error(error.message);
+		Notifier.error(describeError(error));
 		return false;
 	}
-
 	return !hasRetryableWritebackFailure;
 }
 
-async function synchronizeAccounts(sync: CashierSyncBeancount) {
-	const response = await sync.readAccounts();
-	await SyncCommon.syncAccounts(response);
-	const accountsCount =
-		typeof response === 'object' &&
-		response !== null &&
-		'rows' in response &&
-		Array.isArray(response.rows)
-			? response.rows.length
-			: Object.keys(response).length;
-	syncFeedback.diagnostics = { ...syncFeedback.diagnostics, accountsCount };
-	Notifier.success('Accounts fetched from Ledger');
-}
-
-async function synchronizeAaValues(sync: CashierSyncBeancount) {
-	const result = await sync.readCurrentValues();
-	await SyncCommon.syncCurrentValues(result);
-	Notifier.success('Asset Allocation values loaded');
-}
-
-async function synchronizePayees(sync: CashierSyncBeancount) {
-	const response = await sync.readPayees();
-	await SyncCommon.syncPayees(response);
-	syncFeedback.diagnostics = { ...syncFeedback.diagnostics, payeesCount: response.length };
-	Notifier.success('Payees fetched from Ledger');
-}
-
-async function ensureCashierFileExists() {
-	if (await opfs.fileExists(CASHIER_XACT_FILE)) return;
-	await opfs.saveFile(CASHIER_XACT_FILE, '');
-}
-
-async function persistLedgerFiles(files: Map<string, string>) {
-	for (const [path, content] of files) {
-		await opfs.saveFile(path, content);
-	}
-}
-
-async function synchronizeLedgerFiles(sync: CashierSyncBeancount): Promise<string[]> {
+async function synchronizeLedgerFiles(
+	sync: CashierSyncBeancount
+): Promise<{ paths: string[]; confirmedIds: string[] }> {
+	let stage: SyncError['stage'] = 'pull';
+	let step = 6;
 	let previousBookFilename: string | null = null;
-	let selectedRootBookFilename = '';
-	let rootBook = '';
-	let localFiles = new Map<string, string>();
-	let fileSnapshot = new Map<string, string | undefined>();
-	let wroteFiles = false;
-	let switchedBook = false;
+	let selectingBook = false;
+	const attemptedWrites = new Map<string, string | undefined>();
 
-	updateSyncStep(6, 'in-progress');
+	updateSyncStep(step, 'in-progress');
 	try {
 		const rootFilePath = normalizeRootBookPath(
 			(await settings.get<string>(SettingKeys.syncBeancountRootFile)) ?? DEFAULT_BEANCOUNT_ROOT_FILE
 		);
 		previousBookFilename = await settings.get<string>(SettingKeys.bookFilename);
-		await settings.set(SettingKeys.syncBeancountRootFile, rootFilePath);
 		const remoteFiles = await sync.readLedgerFiles(rootFilePath);
-		localFiles = mapRemoteFilesToLocalPaths(normalizeRemotePath(rootFilePath), remoteFiles);
-		localFiles = rewriteIncludesToLocalPaths(normalizeRemotePath(rootFilePath), localFiles);
-		selectedRootBookFilename = basename(rootFilePath);
-		rootBook = localFiles.get(selectedRootBookFilename) ?? '';
-		if (!rootBook) throw new Error('Downloaded root book is missing');
+		const localFiles = rewriteIncludesToLocalPaths(
+			normalizeRemotePath(rootFilePath),
+			mapRemoteFilesToLocalPaths(normalizeRemotePath(rootFilePath), remoteFiles)
+		);
+		const selectedRootBookFilename = basename(rootFilePath);
+		const rootBook = localFiles.get(selectedRootBookFilename);
+		if (rootBook === undefined) throw new Error('Downloaded root book is missing');
 		if (rootBook.trim().length === 0) throw new Error('Downloaded root book is empty');
 		ensureSafeLocalLedgerFiles(localFiles);
-		fileSnapshot = await snapshotExistingFiles([...localFiles.keys()]);
-		await ensureCashierFileExists();
-		await persistLedgerFiles(localFiles);
-		wroteFiles = true;
-		updateSyncStep(6, 'completed');
-	} catch (error) {
-		const message = describeError(error);
-		recordSyncError({ stage: 'pull', message });
-		syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
-		updateSyncStep(6, 'error');
-		throw error;
-	}
-
-	updateSyncStep(7, 'in-progress');
-	try {
-		await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
-		switchedBook = true;
-		updateSyncStep(7, 'completed');
-	} catch (error) {
-		const message = describeError(error);
-		recordSyncError({ stage: 'other', message });
-		syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
-		updateSyncStep(7, 'error');
-		throw error;
-	}
-
-	updateSyncStep(8, 'in-progress');
-	try {
-		const errors = await parseDownloadedLedger(localFiles, selectedRootBookFilename);
 		syncFeedback.diagnostics = {
 			...syncFeedback.diagnostics,
 			ledgerFilesCount: localFiles.size,
 			selectedRootBookFilename,
-			rootBookSize: rootBook.length,
+			rootBookSize: rootBook.length
+		};
+		updateSyncStep(step, 'completed');
+
+		stage = 'parse';
+		step = 8;
+		updateSyncStep(step, 'in-progress');
+		const { errors, confirmedIds } = await parseDownloadedLedger(
+			localFiles,
+			selectedRootBookFilename
+		);
+		syncFeedback.diagnostics = {
+			...syncFeedback.diagnostics,
 			parseResult: errors.length > 0 ? 'error' : 'ok',
 			parseErrorCount: errors.length,
 			parseErrors: describeParseErrors(errors)
 		};
 		if (errors.length > 0) {
-			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 			throw new Error(
 				`Full ledger parsed with ${errors.length} errors for ${selectedRootBookFilename}`
 			);
 		}
-		updateSyncStep(8, 'completed');
+		updateSyncStep(step, 'completed');
+
+		stage = 'pull';
+		step = 6;
+		updateSyncStep(step, 'in-progress');
+		const snapshot = await snapshotExistingFiles([...localFiles.keys(), CASHIER_XACT_FILE]);
+		const writes = new Map(localFiles);
+		if (snapshot.get(CASHIER_XACT_FILE) === undefined) writes.set(CASHIER_XACT_FILE, '');
+		for (const [path, content] of writes) {
+			// A failed write can already have changed storage, so recover it too.
+			attemptedWrites.set(path, snapshot.get(path));
+			await saveSnapshotFile(path, content);
+		}
+		updateSyncStep(step, 'completed');
+
+		stage = 'other';
+		step = 7;
+		updateSyncStep(step, 'in-progress');
+		selectingBook = true;
+		await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
+		updateSyncStep(step, 'completed');
+		Notifier.success('Ledger files downloaded to OPFS');
+		return { paths: Array.from(localFiles.keys()), confirmedIds };
 	} catch (error) {
-		const message = describeError(error);
-		recordSyncError({ stage: 'parse', message });
-		if (switchedBook) {
-			await settings.set(SettingKeys.bookFilename, previousBookFilename);
+		recordSyncError({ stage, message: describeError(error) });
+		if (stage === 'parse') {
+			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 		}
-		if (wroteFiles) {
-			await restoreFiles(fileSnapshot);
+		updateSyncStep(step, 'error');
+		const recoveryErrors = await restoreFiles(attemptedWrites);
+		if (selectingBook) {
+			try {
+				await settings.set(SettingKeys.bookFilename, previousBookFilename);
+			} catch (recoveryError) {
+				recoveryErrors.push(`Selected root: ${describeError(recoveryError)}`);
+			}
 		}
-		try {
-			await fullLedgerService.deleteCache();
-			await fullLedgerService.invalidate();
-		} catch {
-			// Best-effort recovery so the app doesn't stay on the failed ledger state.
+		for (const message of recoveryErrors) {
+			recordSyncError({ stage: 'pull', message: `Incomplete book recovery: ${message}` });
 		}
-		syncFeedback.diagnostics = {
-			...syncFeedback.diagnostics,
-			ledgerFilesCount: localFiles.size || undefined,
-			selectedRootBookFilename: selectedRootBookFilename || undefined,
-			rootBookSize: rootBook.length || undefined,
-			parseResult: 'error',
-			lastError: describeError(error)
-		};
-		updateSyncStep(8, 'error');
 		throw error;
 	}
-
-	Notifier.success('Ledger files downloaded to OPFS');
-	return Array.from(localFiles.keys());
 }
 
 function getLastDiagnostics() {
@@ -773,4 +657,4 @@ const __test__ = {
 	rewriteIncludesToLocalPaths
 };
 
-export { CashierSyncBeancount, type SyncSteps, synchronize, getLastDiagnostics, __test__ };
+export { CashierSyncBeancount, synchronize, getLastDiagnostics, __test__ };

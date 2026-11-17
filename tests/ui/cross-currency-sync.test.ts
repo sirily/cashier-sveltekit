@@ -76,7 +76,8 @@ async function seed(page: Page) {
 	await page.reload();
 	await page.goto('/sync');
 	await expect(page.getByRole('button', { name: 'Synchronize', exact: true })).toBeEnabled();
-	await expect(page.getByLabel('Send → pull → reconcile')).toBeChecked();
+	await expect(page.getByRole('columnheader', { name: 'Send → pull → reconcile' })).toBeVisible();
+	await expect(page.getByRole('table').getByRole('checkbox')).toHaveCount(0);
 }
 
 async function startSync(page: Page) {

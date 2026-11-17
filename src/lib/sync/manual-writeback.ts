@@ -1,14 +1,7 @@
-/**
- * Stage 2 manual transaction writeback.
- *
- * 1. Prepare local cashier.bean: ensure cashier_id on every completed * transaction.
- * 2. Push pending transactions to server POST /api/xact.
- * 3. Reconcile: remove local entries whose cashier_id appears in the pulled ledger
- *    (and was not rejected in the current push batch).
- */
-import * as opfs from '#lib/utils/opfslib';
+/** Prepare, submit, and safely reconcile the pending manual journal. */
+
+import { readJournal, saveJournal } from './journal-storage';
 import { syncHttpError } from './http-error';
-import { CASHIER_XACT_FILE } from '#lib/constants';
 
 export interface PendingTransaction {
 	rawText: string;
@@ -20,8 +13,7 @@ export interface WritebackResponse {
 	rejected: Array<{ cashier_id: string | null; reason: string }>;
 }
 
-const COMPLETED_TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+\*\s/;
-const TRANSACTION_RE = /^\d{4}-\d{2}-\d{2}\s+[*!]\s/;
+const COMPLETED_TRANSACTION_RE = /^[\t ]*\d{4}-\d{2}-\d{2}[\t ]+\*[\t ]/;
 
 function generateCashierId(): string {
 	return crypto.randomUUID();
@@ -40,216 +32,147 @@ function extractCashierId(blockText: string): string | null {
 	return null;
 }
 
-function isCompletedTransactionStart(line: string): boolean {
-	return COMPLETED_TRANSACTION_RE.test(line.trimStart());
+interface TransactionBlock {
+	start: number;
+	end: number;
+	rawText: string;
 }
 
-function isTransactionStart(line: string): boolean {
-	return TRANSACTION_RE.test(line.trimStart());
-}
-
-function findNextTransactionStart(lines: string[], startIndex: number): number {
-	for (let i = startIndex; i < lines.length; i++) {
-		if (isTransactionStart(lines[i])) return i;
+/** Dated directives may be indented; preserve their source without absorbing neighboring entries. */
+function completedBlocks(content: string): TransactionBlock[] {
+	const starts: number[] = [];
+	// Consume strings and comments first so multiline strings cannot invent directives.
+	for (const token of content.matchAll(
+		/"(?:\\[\s\S]|[^"\\])*"|;[^\r\n]*|^[\t ]*\d{4}-\d{2}-\d{2}(?=[\t ])|^[^\s;"\r\n]+/gm
+	)) {
+		if (token[0].startsWith('"')) continue;
+		if (token[0].startsWith(';') && token.index > 0 && content[token.index - 1] !== '\n') continue;
+		starts.push(token.index);
 	}
-	return lines.length;
-}
-
-function trimTrailingBlankLines(lines: string[], startIndex: number, endIndex: number): number {
-	let trimmedEnd = endIndex;
-	while (trimmedEnd > startIndex && lines[trimmedEnd - 1].trim() === '') {
-		trimmedEnd--;
+	const blocks: TransactionBlock[] = [];
+	for (let i = 0; i < starts.length; i++) {
+		const start = starts[i];
+		if (!COMPLETED_TRANSACTION_RE.test(content.slice(start))) continue;
+		const limit = starts[i + 1] ?? content.length;
+		const rawText = content.slice(start, limit).replace(/(?:\r?\n[\t ]*)+$/, '');
+		blocks.push({ start, end: start + rawText.length, rawText });
 	}
-	return trimmedEnd;
+	return blocks;
 }
 
-/**
- * Read cashier.bean, find all completed `*` transactions, ensure each has a
- * persisted `cashier_id` metadata line, write back the updated file, and
- * return the list of pending (to-send) transactions with their IDs.
- *
- * Incomplete `!` transactions are ignored (not returned, not modified).
- * Transactions that already have a `cashier_id` keep it.
- */
+function withCashierId(rawText: string, cashierId: string): string {
+	// The first physical newline may be inside a multiline payee/narration.
+	for (const token of rawText.matchAll(/"(?:\\[\s\S]|[^"\\])*"|;[^\r\n]*|\r?\n/g)) {
+		if (token[0] !== '\n' && token[0] !== '\r\n') continue;
+		const offset = token.index + token[0].length;
+		return `${rawText.slice(0, offset)}    cashier_id: "${cashierId}"${token[0]}${rawText.slice(offset)}`;
+	}
+	return `${rawText}\n    cashier_id: "${cashierId}"`;
+}
+
+/** Persist missing identities before returning any batch to the caller. Drafts remain untouched. */
 export async function prepareLocalTransactions(): Promise<PendingTransaction[]> {
-	const content = (await opfs.readFile(CASHIER_XACT_FILE)) ?? '';
+	const content = (await readJournal()) ?? '';
 	if (!content.trim()) return [];
 
-	const lines = content.split('\n');
 	const pending: PendingTransaction[] = [];
-	const resultLines: string[] = [];
-	let i = 0;
-
-	while (i < lines.length) {
-		if (isCompletedTransactionStart(lines[i])) {
-			const nextTransactionIndex = findNextTransactionStart(lines, i + 1);
-			const blockEndIndex = trimTrailingBlankLines(lines, i, nextTransactionIndex);
-
-			const blockLines = lines.slice(i, blockEndIndex);
-			const blockText = blockLines.join('\n');
-			const existingId = extractCashierId(blockText);
-
-			let cashierId: string;
-			let sendBlock: string[];
-
-			if (existingId) {
-				cashierId = existingId;
-				sendBlock = blockLines;
-			} else {
-				cashierId = generateCashierId();
-				sendBlock = [
-					lines[i],
-					`    cashier_id: "${cashierId}"`,
-					...lines.slice(i + 1, blockEndIndex)
-				];
-			}
-
-			resultLines.push(...sendBlock);
-			resultLines.push(...lines.slice(blockEndIndex, nextTransactionIndex));
-			pending.push({ rawText: sendBlock.join('\n'), cashierId });
-			i = nextTransactionIndex;
-		} else {
-			resultLines.push(lines[i]);
-			i++;
-		}
+	let newContent = '';
+	let offset = 0;
+	for (const block of completedBlocks(content)) {
+		const existingId = extractCashierId(block.rawText);
+		const cashierId = existingId || generateCashierId();
+		const rawText = existingId ? block.rawText : withCashierId(block.rawText, cashierId);
+		newContent += content.slice(offset, block.start) + rawText;
+		offset = block.end;
+		pending.push({ rawText, cashierId });
 	}
-
-	const newContent = resultLines.join('\n');
-	if (newContent !== content) {
-		await opfs.saveFile(CASHIER_XACT_FILE, newContent);
+	newContent += content.slice(offset);
+	if (newContent !== content) await saveJournal(content, newContent);
+	else if ((await readJournal()) !== content) {
+		throw new Error('Local journal changed during preparation; retry Sync.');
 	}
-
 	return pending;
 }
 
-/**
- * POST pending transactions to the server /api/xact endpoint.
- * Returns the server response or throws on network error.
- */
+/** POST raw transactions; malformed results leave the send outcome unresolved. */
 export async function pushTransactions(
 	serverUrl: string,
 	transactions: PendingTransaction[],
 	apiToken = ''
 ): Promise<WritebackResponse> {
-	if (transactions.length === 0) {
-		return { synchronized: [], rejected: [] };
-	}
+	if (transactions.length === 0) return { synchronized: [], rejected: [] };
 
 	const base = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl;
 	const url = base.endsWith('/api') ? `${base}/xact` : `${base}/api/xact`;
-
 	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 	if (apiToken.trim()) headers.Authorization = `Bearer ${apiToken.trim()}`;
-
 	const response = await fetch(url, {
 		method: 'POST',
 		headers,
-		body: JSON.stringify({
-			transactions: transactions.map((t) => t.rawText)
-		})
+		body: JSON.stringify({ transactions: transactions.map((t) => t.rawText) })
 	});
+	if (!response.ok) throw syncHttpError(response.status, 'Sending local transactions');
 
-	if (!response.ok) {
-		throw syncHttpError(response.status, 'Sending local transactions');
+	const data: unknown = await response.json();
+	if (
+		!data ||
+		typeof data !== 'object' ||
+		!('synchronized' in data) ||
+		!Array.isArray(data.synchronized) ||
+		!data.synchronized.every((id: unknown) => typeof id === 'string' && id.trim().length > 0) ||
+		!('rejected' in data) ||
+		!Array.isArray(data.rejected) ||
+		!data.rejected.every(
+			(entry: unknown) =>
+				entry !== null &&
+				typeof entry === 'object' &&
+				'cashier_id' in entry &&
+				(entry.cashier_id === null ||
+					(typeof entry.cashier_id === 'string' && entry.cashier_id.trim().length > 0)) &&
+				'reason' in entry &&
+				typeof entry.reason === 'string' &&
+				entry.reason.trim().length > 0
+		)
+	) {
+		throw new Error(
+			'Sending local transactions: malformed response; send outcomes are unresolved.'
+		);
 	}
-
-	const data = (await response.json()) as WritebackResponse;
-	return data;
+	return data as WritebackResponse;
 }
 
 /**
- * After a successful ledger pull + parse, scan all pulled `.bean` files in OPFS
- * (excluding cashier.bean itself) for `cashier_id` metadata values. Remove from
- * cashier.bean any completed transaction block whose cashier_id appears in the
- * pulled ledger and was not rejected in the current push batch.
+ * Runtime supplies acceptance of the exact sent source plus IDs from the parsed server-only book.
  */
-export async function reconcileLocalJournal(rejectedIds: string[]): Promise<void> {
-	return reconcileLocalJournalFromPaths(rejectedIds);
-}
-
 export async function reconcileLocalJournalFromPaths(
 	rejectedIds: string[],
-	pulledLedgerPaths?: string[]
+	_pulledLedgerPaths: string[] | undefined,
+	confirmation: { accepted: PendingTransaction[]; confirmedIds: string[] }
 ): Promise<void> {
-	const content = (await opfs.readFile(CASHIER_XACT_FILE)) ?? '';
+	if (
+		!confirmation ||
+		!Array.isArray(confirmation.accepted) ||
+		!Array.isArray(confirmation.confirmedIds)
+	) {
+		throw new Error('Reconciliation requires explicit acceptance and parsed server confirmation.');
+	}
+	const content = (await readJournal()) ?? '';
 	if (!content.trim()) return;
 
-	const syncedIds = await findCashierIdsInPulledLedger(pulledLedgerPaths);
+	const syncedIds = new Set(confirmation.confirmedIds);
 	const rejectedSet = new Set(rejectedIds);
-	const idsToRemove = new Set<string>();
-
-	for (const id of syncedIds) {
-		if (!rejectedSet.has(id)) {
-			idsToRemove.add(id);
+	let newContent = '';
+	let offset = 0;
+	for (const block of completedBlocks(content)) {
+		const id = extractCashierId(block.rawText);
+		const accepted = confirmation.accepted.some(
+			(entry) => entry.cashierId === id && entry.rawText === block.rawText
+		);
+		if (id && accepted && syncedIds.has(id) && !rejectedSet.has(id)) {
+			newContent += content.slice(offset, block.start);
+			offset = block.end;
 		}
 	}
-
-	if (idsToRemove.size === 0) return;
-
-	const lines = content.split('\n');
-	const resultLines: string[] = [];
-	let i = 0;
-
-	while (i < lines.length) {
-		if (isCompletedTransactionStart(lines[i])) {
-			const nextTransactionIndex = findNextTransactionStart(lines, i + 1);
-			const blockEndIndex = trimTrailingBlankLines(lines, i, nextTransactionIndex);
-
-			const blockLines = lines.slice(i, blockEndIndex);
-			const blockText = blockLines.join('\n');
-			const blockId = extractCashierId(blockText);
-
-			if (blockId && idsToRemove.has(blockId)) {
-				i = blockEndIndex;
-				continue;
-			}
-
-			resultLines.push(...blockLines);
-			resultLines.push(...lines.slice(blockEndIndex, nextTransactionIndex));
-			i = nextTransactionIndex;
-		} else {
-			resultLines.push(lines[i]);
-			i++;
-		}
-	}
-
-	const newContent = resultLines.join('\n');
-	if (newContent !== content) {
-		await opfs.saveFile(CASHIER_XACT_FILE, newContent);
-	}
-}
-
-/**
- * Scan all non-cashier .bean files in OPFS (recursively) for cashier_id metadata.
- */
-async function findCashierIdsInPulledLedger(pulledLedgerPaths?: string[]): Promise<Set<string>> {
-	const ids = new Set<string>();
-	const paths =
-		pulledLedgerPaths ??
-		(await opfs.listFileTree()).filter((entry) => entry.kind === 'file').map((entry) => entry.path);
-
-	for (const path of paths) {
-		if (!path.endsWith('.bean')) continue;
-		if (path === CASHIER_XACT_FILE) continue;
-
-		const content = await opfs.readFile(path);
-		if (!content) continue;
-
-		const lines = content.split('\n');
-		let i = 0;
-		while (i < lines.length) {
-			if (!isCompletedTransactionStart(lines[i])) {
-				i++;
-				continue;
-			}
-
-			const nextTransactionIndex = findNextTransactionStart(lines, i + 1);
-			const blockEndIndex = trimTrailingBlankLines(lines, i, nextTransactionIndex);
-			const id = extractCashierId(lines.slice(i, blockEndIndex).join('\n'));
-			if (id) ids.add(id);
-			i = nextTransactionIndex;
-		}
-	}
-
-	return ids;
+	newContent += content.slice(offset);
+	if (newContent !== content) await saveJournal(content, newContent);
 }
