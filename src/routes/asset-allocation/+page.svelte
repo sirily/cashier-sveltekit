@@ -1,43 +1,33 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
-	import { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation.js';
-	import { buildChildrenIndex } from '#lib/assetAllocation/assetAllocationUtils.js';
+	import { invalidate } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import type { PageData } from './$types';
+
 	import { validate } from '#lib/assetAllocation/assetAllocationValidation.js';
-	import { AssetClass } from '#lib/assetAllocation/AssetClass.js';
+	import type { AssetClass } from '#lib/assetAllocation/AssetClass.js';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import AssetClassRow from '#lib/components/AssetClassRow.svelte';
-	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
+	import { AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
+	import { resetAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
 	import Notifier from '#lib/utils/notifier.js';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-import FileDownIcon from '@lucide/svelte/icons/file-down';
-import ScaleIcon from '@lucide/svelte/icons/scale';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
+	import ScaleIcon from '@lucide/svelte/icons/scale';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 
 	Notifier.init();
 
-	let { data } = $props();
-	let _allocation = $state<AssetClass[]>([]);
-	let childrenIndex = $state(new Map<string, AssetClass[]>());
+	let { data }: { data: PageData } = $props();
+	let _allocation = $derived<AssetClass[]>(data.aa?.assetClasses ?? []);
+	let childrenIndex = $derived(data.aa?.childrenIndex);
 	let collapsedState = $state<Record<string, boolean>>({});
 	let viewMode = $state<'allocation' | 'value'>('allocation');
-
-	$effect(() => {
-		if (data.aa && data.assetClasses?.length) {
-			const alloc = data.assetClasses as AssetClass[];
-			_allocation = alloc;
-			childrenIndex = buildChildrenIndex(alloc);
-		} else if (!data.aa) {
-			Notifier.error('Could not load Asset Allocation definition.');
-		}
-	});
 
 	function toggleCollapse(fullname: string) {
 		collapsedState[fullname] = !collapsedState[fullname];
 	}
 
-	function getChildren(fullname: string): AssetClass[] {
-		return childrenIndex.get(fullname) || [];
-	}
 
 	function downloadAsFile(content: string) {
 		let now = new Date();
@@ -68,29 +58,27 @@ import ScaleIcon from '@lucide/svelte/icons/scale';
 	}
 
 	async function onRefreshClick() {
-		AssetAllocationStore.set(undefined);
-		AaStocksStore.set(undefined);
-		AssetAllocationLoadedAtStore.set(undefined);
-		invalidateAll();
+		resetAssetAllocation();
+		await invalidate('allocation:definition');
 	}
 
-	async function onExportClick() {
-		let aa = new AssetAllocationEngine();
-		const output = aa.formatAllocationRowsForTxtExport(_allocation);
-		downloadAsFile(output);
+	function onExportClick() {
+		if (!data.aa) {
+			Notifier.error(data.loadError ?? 'Asset allocation is not loaded.');
+			return;
+		}
+		downloadAsFile(data.aa.formatAllocationRowsForTxtExport(data.aa.assetClasses));
 	}
 
 	async function onValidateClick() {
-		if (data.assetClasses?.length === 0) {
-			Notifier.info('Please recalculate the allocation first.');
+		await invalidate('allocation:definition');
+		if (!data.aa) {
+			Notifier.error(data.loadError ?? 'Asset allocation is not loaded.');
+			return;
 		}
-		let errors = validate(data.aa!);
+		const errors = validate(data.aa);
 		if (errors.length > 0) {
-			let message = 'Errors: ';
-			for (let i = 0; i < errors.length; i++) {
-				message += errors[i];
-			}
-			Notifier.error(message);
+			Notifier.error(errors.join('\n'));
 		} else {
 			Notifier.success('The allocation is valid.');
 		}
@@ -102,7 +90,11 @@ import ScaleIcon from '@lucide/svelte/icons/scale';
 		{#snippet menuItems()}
 			<ToolbarMenuItem text="Export" Icon={FileDownIcon} onclick={onExportClick} />
 			<ToolbarMenuItem text="Validate" Icon={ScaleIcon} onclick={onValidateClick} />
-			<ToolbarMenuItem text="Help" />
+			<ToolbarMenuItem
+				text="Help"
+				Icon={CircleHelpIcon}
+				targetNav={resolve('/help#asset-allocation')}
+			/>
 		{/snippet}
 	</Toolbar>
 
@@ -151,7 +143,7 @@ import ScaleIcon from '@lucide/svelte/icons/scale';
 					{#each _allocation.filter((item) => item.depth === 0) as rootItem (rootItem.fullname)}
 						<AssetClassRow
 							assetClass={rootItem}
-							children={getChildren(rootItem.fullname)}
+							children={childrenIndex?.get(rootItem.fullname)}
 							depth={0}
 							{collapsedState}
 							onToggle={toggleCollapse}
@@ -161,7 +153,9 @@ import ScaleIcon from '@lucide/svelte/icons/scale';
 					{/each}
 				{:else}
 					<tr>
-						<td colspan="7" class="py-4 text-center"> No asset allocation data available </td>
+						<td colspan="7" class="py-4 text-center">
+							{data.loadError ?? 'No asset allocation data available'}
+						</td>
 					</tr>
 				{/if}
 			</tbody>

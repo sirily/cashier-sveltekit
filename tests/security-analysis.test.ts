@@ -98,6 +98,52 @@ test('BQL errors and unavailable local backend propagate without HTTP retry', as
 	expect(network).not.toHaveBeenCalled();
 });
 
+test.each([
+	{ valuationRows: [], expected: 'n/a' },
+	{ valuationRows: [[null]], expected: 'n/a' },
+	{ valuationRows: [['(0 GBP)']], expected: 'n/a' },
+	{ valuationRows: [['(120 GBP)']], expected: '5.00%' }
+])(
+	'yield with dividend income and valuation $valuationRows returns $expected',
+	async ({ valuationRows, expected }) => {
+		const queries = getQueries();
+		const query = vi.fn<QueryFn>(async (bql) => {
+			if (bql === queries.incomeBalance('LONGCOIN', '2025-11-03', 'GBP')) {
+				return ledger.query(bql);
+			}
+			expect(bql).toBe(queries.valueBalance('LONGCOIN', 'GBP'));
+			return { columns: ['value'], rows: valuationRows, errors: [] };
+		});
+		await expect(new SecurityAnalyser(query).getYield('LONGCOIN')).resolves.toBe(expected);
+		expect(network).not.toHaveBeenCalled();
+	}
+);
+
+test.each([
+	{ amounts: ['50 USD', '60 USD'], expected: '10.00 USD, 20.00%' },
+	{ amounts: ['50 USD', '60 EUR'], expected: 'n/a' },
+	{ amounts: ['50 USD, 5 EUR', '60 USD'], expected: 'n/a' },
+	{ amounts: [null, '60 USD'], expected: 'n/a' }
+])(
+	'gain/loss uses the returned currencies, not the requested GBP: $amounts',
+	async ({ amounts, expected }) => {
+		const query = vi
+			.fn<QueryFn>()
+			.mockResolvedValue({ columns: ['cost_basis', 'market_value'], rows: [amounts], errors: [] });
+		await expect(new SecurityAnalyser(query).getGainLoss('LONGCOIN')).resolves.toBe(expected);
+		expect(query).toHaveBeenCalledWith(getQueries().gainLoss('LONGCOIN', 'GBP'));
+	}
+);
+
+test('a zero cost basis keeps the gain/loss amount but has no relative return', async () => {
+	const analyser = new SecurityAnalyser(async () => ({
+		columns: [],
+		rows: [['(0 GBP)', '(0 GBP)']],
+		errors: []
+	}));
+	await expect(analyser.getGainLoss('LONGCOIN')).resolves.toBe('0.00 GBP, n/a');
+});
+
 test('gain/loss retains empty-result and multiple-record handling', async () => {
 	const query = vi
 		.fn<QueryFn>()

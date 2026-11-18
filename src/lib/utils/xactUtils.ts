@@ -38,8 +38,8 @@ export function xactToBeancountText(tx: Xact): string {
 		flag,
 		payee: tx.payee ?? '',
 		narration: tx.note ?? '',
-		tags: [],
-		links: [],
+		tags: tx.tags ?? [],
+		links: tx.links ?? [],
 		postings: effectivePostings(tx.postings).map((p) => {
 			let units: { number: string; currency: string } | undefined;
 			if (p.amount != null || p.amountText !== undefined) {

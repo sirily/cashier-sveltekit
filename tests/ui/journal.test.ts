@@ -340,6 +340,86 @@ for (const richSource of [false, true]) {
 	}
 }
 
+for (const { flag, editedNote, save, name } of [
+	{ flag: '*', editedNote: 'Edited duplicate', save: true, name: 'save with changes' },
+	{ flag: '*', editedNote: undefined, save: true, name: 'save unchanged' },
+	{ flag: '!', editedNote: undefined, save: true, name: 'save an incomplete copy' },
+	{ flag: '*', editedNote: 'Discarded duplicate', save: false, name: 'leave without saving' }
+]) {
+	test(`Duplicate: ${name}`, async ({ page }) => {
+		const note = 'Original to duplicate';
+		const original = `option "operating_currency" "USD"
+2000-01-01 open Assets:Cash USD
+2000-01-01 open Expenses:Food USD
+pushtag #travel
+2025-01-01 ${flag} "Cafe" "${note}" #trip ^invoice ; keep original source
+  cashier_id: "original-duplicate-id"
+  Expenses:Food  12.50 USD
+  Assets:Cash  -12.50 USD
+poptag #travel
+`;
+		await openReadyJournal(page);
+		await writeLocalJournal(page, original);
+		await page.reload();
+		const originalNote = page.getByText(`; ${note}`, { exact: true });
+		await originalNote.click();
+		await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+		await expect(page).toHaveURL(/\/tx$/);
+		await expect(page.getByTitle('Note', { exact: true })).toHaveValue(note);
+		expect(await readLocalJournal(page)).toBe(original);
+
+		if (editedNote) await page.getByTitle('Note', { exact: true }).fill(editedNote);
+		if (save) await page.getByRole('button', { name: 'Save', exact: true }).click();
+		else await page.goBack();
+		await expect(page).toHaveURL(/\/journal$/);
+		await expect(originalNote).toHaveCount(save && !editedNote ? 2 : 1);
+
+		const saved = await readLocalJournal(page);
+		if (!save) {
+			expect(saved).toBe(original);
+			return;
+		}
+		expect(saved.startsWith(original)).toBe(true);
+		expect(saved.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(2);
+		const copy = saved.slice(original.length);
+		const [header] = copy.trimStart().split('\n');
+		const start = `2025-01-01 ${flag} "Cafe" "${editedNote ?? note}" `;
+		expect(header.startsWith(start)).toBe(true);
+		expect(header.slice(start.length).split(' ').sort()).toEqual(['#travel', '#trip', '^invoice']);
+		expect(copy).not.toContain('cashier_id:');
+		expect(copy).toContain('Expenses:Food  12.50 USD');
+		expect(copy).toContain('Assets:Cash  -12.50 USD');
+		await page.reload();
+		await expect(page.getByText(`; ${editedNote ?? note}`, { exact: true })).toHaveCount(
+			editedNote ? 1 : 2
+		);
+		expect(await readLocalJournal(page)).toBe(saved);
+	});
+}
+
+test('Duplicate refuses a purchase whose lot cost cannot be preserved', async ({ page }) => {
+	const source = `option "operating_currency" "EUR"
+2000-01-01 open Assets:Investments:Fund FUND
+2000-01-01 open Assets:Cash EUR
+2025-01-01 * "Broker" "Buy fund with lot cost"
+  cashier_id: "fund-purchase-id"
+  Assets:Investments:Fund  1 FUND {10 EUR}
+  Assets:Cash            -10 EUR
+`;
+	await openReadyJournal(page);
+	await writeLocalJournal(page, source);
+	await page.reload();
+	const note = page.getByText('; Buy fund with lot cost', { exact: true });
+	await note.click();
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+	await expect(page.locator('#toast-container .alert-error')).toContainText('lot costs');
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	expect(await readLocalJournal(page)).toBe(source);
+	await page.goBack();
+	await expect(note).toHaveCount(1);
+});
+
 test('saves a journal entry offline and persists it after reload', async ({ page, context }) => {
 	const browserErrors = await openReadyJournal(page);
 	const note = `Offline UI ${Date.now()}`;

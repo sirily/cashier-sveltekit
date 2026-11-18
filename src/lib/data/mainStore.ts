@@ -4,7 +4,8 @@
 import { writable, type Writable } from 'svelte/store';
 import { Xact } from './model';
 import type { SelectionModeMetadata } from '#lib/settings';
-import type { AssetClass, StockCache } from '#lib/assetAllocation/AssetClass';
+import type { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation';
+import type { StockCache } from '#lib/assetAllocation/AssetClass';
 import type { DirectiveSpan } from '#lib/rledger/sourceEditor';
 
 interface MainStore {
@@ -29,7 +30,9 @@ export const xact: Writable<Xact> = writable();
 export const xactSpan: Writable<DirectiveSpan | undefined> = writable(undefined);
 
 // asset allocation
-export const AssetAllocationStore: Writable<AssetClass[] | undefined> = writable();
+export const AssetAllocationStore = writable<
+	{ path: string; definition: string; engine: AssetAllocationEngine } | undefined
+>();
 export const AaStocksStore: Writable<StockCache | undefined> = writable();
 export const AssetAllocationLoadedAtStore: Writable<Date | undefined> = writable();
 // Drawer/sidebar store.

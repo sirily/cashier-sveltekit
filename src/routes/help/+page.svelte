@@ -1,6 +1,13 @@
 <script lang="ts">
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { resolve } from '$app/paths';
+
+	const allocationExample = `[Allocation]
+allocation = 100
+
+[Allocation.Equity]
+allocation = 100
+symbols = ["VTI"]`;
 </script>
 
 <article>
@@ -77,6 +84,24 @@
 				relying on report totals.
 			</li>
 		</ul>
+		<h2 id="asset-allocation" class="scroll-mt-14 text-xl font-semibold">Set up Asset Allocation</h2>
+		<ol class="list-decimal space-y-3 pl-6">
+			<li>
+				Use the <a class="link" href={resolve('/opfs')}>File Storage tools</a> to create a
+				<code>.toml</code> file with an <code>[Allocation]</code> root. Set targets as percentages;
+				each group's children should add up to its target. List Beancount commodity symbols in the leaf classes.
+			</li>
+			<li>
+				Under <a class="link" href={resolve('/settings')}>Asset allocation definition in Settings</a>,
+				select the file. Enter your investment account root, such as <code>Assets:Investments</code>,
+				and save your settings.
+			</li>
+			<li>
+				Open <a class="link" href={resolve('/asset-allocation')}>Asset Allocation</a> and choose
+				Validate from its menu to check the targets. Use Reload after editing the definition.
+			</li>
+		</ol>
+		<pre class="overflow-x-auto">{allocationExample}</pre>
 		<p>
 			For application details and update checks, open <a class="link" href={resolve('/about')}
 				>About</a

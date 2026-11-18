@@ -37,6 +37,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	// Debug panel
 	let debugOpen = $state(false);
+	let wasmVersion = $state('');
 	let accountsOpen = $state(false);
 	let assetClassValuesOpen = $state(false);
 	let rawAccountsResult: (RawQueryResult & { loaded: boolean }) | null = $state(null);
@@ -61,18 +62,27 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	async function fetchAnalysisFor(queryFn: QueryFn, symbol: string): Promise<SecurityAnalysis> {
 		const svc = new SecurityAnalyser(queryFn);
-		const [yieldResult, gainlossResult] = await Promise.all([
+		const [yieldResult, gainlossResult] = await Promise.allSettled([
 			svc.getYield(symbol),
 			svc.getGainLoss(symbol)
 		]);
-		return { yield: yieldResult, gainloss: gainlossResult };
+		const message = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
+		return {
+			yield: yieldResult.status === 'fulfilled' ? yieldResult.value : 'n/a',
+			gainloss: gainlossResult.status === 'fulfilled' ? gainlossResult.value : 'n/a',
+			yieldError: yieldResult.status === 'rejected' ? message(yieldResult.reason) : undefined,
+			gainlossError: gainlossResult.status === 'rejected' ? message(gainlossResult.reason) : undefined
+		};
 	}
 
 	async function loadSecurityAnalysis(
 		queryFn: QueryFn,
 		symbols: StockSymbol[]
 	): Promise<StockSymbol[]> {
-		const stocksToLoad = symbols.filter((stock) => !stock.analysis);
+		const stocksToLoad = symbols.filter(
+			({ analysis }) =>
+				!analysis || analysis.yieldError !== undefined || analysis.gainlossError !== undefined
+		);
 		await processWithConcurrencyLimit(stocksToLoad, 10, async (stock) => {
 			const symbol = stock.name;
 			stock.loading = true;
@@ -82,10 +92,12 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 				const analysis = await fetchAnalysisFor(queryFn, symbol);
 				stock.analysis = analysis;
 				stock.loading = false;
-				AaStocksStore.update((cache) => {
-					if (!cache) return cache;
-					return { ...cache, [symbol]: { ...cache[symbol], analysis } };
-				});
+				if (analysis.yieldError === undefined && analysis.gainlossError === undefined) {
+					AaStocksStore.update((cache) => {
+						if (!cache) return cache;
+						return { ...cache, [symbol]: { ...cache[symbol], analysis } };
+					});
+				}
 			} catch (err) {
 				console.error(`Error loading analysis for ${symbol}:`, err);
 				stock.loading = false;
@@ -220,6 +232,18 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		}
 	}
 
+	async function toggleDebug() {
+		debugOpen = !debugOpen;
+		if (!debugOpen || wasmVersion) return;
+		try {
+			const wasm = await import('#lib/services/rustledger');
+			await wasm.ensureInitialized();
+			wasmVersion = wasm.version();
+		} catch {
+			wasmVersion = 'Unavailable';
+		}
+	}
+
 	function formatRow(row: any[]): string {
 		return row
 			.map((cell) => {
@@ -238,7 +262,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		<p>Allocation: {data.assetClass?.allocation}</p>
 
 		{#if data.stocks?.length === 0}
-			<p>Loading...</p>
+			<p>No securities assigned to this class.</p>
 		{:else}
 			<ul class="ms-4 mt-4">
 				{#each data.stocks || [] as stock (stock.name)}
@@ -265,6 +289,16 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 								<span class={Formatter.getColourForGainLoss(stock.analysis.gainloss)}
 									>{stock.analysis.gainloss}</span
 								>
+								{#if stock.analysis.yieldError !== undefined}
+									<p class="text-error text-sm">
+										Could not calculate yield: {stock.analysis.yieldError}
+									</p>
+								{/if}
+								{#if stock.analysis.gainlossError !== undefined}
+									<p class="text-error text-sm">
+										Could not calculate gain/loss: {stock.analysis.gainlossError}
+									</p>
+								{/if}
 							</div>
 						{/if}
 
@@ -334,7 +368,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		<div class="mt-6 border-t pt-4">
 			<button
 				class="flex items-center gap-2 text-sm font-medium opacity-60 hover:opacity-100"
-				onclick={() => (debugOpen = !debugOpen)}
+				onclick={toggleDebug}
 			>
 				<Bug class="h-4 w-4" />
 				Debug
@@ -355,7 +389,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 							<tbody>
 								<tr class="border-b">
 									<td class="pr-4 py-0.5 opacity-60">WASM version</td>
-									<td>{data.wasmVersion}</td>
+									<td>{wasmVersion || 'Loading…'}</td>
 								</tr>
 							</tbody>
 						</table>
