@@ -19,6 +19,17 @@ export interface SecurityAnalysis {
 
 export type QueryFn = (bql: string) => Promise<{ columns: string[]; rows: any[]; errors: any[] }>;
 
+function parseSingleAmount(value: unknown) {
+	if (typeof value !== 'string') return;
+	let text = value.trim();
+	if (text.startsWith('(') && text.endsWith(')')) text = text.slice(1, -1).trim();
+	// BQL convert() can return an inventory with multiple currencies when prices are missing.
+	const match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s+([A-Z/][A-Z0-9'._/-]*)$/.exec(text);
+	if (!match) return;
+	const quantity = Number(match[1]);
+	if (Number.isFinite(quantity)) return { quantity, currency: match[2] };
+}
+
 export class SecurityAnalyser {
 	currency: string | undefined;
 	constructor(private wasmQueryFn: QueryFn) {}
@@ -42,10 +53,11 @@ export class SecurityAnalyser {
 
 		const income = -(await this.#getIncomeBalance(symbol));
 		const value = await this.#getValueBalance(symbol, currency);
-		if (value === undefined || !Number.isFinite(value) || !Number.isFinite(income)) return 'n/a';
+		if (value === undefined || value === 0 || !Number.isFinite(value) || !Number.isFinite(income)) {
+			return 'n/a';
+		}
 
-		const yieldPercent = value === 0 ? 0 : (income * 100) / value;
-		return `${yieldPercent.toFixed(2)}%`;
+		return `${((income * 100) / value).toFixed(2)}%`;
 	}
 
 	async getGainLoss(symbol: string) {
@@ -66,16 +78,15 @@ export class SecurityAnalyser {
 				'This usually happens when the same symbol exists in multiple accounts without proper cost basis tracking'
 			);
 		}
-		// With Beancount, the result is an array of all accounts with this column values.
-		const line: Array<string> = report[0];
-		// Line contains columns: [(594.52 USD), (594.52 USD)]
-		const costBasis = BeancountParser.getMoneyFromTupleString(line[0]).quantity;
-		const marketValue = BeancountParser.getMoneyFromTupleString(line[1]).quantity;
-		if (!Number.isFinite(costBasis) || !Number.isFinite(marketValue)) return 'n/a';
+		const [cost, value] = report[0];
+		const costBasis = parseSingleAmount(cost);
+		const marketValue = parseSingleAmount(value);
+		if (!costBasis || !marketValue || costBasis.currency !== marketValue.currency) return 'n/a';
 
-		const gainLoss = marketValue - costBasis;
-		const percent = costBasis === 0 ? 'n/a' : `${((gainLoss / costBasis) * 100).toFixed(2)}%`;
-		return `${gainLoss.toFixed(2)} ${currency}, ${percent}`;
+		const gainLoss = marketValue.quantity - costBasis.quantity;
+		const percent =
+			costBasis.quantity === 0 ? 'n/a' : `${((gainLoss / costBasis.quantity) * 100).toFixed(2)}%`;
+		return `${gainLoss.toFixed(2)} ${costBasis.currency}, ${percent}`;
 	}
 
 	/**
