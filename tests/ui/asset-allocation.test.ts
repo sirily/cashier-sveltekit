@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { navigateFromDrawer } from './fixtures/navigation';
 
@@ -74,6 +75,7 @@ test('Asset Class Detail opens from the cold list and on direct reload without j
 		await expect(assets.getByText('Asset Class Detail', { exact: true })).toBeVisible();
 		await expect(assets.getByText('Allocation: 100', { exact: true })).toBeVisible();
 		await expect(assets.getByText('0.00 EUR, n/a', { exact: true })).toBeVisible();
+		await expect(assets.getByText('n/a', { exact: true })).toBeVisible();
 		await expect(assets).not.toContainText(/NaN%|Infinity%|Error loading analysis/);
 		if (attempt === 0) await page.reload();
 	}
@@ -94,6 +96,20 @@ test('Asset Allocation Help opens the setup instructions and a loaded definition
 	await expect(page).toHaveURL(/\/help#asset-allocation$/);
 	await expect(page.getByRole('heading', { name: 'Set up Asset Allocation' })).toBeInViewport();
 	await expect(page.getByText('symbols = ["VTI"]', { exact: false })).toBeVisible();
+});
+
+test('Asset Allocation exports the loaded class hierarchy', async ({ page }) => {
+	await seedAllocation(page, 'allocation.toml', definition);
+	await page.goto('/asset-allocation');
+	await expect(page.getByRole('link', { name: 'Equity', exact: true })).toBeVisible();
+	await page.locator('.navbar .dropdown > button').click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('menu').getByRole('button', { name: 'Export', exact: true }).click();
+	const file = await download;
+	expect(file.suggestedFilename()).toMatch(/^asset-allocation_.*\.txt$/);
+	expect(await readFile(await file.path(), 'utf8')).toMatch(
+		/\nAllocation\s+100[^\n]*\n\s+Equity\s+100/
+	);
 });
 
 test('Asset Allocation Validate rejects a previously loaded definition deleted via File Storage', async ({

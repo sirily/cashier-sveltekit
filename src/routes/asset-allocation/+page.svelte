@@ -2,8 +2,7 @@
 	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { PageData } from './$types';
-	import { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation.js';
-	import { buildChildrenIndex } from '#lib/assetAllocation/assetAllocationUtils.js';
+
 	import { validate } from '#lib/assetAllocation/assetAllocationValidation.js';
 	import type { AssetClass } from '#lib/assetAllocation/AssetClass.js';
 	import Toolbar from '#lib/components/Toolbar.svelte';
@@ -21,7 +20,7 @@
 
 	let { data }: { data: PageData } = $props();
 	let _allocation = $derived<AssetClass[]>(data.aa?.assetClasses ?? []);
-	let childrenIndex = $derived(buildChildrenIndex(_allocation));
+	let childrenIndex = $derived(data.aa?.childrenIndex);
 	let collapsedState = $state<Record<string, boolean>>({});
 	let viewMode = $state<'allocation' | 'value'>('allocation');
 
@@ -29,9 +28,6 @@
 		collapsedState[fullname] = !collapsedState[fullname];
 	}
 
-	function getChildren(fullname: string): AssetClass[] {
-		return childrenIndex.get(fullname) || [];
-	}
 
 	function downloadAsFile(content: string) {
 		let now = new Date();
@@ -66,10 +62,12 @@
 		await invalidate('allocation:definition');
 	}
 
-	async function onExportClick() {
-		let aa = new AssetAllocationEngine();
-		const output = aa.formatAllocationRowsForTxtExport(_allocation);
-		downloadAsFile(output);
+	function onExportClick() {
+		if (!data.aa) {
+			Notifier.error(data.loadError ?? 'Asset allocation is not loaded.');
+			return;
+		}
+		downloadAsFile(data.aa.formatAllocationRowsForTxtExport(data.aa.assetClasses));
 	}
 
 	async function onValidateClick() {
@@ -145,7 +143,7 @@
 					{#each _allocation.filter((item) => item.depth === 0) as rootItem (rootItem.fullname)}
 						<AssetClassRow
 							assetClass={rootItem}
-							children={getChildren(rootItem.fullname)}
+							children={childrenIndex?.get(rootItem.fullname)}
 							depth={0}
 							{collapsedState}
 							onToggle={toggleCollapse}
