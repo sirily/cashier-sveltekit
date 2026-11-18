@@ -49,6 +49,7 @@ export class SecurityAnalyser {
 		// Retrieve the current value of the holding.
 		const valueStr = await this.#getValueBalance(symbol, currency);
 		const value = Number(valueStr);
+		if (!Number.isFinite(income) || !Number.isFinite(value)) return 'n/a';
 
 		// Calculate
 		let _yield = null;
@@ -86,10 +87,11 @@ export class SecurityAnalyser {
 		// Line contains columns: [(594.52 USD), (594.52 USD)]
 		const costBasis = BeancountParser.getMoneyFromTupleString(line[0]).quantity;
 		const marketValue = BeancountParser.getMoneyFromTupleString(line[1]).quantity;
-		const gainLoss = marketValue - costBasis;
+		if (!Number.isFinite(costBasis) || !Number.isFinite(marketValue)) return 'n/a';
 
-		const result = `${gainLoss.toFixed(2)} ${this.currency}, ${((gainLoss / costBasis) * 100).toFixed(2)}%`;
-		return result;
+		const gainLoss = marketValue - costBasis;
+		const percent = costBasis === 0 ? 'n/a' : `${((gainLoss / costBasis) * 100).toFixed(2)}%`;
+		return `${gainLoss.toFixed(2)} ${currency}, ${percent}`;
 	}
 
 	/**
@@ -117,9 +119,7 @@ export class SecurityAnalyser {
 		const queries = getQueries();
 		const command = queries.valueBalance(symbol, currency);
 
-		const report = await this.query(command);
-
-		const line = report[0];
-		return BeancountParser.getMoneyFromTupleString(line[0]).quantity;
+		const [[balance] = []] = await this.query(command);
+		return balance == null ? 0 : BeancountParser.getMoneyFromTupleString(balance).quantity;
 	}
 }

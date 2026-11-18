@@ -37,6 +37,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	// Debug panel
 	let debugOpen = $state(false);
+	let wasmVersion = $state('');
 	let accountsOpen = $state(false);
 	let assetClassValuesOpen = $state(false);
 	let rawAccountsResult: (RawQueryResult & { loaded: boolean }) | null = $state(null);
@@ -220,6 +221,18 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		}
 	}
 
+	async function toggleDebug() {
+		debugOpen = !debugOpen;
+		if (!debugOpen || wasmVersion) return;
+		try {
+			const wasm = await import('#lib/services/rustledger');
+			await wasm.ensureInitialized();
+			wasmVersion = wasm.version();
+		} catch {
+			wasmVersion = 'Unavailable';
+		}
+	}
+
 	function formatRow(row: any[]): string {
 		return row
 			.map((cell) => {
@@ -238,7 +251,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		<p>Allocation: {data.assetClass?.allocation}</p>
 
 		{#if data.stocks?.length === 0}
-			<p>Loading...</p>
+			<p>No securities assigned to this class.</p>
 		{:else}
 			<ul class="ms-4 mt-4">
 				{#each data.stocks || [] as stock (stock.name)}
@@ -334,7 +347,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		<div class="mt-6 border-t pt-4">
 			<button
 				class="flex items-center gap-2 text-sm font-medium opacity-60 hover:opacity-100"
-				onclick={() => (debugOpen = !debugOpen)}
+				onclick={toggleDebug}
 			>
 				<Bug class="h-4 w-4" />
 				Debug
@@ -355,7 +368,7 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 							<tbody>
 								<tr class="border-b">
 									<td class="pr-4 py-0.5 opacity-60">WASM version</td>
-									<td>{data.wasmVersion}</td>
+									<td>{wasmVersion || 'Loading…'}</td>
 								</tr>
 							</tbody>
 						</table>

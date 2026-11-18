@@ -1,11 +1,13 @@
-import { goto } from '$app/navigation';
+import { resolve } from '$app/paths';
+import { error, redirect } from '@sveltejs/kit';
 import type { AssetClass, StockSymbol } from '#lib/assetAllocation/AssetClass';
-import { AaStocksStore, AssetAllocationStore } from '#lib/data/mainStore';
+import { loadAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
+import { AaStocksStore } from '#lib/data/mainStore';
 import type { Account } from '#lib/data/model.js';
 import * as AccountService from '#lib/services/accountsService';
 import appService from '#lib/services/appService';
 import fullLedgerService from '#lib/services/ledgerWorkerClient';
-import { version as getWasmVersion } from '#lib/services/rustledger';
+import type { PageLoad } from './$types';
 import { get } from 'svelte/store';
 
 export type WasmQueryFn = (
@@ -22,12 +24,11 @@ export interface RawQueryResult {
 /*
     Asset Class Detail
  */
-export async function load({ params }) {
-	// load asset classes.
-	const aa = get(AssetAllocationStore);
-	if (!aa) {
-		await goto('/asset-allocation');
-		return;
+export const load: PageLoad = async ({ params }) => {
+	const aa = await loadAssetAllocation().catch(() => redirect(307, resolve('/asset-allocation')));
+	const assetClass = aa.assetClasses.find((item) => item.fullname === params.name);
+	if (!assetClass) {
+		error(404, 'Asset class not found');
 	}
 
 	const currency = await appService.getDefaultCurrency();
@@ -44,25 +45,9 @@ export async function load({ params }) {
 	// add the balances.
 	await AccountService.populateAccountBalances(investmentAccounts);
 
-	// load asset class
-	const assetClass = aa?.find((ac) => ac.fullname === params.name);
-	if (!assetClass) {
-		throw new Error('Asset class not found');
-	}
 	const stocks = populateStocksWithCaching(assetClass, investmentAccounts);
-
-	const wasmVersion = getWasmVersion();
-
-	return {
-		wasmQuery,
-		investmentAccounts,
-		currency,
-		aa,
-		assetClass,
-		stocks,
-		wasmVersion
-	};
-}
+	return { wasmQuery, investmentAccounts, currency, assetClass, stocks };
+};
 
 function populateStocksWithCaching(assetClass: AssetClass, investmentAccounts: Account[]) {
 	const stocks = populateStocks(assetClass, investmentAccounts);

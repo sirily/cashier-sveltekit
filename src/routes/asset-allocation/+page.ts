@@ -1,28 +1,10 @@
-import { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation';
-import type { AssetClass } from '#lib/assetAllocation/AssetClass';
-import { AssetAllocationStore, AssetAllocationLoadedAtStore } from '#lib/data/mainStore';
+import { loadAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
 import Notifier from '#lib/utils/notifier';
-import * as OpfsLib from '#lib/utils/opfslib.js';
-import { get } from 'svelte/store';
-import { formatErrorForDisplay, AppError } from '#lib/utils/errors';
-import { SettingKeys, settings } from '#lib/settings';
-
-const aa = new AssetAllocationEngine();
+import { AppError } from '#lib/utils/errors';
 
 export async function load() {
 	try {
-		// check state for cached AA.
-		let assetClasses: AssetClass[] | undefined = get(AssetAllocationStore);
-		if (!assetClasses || assetClasses.length === 0) {
-			await loadAaFromFile();
-			assetClasses = aa.assetClasses;
-
-			// save into store.
-			AssetAllocationStore.set(assetClasses);
-			AssetAllocationLoadedAtStore.set(new Date());
-		}
-
-		// Show warnings if any commodities are not mapped
+		const aa = await loadAssetAllocation();
 		if (aa.warnings.length > 0) {
 			const warningMsg =
 				aa.warnings.length === 1
@@ -31,35 +13,10 @@ export async function load() {
 			Notifier.warning(warningMsg);
 			console.warn('Asset Allocation warnings:', aa.warnings);
 		}
-
-		return { aa, assetClasses };
+		return { aa, loadError: undefined };
 	} catch (error) {
-		console.error(error);
-
-		// Use improved error formatting for better user messages
-		if (error instanceof AppError) {
-			const { title, message, action } = formatErrorForDisplay(error);
-			const fullMessage = action ? `${message}\n\n${action}` : message;
-			Notifier.error(`${title}: ${fullMessage}`);
-		} else {
-			Notifier.error(`Could not load Asset Allocation. ${error}`);
-		}
-
-		// Return empty data to prevent page crash
-		return { aa, assetClasses: [] };
+		const reason = error instanceof Error ? error.message : String(error);
+		const action = error instanceof AppError && error.action;
+		return { aa: undefined, loadError: action ? `${reason} ${action}` : reason };
 	}
-}
-
-async function loadAaFromFile() {
-	// get the asset allocation filename from settings.
-	const aaDefinitionPath = await settings.get<string>(SettingKeys.assetAllocationDefinition);
-	if (!aaDefinitionPath) {
-		throw new Error('Asset Allocation definition file path not set in settings!');
-	}
-	const definition = await OpfsLib.readFile(aaDefinitionPath);
-	if (!definition) {
-		throw new Error(`Could not load AA definition from ${aaDefinitionPath}!`);
-	}
-
-	await aa.loadFullAssetAllocation(definition);
 }

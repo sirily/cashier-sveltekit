@@ -98,6 +98,15 @@ test('BQL errors and unavailable local backend propagate without HTTP retry', as
 	expect(network).not.toHaveBeenCalled();
 });
 
+test('a zero cost basis keeps the gain/loss amount but has no relative return', async () => {
+	const analyser = new SecurityAnalyser(async () => ({
+		columns: [],
+		rows: [['(0 GBP)', '(0 GBP)']],
+		errors: []
+	}));
+	await expect(analyser.getGainLoss('LONGCOIN')).resolves.toBe('0.00 GBP, n/a');
+});
+
 test('gain/loss retains empty-result and multiple-record handling', async () => {
 	const query = vi
 		.fn<QueryFn>()
