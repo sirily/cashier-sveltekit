@@ -40,6 +40,8 @@ class AppService {
 		newXact.payee = existing.payee;
 		newXact.note = existing.note;
 		newXact.flag = existing.flag;
+		if (existing.tags) newXact.tags = [...existing.tags];
+		if (existing.links) newXact.links = [...existing.links];
 		newXact.postings = existing.postings.map((posting) => {
 			const copy = Object.assign(new Posting(), posting);
 			if (posting.price) copy.price = { ...posting.price };
@@ -292,8 +294,10 @@ class AppService {
 		// Delete unneeded properties - the ids, date, etc.
 		this.clearIds(lastTx.transaction);
 
-		// no need to remember the date
+		// Date, tags and links belong to the specific entry, not the payee's template.
 		delete lastTx.transaction.date;
+		delete lastTx.transaction.tags;
+		delete lastTx.transaction.links;
 
 		await this.db.lastXact.put(lastTx);
 

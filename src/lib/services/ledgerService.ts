@@ -314,7 +314,11 @@ class LedgerService {
 					const matches = byTag.get(`${prefix}${span.startLine}`);
 					if (matches?.length !== 1)
 						throw new Error('Ambiguous local transaction source. Reload the Journal.');
-					const xact = this.directiveToXact(matches[0]);
+					const directive = matches[0];
+					const xact = this.directiveToXact(directive);
+					// The scope tag identifies a source span, not a user tag.
+					xact.tags = directive.tags.filter((tag) => !tag.startsWith(prefix));
+					xact.links = [...directive.links];
 					restorePostingSource(
 						xact.postings,
 						span.sourceText,

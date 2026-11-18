@@ -120,6 +120,8 @@ export class Xact {
 	payee?: string;
 	note?: string;
 	flag?: string;
+	tags?: string[];
+	links?: string[];
 	postings: Posting[];
 	//
 	//amount: any

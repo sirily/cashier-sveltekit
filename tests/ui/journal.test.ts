@@ -351,10 +351,12 @@ for (const { flag, editedNote, save, name } of [
 		const original = `option "operating_currency" "USD"
 2000-01-01 open Assets:Cash USD
 2000-01-01 open Expenses:Food USD
-2025-01-01 ${flag} "Cafe" "${note}" ; keep original source
+pushtag #travel
+2025-01-01 ${flag} "Cafe" "${note}" #trip ^invoice ; keep original source
   cashier_id: "original-duplicate-id"
   Expenses:Food  12.50 USD
   Assets:Cash  -12.50 USD
+poptag #travel
 `;
 		await openReadyJournal(page);
 		await writeLocalJournal(page, original);
@@ -380,7 +382,10 @@ for (const { flag, editedNote, save, name } of [
 		expect(saved.startsWith(original)).toBe(true);
 		expect(saved.match(/^\d{4}-\d{2}-\d{2} [*!] /gm)).toHaveLength(2);
 		const copy = saved.slice(original.length);
-		expect(copy).toContain(`2025-01-01 ${flag} "Cafe" "${editedNote ?? note}"`);
+		const [header] = copy.trimStart().split('\n');
+		const start = `2025-01-01 ${flag} "Cafe" "${editedNote ?? note}" `;
+		expect(header.startsWith(start)).toBe(true);
+		expect(header.slice(start.length).split(' ').sort()).toEqual(['#travel', '#trip', '^invoice']);
 		expect(copy).not.toContain('cashier_id:');
 		expect(copy).toContain('Expenses:Food  12.50 USD');
 		expect(copy).toContain('Assets:Cash  -12.50 USD');
