@@ -62,18 +62,27 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	async function fetchAnalysisFor(queryFn: QueryFn, symbol: string): Promise<SecurityAnalysis> {
 		const svc = new SecurityAnalyser(queryFn);
-		const [yieldResult, gainlossResult] = await Promise.all([
+		const [yieldResult, gainlossResult] = await Promise.allSettled([
 			svc.getYield(symbol),
 			svc.getGainLoss(symbol)
 		]);
-		return { yield: yieldResult, gainloss: gainlossResult };
+		const message = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
+		return {
+			yield: yieldResult.status === 'fulfilled' ? yieldResult.value : 'n/a',
+			gainloss: gainlossResult.status === 'fulfilled' ? gainlossResult.value : 'n/a',
+			yieldError: yieldResult.status === 'rejected' ? message(yieldResult.reason) : undefined,
+			gainlossError: gainlossResult.status === 'rejected' ? message(gainlossResult.reason) : undefined
+		};
 	}
 
 	async function loadSecurityAnalysis(
 		queryFn: QueryFn,
 		symbols: StockSymbol[]
 	): Promise<StockSymbol[]> {
-		const stocksToLoad = symbols.filter((stock) => !stock.analysis);
+		const stocksToLoad = symbols.filter(
+			({ analysis }) =>
+				!analysis || analysis.yieldError !== undefined || analysis.gainlossError !== undefined
+		);
 		await processWithConcurrencyLimit(stocksToLoad, 10, async (stock) => {
 			const symbol = stock.name;
 			stock.loading = true;
@@ -83,10 +92,12 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 				const analysis = await fetchAnalysisFor(queryFn, symbol);
 				stock.analysis = analysis;
 				stock.loading = false;
-				AaStocksStore.update((cache) => {
-					if (!cache) return cache;
-					return { ...cache, [symbol]: { ...cache[symbol], analysis } };
-				});
+				if (analysis.yieldError === undefined && analysis.gainlossError === undefined) {
+					AaStocksStore.update((cache) => {
+						if (!cache) return cache;
+						return { ...cache, [symbol]: { ...cache[symbol], analysis } };
+					});
+				}
 			} catch (err) {
 				console.error(`Error loading analysis for ${symbol}:`, err);
 				stock.loading = false;
@@ -278,6 +289,16 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 								<span class={Formatter.getColourForGainLoss(stock.analysis.gainloss)}
 									>{stock.analysis.gainloss}</span
 								>
+								{#if stock.analysis.yieldError !== undefined}
+									<p class="text-error text-sm">
+										Could not calculate yield: {stock.analysis.yieldError}
+									</p>
+								{/if}
+								{#if stock.analysis.gainlossError !== undefined}
+									<p class="text-error text-sm">
+										Could not calculate gain/loss: {stock.analysis.gainlossError}
+									</p>
+								{/if}
 							</div>
 						{/if}
 

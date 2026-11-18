@@ -21,13 +21,18 @@ const journal = `option "operating_currency" "EUR"
   Assets:Cash              10 EUR
 `;
 
-async function seedAllocation(page: Page, path?: string, content?: string) {
+async function seedAllocation(
+	page: Page,
+	path?: string,
+	content?: string,
+	{ source = journal, currency = 'EUR' } = {}
+) {
 	await page.goto('/');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 	await page.evaluate(
-		async ({ path, content, journal }) => {
+		async ({ path, content, source, currency }) => {
 			const root = await navigator.storage.getDirectory();
-			const files: Record<string, string> = { 'cashier.bean': journal };
+			const files: Record<string, string> = { 'cashier.bean': source };
 			if (path && content !== undefined) files[path] = content;
 			for (const [name, source] of Object.entries(files)) {
 				const file = await root.getFileHandle(name, { create: true });
@@ -44,7 +49,7 @@ async function seedAllocation(page: Page, path?: string, content?: string) {
 			await new Promise<void>((resolve, reject) => {
 				const transaction = db.transaction('settings', 'readwrite');
 				const store = transaction.objectStore('settings');
-				store.put({ key: 'currency', value: JSON.stringify('EUR') });
+				store.put({ key: 'currency', value: JSON.stringify(currency) });
 				store.put({ key: 'aa.rootAccount', value: JSON.stringify('Assets:Investments') });
 				if (path) store.put({ key: 'aa.definition', value: JSON.stringify(path) });
 				transaction.oncomplete = () => resolve();
@@ -52,7 +57,7 @@ async function seedAllocation(page: Page, path?: string, content?: string) {
 			});
 			db.close();
 		},
-		{ path, content, journal }
+		{ path, content, source, currency }
 	);
 }
 
@@ -79,6 +84,36 @@ test('Asset Class Detail opens from the cold list and on direct reload without j
 		await expect(assets).not.toContainText(/NaN%|Infinity%|Error loading analysis/);
 		if (attempt === 0) await page.reload();
 	}
+});
+
+test('Asset Class Detail shows USD gain when the GBP yield query fails', async ({ page }) => {
+	await page.clock.setFixedTime(new Date('2026-11-03T12:00:00Z'));
+	await seedAllocation(page, 'allocation.toml', definition, {
+		currency: 'GBP',
+		source: `option "operating_currency" "GBP"
+2000-01-01 open Assets:Investments:Fund FUND
+2000-01-01 open Assets:Cash USD
+2000-01-01 open Income:Dividend:FUND USD
+2026-01-01 price FUND 60 USD
+2026-01-01 * "Buy fund"
+  Assets:Investments:Fund  1 FUND {50 USD}
+  Assets:Cash            -50 USD
+2026-06-01 * "Dividend"
+  Income:Dividend:FUND  -2 USD
+  Assets:Cash            2 USD
+`
+	});
+	await page.goto('/asset-allocation');
+	await page.getByRole('link', { name: 'Equity', exact: true }).click();
+	await expect(page).toHaveURL(/\/assetclass-detail\/Allocation(?::|%3A)Equity$/i);
+
+	const card = page
+		.getByRole('listitem')
+		.filter({ has: page.getByRole('heading', { name: '• FUND', exact: true }) });
+	await expect(card).toContainText('Yield: n/a');
+	await expect(card).toContainText('Could not calculate yield: BQL query failed:');
+	await expect(card).toContainText('Gain/Loss: 10.00 USD, 20.00%');
+	await expect(card).not.toContainText('Error loading analysis');
 });
 
 test('Asset Allocation Help opens the setup instructions and a loaded definition validates', async ({

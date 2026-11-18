@@ -15,6 +15,8 @@ const DATE_FORMAT = 'YYYY-MM-DD';
 export interface SecurityAnalysis {
 	yield: string;
 	gainloss: string;
+	yieldError?: string;
+	gainlossError?: string;
 }
 
 export type QueryFn = (bql: string) => Promise<{ columns: string[]; rows: any[]; errors: any[] }>;
