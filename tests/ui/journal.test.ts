@@ -392,6 +392,29 @@ for (const { flag, editedNote, save, name } of [
 	});
 }
 
+test('Duplicate refuses a purchase whose lot cost cannot be preserved', async ({ page }) => {
+	const source = `option "operating_currency" "EUR"
+2000-01-01 open Assets:Investments:Fund FUND
+2000-01-01 open Assets:Cash EUR
+2025-01-01 * "Broker" "Buy fund with lot cost"
+  cashier_id: "fund-purchase-id"
+  Assets:Investments:Fund  1 FUND {10 EUR}
+  Assets:Cash            -10 EUR
+`;
+	await openReadyJournal(page);
+	await writeLocalJournal(page, source);
+	await page.reload();
+	const note = page.getByText('; Buy fund with lot cost', { exact: true });
+	await note.click();
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	await page.getByRole('button', { name: 'Duplicate', exact: true }).click();
+	await expect(page.locator('#toast-container .alert-error')).toContainText('lot costs');
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	expect(await readLocalJournal(page)).toBe(source);
+	await page.goBack();
+	await expect(note).toHaveCount(1);
+});
+
 test('saves a journal entry offline and persists it after reload', async ({ page, context }) => {
 	const browserErrors = await openReadyJournal(page);
 	const note = `Offline UI ${Date.now()}`;

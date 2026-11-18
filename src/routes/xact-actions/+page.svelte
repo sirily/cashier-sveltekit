@@ -82,6 +82,13 @@
 			return;
 		}
 
+		if ($xact.postings.some((posting) => posting.sourceAnnotated)) {
+			Notifier.error(
+				'Cannot duplicate this transaction: the editor cannot preserve lot costs or other unsupported posting annotations. The original was not changed.'
+			);
+			return;
+		}
+
 		xact.set(appService.createXactFrom($xact));
 		xactSpan.set(undefined);
 
