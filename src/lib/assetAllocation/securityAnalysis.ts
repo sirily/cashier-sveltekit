@@ -40,28 +40,12 @@ export class SecurityAnalyser {
 		const currency = (await settings.get(SettingKeys.currency)) as string;
 		this.currency = currency;
 
-		// Retrieve income amount.
-		const incomeStr = await this.#getIncomeBalance(symbol);
-		let income = Number(incomeStr);
-		// turn into a positive number
-		income = income * -1;
+		const income = -(await this.#getIncomeBalance(symbol));
+		const value = await this.#getValueBalance(symbol, currency);
+		if (value === undefined || !Number.isFinite(value) || !Number.isFinite(income)) return 'n/a';
 
-		// Retrieve the current value of the holding.
-		const valueStr = await this.#getValueBalance(symbol, currency);
-		const value = Number(valueStr);
-		if (!Number.isFinite(income) || !Number.isFinite(value)) return 'n/a';
-
-		// Calculate
-		let _yield = null;
-		if (value == 0.0) {
-			_yield = 0.0;
-		} else {
-			_yield = (income * 100) / value;
-		}
-
-		const result = _yield.toFixed(2) + '%';
-
-		return result;
+		const yieldPercent = value === 0 ? 0 : (income * 100) / value;
+		return `${yieldPercent.toFixed(2)}%`;
 	}
 
 	async getGainLoss(symbol: string) {
@@ -115,11 +99,11 @@ export class SecurityAnalyser {
 		return BeancountParser.getMoneyFromTupleString(line[0]).quantity;
 	}
 
-	async #getValueBalance(symbol: string, currency: string) {
+	async #getValueBalance(symbol: string, currency: string): Promise<number | undefined> {
 		const queries = getQueries();
 		const command = queries.valueBalance(symbol, currency);
 
 		const [[balance] = []] = await this.query(command);
-		return balance == null ? 0 : BeancountParser.getMoneyFromTupleString(balance).quantity;
+		return balance == null ? undefined : BeancountParser.getMoneyFromTupleString(balance).quantity;
 	}
 }

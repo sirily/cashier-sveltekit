@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import type { PageData } from './$types';
 	import { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation.js';
 	import { buildChildrenIndex } from '#lib/assetAllocation/assetAllocationUtils.js';
 	import { validate } from '#lib/assetAllocation/assetAllocationValidation.js';
@@ -8,7 +9,8 @@
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import AssetClassRow from '#lib/components/AssetClassRow.svelte';
-	import { AaStocksStore, AssetAllocationStore, AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
+	import { AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
+	import { resetAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
 	import Notifier from '#lib/utils/notifier.js';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
@@ -17,8 +19,8 @@
 
 	Notifier.init();
 
-	let { data } = $props();
-	let _allocation = $derived(data.aa?.assetClasses ?? []);
+	let { data }: { data: PageData } = $props();
+	let _allocation = $derived<AssetClass[]>(data.aa?.assetClasses ?? []);
 	let childrenIndex = $derived(buildChildrenIndex(_allocation));
 	let collapsedState = $state<Record<string, boolean>>({});
 	let viewMode = $state<'allocation' | 'value'>('allocation');
@@ -60,10 +62,8 @@
 	}
 
 	async function onRefreshClick() {
-		AssetAllocationStore.set(undefined);
-		AaStocksStore.set(undefined);
-		AssetAllocationLoadedAtStore.set(undefined);
-		invalidateAll();
+		resetAssetAllocation();
+		await invalidate('allocation:definition');
 	}
 
 	async function onExportClick() {
@@ -72,7 +72,8 @@
 		downloadAsFile(output);
 	}
 
-	function onValidateClick() {
+	async function onValidateClick() {
+		await invalidate('allocation:definition');
 		if (!data.aa) {
 			Notifier.error(data.loadError ?? 'Asset allocation is not loaded.');
 			return;

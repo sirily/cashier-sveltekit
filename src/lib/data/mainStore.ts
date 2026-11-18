@@ -31,7 +31,7 @@ export const xactSpan: Writable<DirectiveSpan | undefined> = writable(undefined)
 
 // asset allocation
 export const AssetAllocationStore = writable<
-	{ path: string; engine: AssetAllocationEngine } | undefined
+	{ path: string; definition: string; engine: AssetAllocationEngine } | undefined
 >();
 export const AaStocksStore: Writable<StockCache | undefined> = writable();
 export const AssetAllocationLoadedAtStore: Writable<Date | undefined> = writable();

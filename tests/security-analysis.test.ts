@@ -98,6 +98,26 @@ test('BQL errors and unavailable local backend propagate without HTTP retry', as
 	expect(network).not.toHaveBeenCalled();
 });
 
+test.each([
+	{ valuationRows: [], expected: 'n/a' },
+	{ valuationRows: [[null]], expected: 'n/a' },
+	{ valuationRows: [['(0 GBP)']], expected: '0.00%' }
+])(
+	'yield with dividend income and valuation $valuationRows returns $expected',
+	async ({ valuationRows, expected }) => {
+		const queries = getQueries();
+		const query = vi.fn<QueryFn>(async (bql) => {
+			if (bql === queries.incomeBalance('LONGCOIN', '2025-11-03', 'GBP')) {
+				return ledger.query(bql);
+			}
+			expect(bql).toBe(queries.valueBalance('LONGCOIN', 'GBP'));
+			return { columns: ['value'], rows: valuationRows, errors: [] };
+		});
+		await expect(new SecurityAnalyser(query).getYield('LONGCOIN')).resolves.toBe(expected);
+		expect(network).not.toHaveBeenCalled();
+	}
+);
+
 test('a zero cost basis keeps the gain/loss amount but has no relative return', async () => {
 	const analyser = new SecurityAnalyser(async () => ({
 		columns: [],

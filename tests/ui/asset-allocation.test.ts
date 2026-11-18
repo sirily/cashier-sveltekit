@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { navigateFromDrawer } from './fixtures/navigation';
 
 const definition = `[Allocation]
 allocation = 100
@@ -93,6 +94,63 @@ test('Asset Allocation Help opens the setup instructions and a loaded definition
 	await expect(page).toHaveURL(/\/help#asset-allocation$/);
 	await expect(page.getByRole('heading', { name: 'Set up Asset Allocation' })).toBeInViewport();
 	await expect(page.getByText('symbols = ["VTI"]', { exact: false })).toBeVisible();
+});
+
+test('Asset Allocation Validate rejects a previously loaded definition deleted via File Storage', async ({
+	page
+}) => {
+	const path = 'allocation.toml';
+	await seedAllocation(page, path, definition);
+	await page.goto('/asset-allocation');
+	await expect(page.getByRole('link', { name: 'Equity', exact: true })).toBeVisible();
+
+	await navigateFromDrawer(page, 'File Storage');
+	const file = page.getByRole('row').filter({ hasText: path });
+	await file.getByRole('button').click();
+	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await expect(file).toHaveCount(0);
+	await page.goBack();
+	await expect(page).toHaveURL('/asset-allocation');
+
+	await validateAllocation(page);
+	await expect(page.locator('#toast-container .alert-error')).toContainText(
+		`Could not open asset allocation definition "${path}".`
+	);
+	await expect(page.getByText('The allocation is valid.', { exact: true })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'Equity', exact: true })).toHaveCount(0);
+});
+
+test('Asset Allocation Validate checks updated TOML contents at the same path', async ({
+	page
+}) => {
+	const path = 'allocation.toml';
+	await seedAllocation(page, path, definition);
+	await page.goto('/asset-allocation');
+	await expect(page.getByRole('link', { name: 'Equity', exact: true })).toBeVisible();
+
+	// Change the definition in storage while the report is still showing the cached allocation.
+	await page.evaluate(
+		async ({ path, updated }) => {
+			const root = await navigator.storage.getDirectory();
+			const file = await root.getFileHandle(path);
+			const writer = await file.createWritable();
+			await writer.write(updated);
+			await writer.close();
+		},
+		{
+			path,
+			updated: definition.replace(
+				'[Allocation.Equity]\nallocation = 100',
+				'[Allocation.Equity]\nallocation = 70'
+			)
+		}
+	);
+
+	await validateAllocation(page);
+	await expect(page.locator('#toast-container .alert-error')).toContainText(
+		"'Allocation' does not match the sum of child classes"
+	);
+	await expect(page.getByText('The allocation is valid.', { exact: true })).toHaveCount(0);
 });
 
 for (const { path, content, reason } of [

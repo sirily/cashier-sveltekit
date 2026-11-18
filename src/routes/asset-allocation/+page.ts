@@ -1,8 +1,10 @@
+import type { PageLoad } from './$types';
 import { loadAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
 import Notifier from '#lib/utils/notifier';
 import { AppError } from '#lib/utils/errors';
 
-export async function load() {
+export const load = (async ({ depends }) => {
+	depends('allocation:definition');
 	try {
 		const aa = await loadAssetAllocation();
 		if (aa.warnings.length > 0) {
@@ -19,4 +21,4 @@ export async function load() {
 		const action = error instanceof AppError && error.action;
 		return { aa: undefined, loadError: action ? `${reason} ${action}` : reason };
 	}
-}
+}) satisfies PageLoad;

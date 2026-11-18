@@ -1,11 +1,21 @@
 import { get } from 'svelte/store';
-import { AssetAllocationLoadedAtStore, AssetAllocationStore } from '#lib/data/mainStore';
+import {
+	AaStocksStore,
+	AssetAllocationLoadedAtStore,
+	AssetAllocationStore
+} from '#lib/data/mainStore';
 import { SettingKeys, settings } from '#lib/settings';
 import { AppError, UserError } from '#lib/utils/errors';
 import { readFile } from '#lib/utils/opfslib';
 import { AssetAllocationEngine } from './AssetAllocation';
 
-export async function loadAssetAllocation() {
+export function resetAssetAllocation() {
+	AssetAllocationStore.set(undefined);
+	AaStocksStore.set(undefined);
+	AssetAllocationLoadedAtStore.set(undefined);
+}
+
+async function readDefinition() {
 	const path = await settings.get<string>(SettingKeys.assetAllocationDefinition);
 	if (!path) {
 		throw new UserError(
@@ -13,9 +23,6 @@ export async function loadAssetAllocation() {
 			'Select a TOML file in Settings.'
 		);
 	}
-
-	const cached = get(AssetAllocationStore);
-	if (cached?.path === path) return cached.engine;
 
 	const definition = await readFile(path).catch((error: unknown) => {
 		const reason = error instanceof Error ? error.message : String(error);
@@ -28,6 +35,18 @@ export async function loadAssetAllocation() {
 		);
 	}
 
+	return { path, definition };
+}
+
+export async function loadAssetAllocation() {
+	const { path, definition } = await readDefinition().catch((error: unknown) => {
+		resetAssetAllocation();
+		throw error;
+	});
+	const cached = get(AssetAllocationStore);
+	if (cached?.path === path && cached.definition === definition) return cached.engine;
+
+	resetAssetAllocation();
 	const aa = new AssetAllocationEngine();
 	try {
 		await aa.loadFullAssetAllocation(definition);
@@ -45,7 +64,7 @@ export async function loadAssetAllocation() {
 		);
 	}
 
-	AssetAllocationStore.set({ path, engine: aa });
+	AssetAllocationStore.set({ path, definition, engine: aa });
 	AssetAllocationLoadedAtStore.set(new Date());
 	return aa;
 }
