@@ -103,7 +103,8 @@ Run the checks appropriate to the change and report anything not executed. See
 CI validates GitHub Actions workflows with Actionlint. Linting, Svelte checks, type checks,
 unit tests, and the production build gate image publication, not PR merging; any lint,
 Svelte-check, or build warning fails its check. The build warning gate uses Vite's logger and
-`console.warn`, preserving the original diagnostic output.
+`console.warn`, preserving the original diagnostic output. Strict OpenSpec validation still
+runs in CI, but its failures are informational. Its output appears in the step log and run summary.
 Unit tests also fail on unexpected `console.warn` or `console.error` calls while preserving
 those calls in the test output. Expected diagnostics must be explicitly mocked and asserted.
 The browser suite covers local offline saving, editing, and synchronization with a mocked API;
