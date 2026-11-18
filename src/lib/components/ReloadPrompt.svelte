@@ -10,13 +10,14 @@
 </script>
 
 {#if toast}
-	<div class="toast toast-bottom toast-end z-50">
+	<!-- Leave room below the prompt for fixed action buttons such as Journal Save. -->
+	<div class="toast toast-end bottom-24 z-50">
 		<div class="alert alert-info shadow-lg flex flex-row gap-4 items-center">
-			<div class="flex-1">
-				{#if offlineReady.value}
-					<span>App ready to work offline</span>
-				{:else}
+			<div class="min-w-0 flex-1 whitespace-normal">
+				{#if needRefresh.value}
 					<span>New content available, click reload to update.</span>
+				{:else}
+					<span>App ready to work offline</span>
 				{/if}
 			</div>
 			<div class="flex-none flex gap-2">

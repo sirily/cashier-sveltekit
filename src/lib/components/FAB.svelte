@@ -6,6 +6,7 @@
 
 	type Props = {
 		onclick?: EventHandler;
+		label?: string;
 		Icon?: Component;
 		backgroundColor?: string;
 		textColor?: string;
@@ -13,15 +14,17 @@
 	const clickHandler: EventHandler = (e: Event) => {};
 	let {
 		onclick = clickHandler,
+		label,
 		Icon = Check,
 		backgroundColor = 'btn-accent',
 		textColor = ''
-	} = $props();
+	}: Props = $props();
 </script>
 
 <button
 	class={`btn btn-circle btn-xl text-current! ${backgroundColor} ${textColor} border-0 fixed right-7 bottom-7 shadow-lg transition duration-200`}
 	{onclick}
+	aria-label={label}
 >
 	<!-- absolute-->
 

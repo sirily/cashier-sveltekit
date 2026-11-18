@@ -159,7 +159,7 @@
 	</Toolbar>
 
 	<section class="container mx-auto flex-1 overflow-y-auto touch-pan-y lg:max-w-screen-sm">
-		<Fab Icon={Check} onclick={onFab} />
+		<Fab Icon={Check} label="Save" onclick={onFab} />
 
 		<!-- tx editor -->
 		<TransactionEditor />
