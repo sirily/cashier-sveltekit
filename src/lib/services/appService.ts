@@ -2,7 +2,7 @@
 	Provide service layer for the application.
 */
 import db from '#lib/data/db';
-import { LastXact, Xact } from '#lib/data/model';
+import { LastXact, Posting, Xact } from '#lib/data/model';
 import { settings, SettingKeys } from '#lib/settings';
 import { HomeCardNames } from '#lib/enums';
 import { DefaultCurrencyStore } from '#lib/data/mainStore';
@@ -39,11 +39,13 @@ class AppService {
 		newXact.date = existing.date;
 		newXact.payee = existing.payee;
 		newXact.note = existing.note;
-
-		// postings
-		if (existing.postings) {
-			newXact.postings = [...existing.postings];
-		}
+		newXact.flag = existing.flag;
+		newXact.postings = existing.postings.map((posting) => {
+			const copy = Object.assign(new Posting(), posting);
+			if (posting.price) copy.price = { ...posting.price };
+			if (posting.priceBasis) copy.priceBasis = { ...posting.priceBasis };
+			return copy;
+		});
 
 		return newXact;
 	}

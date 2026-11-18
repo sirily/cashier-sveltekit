@@ -9,7 +9,6 @@
 	import appService from '#lib/services/appService';
 	import ledgerService from '#lib/services/ledgerService';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
-	import { xactToBeancountText } from '#lib/utils/xactUtils';
 	import Notifier from '#lib/utils/notifier';
 
 	import CopyIcon from '@lucide/svelte/icons/copy';
@@ -83,20 +82,10 @@
 			return;
 		}
 
-		const newXact = appService.createXactFrom($xact);
-		const beancountText = xactToBeancountText(newXact);
-		await ledgerService.appendTransaction(beancountText);
-
-		// Re-parse the full book in the background.
-		fullLedgerService.invalidate();
-
-		Notifier.success('Transaction copied');
-
-		// load the new tx for editing (no span — it's a new transaction)
-		xact.set(newXact);
+		xact.set(appService.createXactFrom($xact));
 		xactSpan.set(undefined);
 
-		goto(resolve('/tx'), { replaceState: true });
+		await goto(resolve('/tx'), { replaceState: true });
 	}
 
 	async function onEditClicked() {
