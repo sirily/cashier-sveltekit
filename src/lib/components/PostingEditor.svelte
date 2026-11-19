@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { xact, selectionMetadata } from '#lib/data/mainStore';
 	import CalculatorIcon from '@lucide/svelte/icons/calculator';
-import DiffIcon from '@lucide/svelte/icons/diff';
+	import DiffIcon from '@lucide/svelte/icons/diff';
 	import { onMount } from 'svelte';
 	import type { EventHandler } from 'svelte/elements';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SelectionModeMetadata } from '#lib/settings';
+	import { postingAmountText, setPostingAmount } from '#lib/utils/postingWeights';
 
 	type Props = {
 		index: number;
@@ -54,8 +55,13 @@ import DiffIcon from '@lucide/svelte/icons/diff';
 	 * Change amount sign.
 	 */
 	function changeSign() {
-		let amount = $xact.postings[index].amount || 0;
-		$xact.postings[index].amount = amount * -1;
+		const posting = $xact.postings[index];
+		const amount = postingAmountText(posting);
+		if (amount !== undefined) {
+			const flipped = amount.startsWith('-') ? amount.slice(1) : `-${amount.replace(/^\+/, '')}`;
+			setPostingAmount(posting, flipped);
+			xact.update((tx) => tx);
+		}
 
 		if (onAmountChanged) {
 			onAmountChanged();
@@ -88,12 +94,17 @@ import DiffIcon from '@lucide/svelte/icons/diff';
 		<input
 			title="Amount"
 			placeholder="Amount"
-			type="number"
+			type="text"
+			inputmode="decimal"
 			class={`input grow text-right text-lg ${amountFieldColor} rounded`}
-			bind:value={$xact.postings[index].amount}
+			value={postingAmountText($xact.postings[index]) ?? $xact.postings[index].amountText ?? ''}
 			bind:this={amountInput}
 			onfocus={() => amountInput.select()}
-			oninput={onAmountChanged}
+			oninput={(event) => {
+				setPostingAmount($xact.postings[index], event.currentTarget.value);
+				xact.update((tx) => tx);
+				onAmountChanged?.();
+			}}
 		/>
 		<!-- calculator button -->
 		<button

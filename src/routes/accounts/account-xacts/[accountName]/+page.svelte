@@ -10,6 +10,7 @@
 	import * as Formatter from '#lib/utils/formatter';
 	import ScaleIcon from '@lucide/svelte/icons/scale';
 	import { xact, xactSpan } from '#lib/data/mainStore';
+	import Big from 'big.js';
 
 	let { data }: { data: PageData } = $props();
 	const workerVersion = fullLedgerService.version;
@@ -48,6 +49,19 @@
 	const PAGE_SIZE = 30;
 	let visibleCount = $state(PAGE_SIZE);
 	let sentinel = $state<HTMLElement | null>(null);
+
+	function formatRowAmount(row: UnifiedXact): string | undefined {
+		try {
+			const [integer, fraction = ''] = new Big(
+				(row.amountText ?? String(row.amount)).replace(/^\+/, '')
+			)
+				.toFixed()
+				.split('.');
+			return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction.padEnd(2, '0')}`;
+		} catch {
+			return undefined;
+		}
+	}
 
 	async function onRowClick(row: UnifiedXact) {
 		if (!row.isDevice || !row.xact || !row.span) return;
@@ -128,6 +142,7 @@
 			<!-- Unified transaction list -->
 			<div class="space-y-1">
 				{#each visibleRows as row (row)}
+					{@const amount = formatRowAmount(row)}
 					<div
 						class="flex flex-row px-2 {row.isDevice
 							? 'cursor-pointer border-l-2 border-amber-400 bg-amber-50/60 dark:bg-amber-950/25'
@@ -140,8 +155,13 @@
 						<data class="grow">
 							{row.payee}{row.payee && row.narration ? ' | ' : ''}{row.narration}
 						</data>
-						<data class="shrink-0 {Formatter.getAmountColour(row.amount)}">
-							{Formatter.formatAmount(row.amount)}
+						<data
+							class="shrink-0 {Formatter.getAmountColour(row.amount)}"
+							title={amount === undefined
+								? 'Review the posting amount in Journal or Validation.'
+								: undefined}
+						>
+							{amount ?? 'Amount unresolved'}
 							{row.currency}
 						</data>
 					</div>

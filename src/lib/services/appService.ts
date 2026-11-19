@@ -2,127 +2,20 @@
 	Provide service layer for the application.
 */
 import db from '#lib/data/db';
-import { Account, LastXact, Money, Payee, Xact } from '#lib/data/model';
+import { LastXact, Posting, Xact } from '#lib/data/model';
 import { settings, SettingKeys } from '#lib/settings';
 import { HomeCardNames } from '#lib/enums';
 import { DefaultCurrencyStore } from '#lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
-import * as BeancountParser from '#lib/utils/beancountParser';
+
 import { formatAmount } from '#lib/utils/formatter';
 import { readFile } from '#lib/utils/opfslib';
 import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 import { ensureInitialized, createParsedLedger } from './rustledger';
 import { mapDirectiveSpans } from '#lib/rledger/sourceEditor';
 
-// interface AccountIndex {
-// 	[key: string]: Account;
-// }
-
 class AppService {
-	private mergeAccountBalance(accountBalances: Record<string, Account>, account: Account) {
-		const existingAccount = accountBalances[account.name];
-		if (!existingAccount) {
-			accountBalances[account.name] = account;
-			return;
-		}
-
-		existingAccount.balances ??= {};
-		for (const [currency, amount] of Object.entries(account.balances ?? {})) {
-			existingAccount.balances[currency] = amount;
-		}
-
-		if (account.balance) {
-			existingAccount.balance = account.balance;
-		}
-
-		existingAccount.currencies = Array.from(
-			new Set([
-				...(existingAccount.currencies ?? []),
-				...(account.currencies ?? []),
-				...Object.keys(account.balances ?? {})
-			])
-		).sort();
-	}
-
-	private parseBalanceSheetAccounts(response: unknown): Account[] {
-		const items = this.normalizeBalanceSheetItems(response);
-		if (items.length === 0) {
-			throw new Error('No balance records received for import!');
-		}
-
-		const accountBalances: Record<string, Account> = {};
-
-		for (const item of items) {
-			const account = BeancountParser.parseBalanceSheetRow(item);
-
-			if (!account) {
-				continue;
-			}
-
-			const [currency, amount] = Object.entries(account.balances ?? {})[0] ?? [];
-			if (currency && amount != null) {
-				const balance = new Money();
-				balance.currency = currency;
-				balance.quantity = amount;
-				account.balance = balance;
-			}
-
-			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
-			this.mergeAccountBalance(accountBalances, account);
-		}
-
-		const accounts = Object.values(accountBalances).map((account) => {
-			account.currencies = Array.from(new Set(Object.keys(account.balances ?? {}))).sort();
-			return account;
-		});
-
-		if (accounts.length === 0) {
-			throw new Error('No balance records received for import!');
-		}
-
-		return accounts;
-	}
-
-	async replaceAccounts(response: unknown): Promise<void> {
-		const accounts = this.parseBalanceSheetAccounts(response);
-		await db.transaction('rw', db.accounts, async () => {
-			await db.accounts.clear();
-			await db.accounts.bulkPut(accounts);
-		});
-	}
-
-	async replacePayees(payeeNames: string[]): Promise<void> {
-		const uniquePayees = Array.from(
-			new Set(payeeNames.map((name) => name.trim()).filter(Boolean))
-		).sort();
-		if (uniquePayees.length === 0) {
-			throw new Error('No payees received');
-		}
-
-		const payees = uniquePayees.map((name) => new Payee(name));
-		await db.transaction('rw', db.payees, async () => {
-			await db.payees.clear();
-			await db.payees.bulkPut(payees);
-		});
-	}
-
-	private normalizeBalanceSheetItems(response: unknown): string[][] {
-		if (Array.isArray(response)) {
-			return response as string[][];
-		}
-
-		if (
-			typeof response === 'object' &&
-			response !== null &&
-			'rows' in response &&
-			Array.isArray((response as { rows?: unknown }).rows)
-		) {
-			return (response as { rows: string[][] }).rows;
-		}
-
-		throw new Error('Unsupported Beancount balance sheet response');
-	}
 	/**
 	 * Clears Ids and reference Ids in Xact and Postings.
 	 * @param {Xact} tx
@@ -146,25 +39,21 @@ class AppService {
 		newXact.date = existing.date;
 		newXact.payee = existing.payee;
 		newXact.note = existing.note;
-
-		// postings
-		if (existing.postings) {
-			newXact.postings = [...existing.postings];
-		}
+		newXact.flag = existing.flag;
+		if (existing.tags) newXact.tags = [...existing.tags];
+		if (existing.links) newXact.links = [...existing.links];
+		newXact.postings = existing.postings.map((posting) => {
+			const copy = Object.assign(new Posting(), posting);
+			if (posting.price) copy.price = { ...posting.price };
+			if (posting.priceBasis) copy.priceBasis = { ...posting.priceBasis };
+			return copy;
+		});
 
 		return newXact;
 	}
 
 	get db() {
 		return db;
-	}
-
-	// deleteAccount(name: string) {
-	// 	return db.accounts.delete(name);
-	// }
-
-	async deleteAccounts() {
-		return db.accounts.clear();
 	}
 
 	/**
@@ -334,56 +223,6 @@ class AppService {
 	}
 
 	/**
-	 * Updates accounts from Beancount balance query rows.
-	 * @param response Rows of amount, original currency, and account name.
-	 * @returns The promise resolving to the id of the last record updated (Dexie default)
-	 */
-	async importBalanceSheet(response: unknown): Promise<unknown> {
-		if (!response) {
-			throw new Error('No balance records received for import!');
-		}
-
-		const accounts = this.parseBalanceSheetAccounts(response);
-		return db.accounts.bulkPut(accounts);
-	}
-
-	importCommodities(text: string) {
-		if (!text) {
-			// todo: Notify.create({ message: 'No data to import.' })
-			console.error('incomplete');
-			return;
-		}
-
-		const commodities = [];
-		const lines = text.split('\n');
-
-		for (let i = 0; i < lines.length - 1; i++) {
-			const commodity = lines[i].trim();
-			commodities.push(commodity);
-		}
-
-		// todo: save
-
-		return commodities;
-	}
-
-	/**
-	 * Imports the payees into storage.
-	 * @param payees Array of payee names from Ledger.
-	 */
-	async importPayees(payeeNames: string[]): Promise<void> {
-		const uniquePayees = Array.from(
-			new Set(payeeNames.map((name) => name.trim()).filter(Boolean))
-		).sort();
-		const payees = uniquePayees.map((name) => new Payee(name));
-		await db.payees.bulkPut(payees);
-	}
-
-	// async loadAccount(name: string) {
-	// 	return db.accounts.get(name);
-	// }
-
-	/**
 	 * Loads all transactions for the given account name.
 	 * Used to calculate the balance.
 	 * @param {String} accountName
@@ -455,8 +294,10 @@ class AppService {
 		// Delete unneeded properties - the ids, date, etc.
 		this.clearIds(lastTx.transaction);
 
-		// no need to remember the date
+		// Date, tags and links belong to the specific entry, not the payee's template.
 		delete lastTx.transaction.date;
+		delete lastTx.transaction.tags;
+		delete lastTx.transaction.links;
 
 		await this.db.lastXact.put(lastTx);
 

@@ -15,9 +15,22 @@ const DATE_FORMAT = 'YYYY-MM-DD';
 export interface SecurityAnalysis {
 	yield: string;
 	gainloss: string;
+	yieldError?: string;
+	gainlossError?: string;
 }
 
 export type QueryFn = (bql: string) => Promise<{ columns: string[]; rows: any[]; errors: any[] }>;
+
+function parseSingleAmount(value: unknown) {
+	if (typeof value !== 'string') return;
+	let text = value.trim();
+	if (text.startsWith('(') && text.endsWith(')')) text = text.slice(1, -1).trim();
+	// BQL convert() can return an inventory with multiple currencies when prices are missing.
+	const match = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s+([A-Z/][A-Z0-9'._/-]*)$/.exec(text);
+	if (!match) return;
+	const quantity = Number(match[1]);
+	if (Number.isFinite(quantity)) return { quantity, currency: match[2] };
+}
 
 export class SecurityAnalyser {
 	currency: string | undefined;
@@ -40,27 +53,13 @@ export class SecurityAnalyser {
 		const currency = (await settings.get(SettingKeys.currency)) as string;
 		this.currency = currency;
 
-		// Retrieve income amount.
-		const incomeStr = await this.#getIncomeBalance(symbol);
-		let income = Number(incomeStr);
-		// turn into a positive number
-		income = income * -1;
-
-		// Retrieve the current value of the holding.
-		const valueStr = await this.#getValueBalance(symbol, currency);
-		const value = Number(valueStr);
-
-		// Calculate
-		let _yield = null;
-		if (value == 0.0) {
-			_yield = 0.0;
-		} else {
-			_yield = (income * 100) / value;
+		const income = -(await this.#getIncomeBalance(symbol));
+		const value = await this.#getValueBalance(symbol, currency);
+		if (value === undefined || value === 0 || !Number.isFinite(value) || !Number.isFinite(income)) {
+			return 'n/a';
 		}
 
-		const result = _yield.toFixed(2) + '%';
-
-		return result;
+		return `${((income * 100) / value).toFixed(2)}%`;
 	}
 
 	async getGainLoss(symbol: string) {
@@ -81,15 +80,15 @@ export class SecurityAnalyser {
 				'This usually happens when the same symbol exists in multiple accounts without proper cost basis tracking'
 			);
 		}
-		// With Beancount, the result is an array of all accounts with this column values.
-		const line: Array<string> = report[0];
-		// Line contains columns: [(594.52 USD), (594.52 USD)]
-		const costBasis = BeancountParser.getMoneyFromTupleString(line[0]).quantity;
-		const marketValue = BeancountParser.getMoneyFromTupleString(line[1]).quantity;
-		const gainLoss = marketValue - costBasis;
+		const [cost, value] = report[0];
+		const costBasis = parseSingleAmount(cost);
+		const marketValue = parseSingleAmount(value);
+		if (!costBasis || !marketValue || costBasis.currency !== marketValue.currency) return 'n/a';
 
-		const result = `${gainLoss.toFixed(2)} ${this.currency}, ${((gainLoss / costBasis) * 100).toFixed(2)}%`;
-		return result;
+		const gainLoss = marketValue.quantity - costBasis.quantity;
+		const percent =
+			costBasis.quantity === 0 ? 'n/a' : `${((gainLoss / costBasis.quantity) * 100).toFixed(2)}%`;
+		return `${gainLoss.toFixed(2)} ${costBasis.currency}, ${percent}`;
 	}
 
 	/**
@@ -113,13 +112,11 @@ export class SecurityAnalyser {
 		return BeancountParser.getMoneyFromTupleString(line[0]).quantity;
 	}
 
-	async #getValueBalance(symbol: string, currency: string) {
+	async #getValueBalance(symbol: string, currency: string): Promise<number | undefined> {
 		const queries = getQueries();
 		const command = queries.valueBalance(symbol, currency);
 
-		const report = await this.query(command);
-
-		const line = report[0];
-		return BeancountParser.getMoneyFromTupleString(line[0]).quantity;
+		const [[balance] = []] = await this.query(command);
+		return balance == null ? undefined : BeancountParser.getMoneyFromTupleString(balance).quantity;
 	}
 }

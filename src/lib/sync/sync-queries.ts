@@ -3,35 +3,12 @@
  */
 
 export interface Queries {
-	accounts(): string;
-	openAccounts(): string;
-	balances(): string;
-	currentValues(rootAccount: string, currency: string): string;
-	lots(symbol: string): string;
-	payees(from?: string): string;
 	incomeBalance(symbol: string, yieldFrom: string, currency: string): string;
 	gainLoss(symbol: string, currency: string): string;
 	valueBalance(symbol: string, currency: string): string;
 }
 
 const BeancountQueries: Queries = {
-	/**
-	 * # is url-encoded (%23)
-	 * @returns accounts query
-	 */
-	accounts: () => 'SELECT sum(number), currency, account ORDER BY account',
-	openAccounts: () => 'SELECT account from #accounts where close is null',
-	balances: () => 'SELECT account, sum(number), currency ORDER BY account',
-	currentValues: (rootAccount: string, currency: string) =>
-		`SELECT account, str(CONVERT(value(sum(position)), '${currency}'))
-        WHERE account ~ '^${rootAccount}'
-        GROUP BY account
-        HAVING NOT empty(sum(position))
-        ORDER BY account`,
-	lots: (_symbol: string) => 'balances',
-	payees: (from: string) =>
-		`SELECT DISTINCT COALESCE(payee, narration) as payee FROM transactions \
-         WHERE date >= ${from} ORDER BY payee`,
 	/**
 	 * Income balance for symbol
 	 * @returns Income from the security.

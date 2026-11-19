@@ -1,11 +1,13 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import init, { ParsedLedger } from '@rustledger/wasm';
+import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ files: new Map<string, string>(), writes: vi.fn() }));
-vi.mock('#lib/utils/opfslib', () => ({
-	readFile: async (path: string) => state.files.get(path),
-	saveFile: async (path: string, content: string) => {
-		state.writes(path, content);
-		state.files.set(path, content);
+vi.mock('#lib/sync/journal-storage', () => ({
+	readJournal: async () => state.files.get('cashier.bean'),
+	saveJournal: async (_expected: string, content: string) => {
+		state.writes('cashier.bean', content);
+		state.files.set('cashier.bean', content);
 	}
 }));
 
@@ -13,6 +15,26 @@ import {
 	prepareLocalTransactions,
 	reconcileLocalJournalFromPaths
 } from '#lib/sync/manual-writeback';
+
+beforeAll(async () => {
+	await init({
+		module_or_path: readFileSync(
+			new URL(import.meta.resolve('@rustledger/wasm/rustledger_wasm_bg.wasm'))
+		)
+	});
+});
+
+function parsedServerIds(): string[] {
+	const parsed = new ParsedLedger(state.files.get('book.bean') ?? '');
+	try {
+		expect(parsed.getParseErrors()).toEqual([]);
+		const result = parsed.query("SELECT DISTINCT entry_meta('cashier_id') WHERE flag = '*'");
+		expect(result.errors).toEqual([]);
+		return result.rows.flatMap((row) => (typeof row[0] === 'string' && row[0] ? [row[0]] : []));
+	} finally {
+		parsed.free();
+	}
+}
 
 const generatedId = '00000000-0000-4000-8000-000000000001';
 const header = '2025-01-01 * "Cafe" "Identity ownership"';
@@ -107,7 +129,13 @@ describe('writeback transaction metadata ownership', () => {
 				`${header}\n  ${posting};keep compact comment\n    cashier_id: "local-id"\n  Expenses:Food  1 USD\n`
 			);
 
-			await reconcileLocalJournalFromPaths([], ['book.bean']);
+			await reconcileLocalJournalFromPaths([], ['book.bean'], {
+				accepted: ['local-id', 'server-id'].map((cashierId) => ({
+					cashierId,
+					rawText: local.trimEnd()
+				})),
+				confirmedIds: parsedServerIds()
+			});
 
 			expect(state.files.get('cashier.bean')).toBe(local);
 			expect(state.writes).not.toHaveBeenCalled();
@@ -124,7 +152,13 @@ describe('writeback transaction metadata ownership', () => {
 				`${header}\n  cashier_id: "server-id"\n  Expenses:Food  1 USD\n  Assets:Cash  -1 USD\n`
 			);
 
-			await reconcileLocalJournalFromPaths([], ['book.bean']);
+			await reconcileLocalJournalFromPaths([], ['book.bean'], {
+				accepted: ['local-id', 'server-id'].map((cashierId) => ({
+					cashierId,
+					rawText: local.trimEnd()
+				})),
+				confirmedIds: parsedServerIds()
+			});
 
 			expect(state.files.get('cashier.bean')).toBe(local);
 			expect(state.writes).not.toHaveBeenCalled();
@@ -178,10 +212,17 @@ ${annotation}
 			state.files.set('cashier.bean', local);
 			state.files.set(
 				'book.bean',
-				`${header}\n  ${flag}${account}  1 USD\n    cashier_id: "local-id"\n  Assets:Cash  -1 USD\n`
+				// WASM treats % as a comment, so anchor its following metadata to a real posting.
+				`${header}\n  ${flag}${account}  1 USD\n${flag === '% ' ? '  Expenses:Other  0 USD\n' : ''}    cashier_id: "local-id"\n  Assets:Cash  -1 USD\n`
 			);
 
-			await reconcileLocalJournalFromPaths([], ['book.bean']);
+			await reconcileLocalJournalFromPaths([], ['book.bean'], {
+				accepted: ['local-id', 'server-id'].map((cashierId) => ({
+					cashierId,
+					rawText: local.trimEnd()
+				})),
+				confirmedIds: parsedServerIds()
+			});
 
 			expect(state.files.get('cashier.bean')).toBe(local);
 			expect(state.writes).not.toHaveBeenCalled();
@@ -198,10 +239,138 @@ ${annotation}
 				`${header}\n  cashier_id: "server-id"\n  Expenses:Food  1 USD\n  Assets:Cash  -1 USD\n`
 			);
 
-			await reconcileLocalJournalFromPaths([], ['book.bean']);
+			await reconcileLocalJournalFromPaths([], ['book.bean'], {
+				accepted: ['local-id', 'server-id'].map((cashierId) => ({
+					cashierId,
+					rawText: local.trimEnd()
+				})),
+				confirmedIds: parsedServerIds()
+			});
 
 			expect(state.files.get('cashier.bean')).toBe(local);
 			expect(state.writes).not.toHaveBeenCalled();
 		}
 	);
+});
+
+test('preparation cannot invent transactions or insert metadata inside multiline narration', async () => {
+	const header =
+		'2026-06-01 * "Cafe" "First line\n2026-06-02 * fake transaction inside narration\n  2026-06-03 ! indented fake draft\nLast line"';
+	const source = header + '\n  Expenses:Food  3 ITEM @@ 10.01 USD\n  Assets:Cash  -10.01 USD\n';
+	state.files.set('cashier.bean', source);
+	const expected = header + `\n    cashier_id: "${generatedId}"` + source.slice(header.length);
+	expect(await prepareLocalTransactions()).toEqual([
+		{ cashierId: generatedId, rawText: expected.trimEnd() }
+	]);
+	expect(state.files.get('cashier.bean')).toBe(expected);
+	expect(await prepareLocalTransactions()).toEqual([
+		{ cashierId: generatedId, rawText: expected.trimEnd() }
+	]);
+	expect(state.writes).toHaveBeenCalledOnce();
+});
+
+test('metadata of the following directive cannot become a transaction identity', async () => {
+	const source = header + '\n  Expenses:Food  1 USD\n  Assets:Cash  -1 USD\n';
+	const tail = '\n2026-06-02 balance Assets:Cash  99 USD\n  cashier_id: "balance-id"\n';
+	state.files.set('cashier.bean', source + tail);
+	const expected = `${header}\n    cashier_id: "${generatedId}"` + source.slice(header.length);
+	expect(await prepareLocalTransactions()).toEqual([
+		{ cashierId: generatedId, rawText: expected.trimEnd() }
+	]);
+	expect(state.files.get('cashier.bean')).toBe(expected + tail);
+});
+
+test.each(postingCases)(
+	'parsed confirmation cannot promote local %s%s posting metadata',
+	async (flag, account) => {
+		const rawText = `${header}\n  ${flag}${account}  1 USD\n    cashier_id: "posting-id"\n  Assets:Cash  -1 USD`;
+		state.files.set('cashier.bean', rawText + '\n');
+		await reconcileLocalJournalFromPaths([], [], {
+			accepted: [{ cashierId: 'posting-id', rawText }],
+			confirmedIds: ['posting-id']
+		});
+		expect(state.files.get('cashier.bean')).toBe(rawText + '\n');
+		expect(state.writes).not.toHaveBeenCalled();
+	}
+);
+
+describe.each([' ', '  ', '\t'])('indented source boundaries (%j)', (indent) => {
+	const completed = `${header}\n  cashier_id: "completed-id"\n  Expenses:Food  1 USD\n  Assets:Cash  -1 USD`;
+	const draft = `${indent}2025-01-02 ! "Draft" "Keep authored source"\n    cashier_id: "draft-id"\n    Expenses:Food  2 USD\n    Assets:Cash  -2 USD`;
+	const balance = `${indent}2025-01-03 balance Assets:Cash  99 USD\n    cashier_id: "balance-id"`;
+
+	function expectParsed(source: string, types: string[]) {
+		const parsed = new ParsedLedger(source);
+		try {
+			expect(parsed.getParseErrors()).toEqual([]);
+			expect(parsed.getDirectives().map((directive) => directive.type)).toEqual(types);
+		} finally {
+			parsed.free();
+		}
+	}
+
+	test.each([
+		['draft', draft, 'transaction'],
+		['balance', balance, 'balance']
+	])('never sends or deletes an indented %s after a completed entry', async (_name, tail, type) => {
+		const source = completed + '\n' + tail + '\n';
+		expectParsed(source, ['transaction', type]);
+		state.files.set('cashier.bean', source);
+		const accepted = await prepareLocalTransactions();
+		expect(accepted).toEqual([{ cashierId: 'completed-id', rawText: completed }]);
+		expect(state.files.get('cashier.bean')).toBe(source);
+		state.files.set('book.bean', completed + '\n');
+		await reconcileLocalJournalFromPaths([], ['book.bean'], {
+			accepted,
+			confirmedIds: parsedServerIds()
+		});
+		expect(state.files.get('cashier.bean')).toBe('\n' + tail + '\n');
+	});
+
+	test('mixed draft and balance remain exact when preparation assigns a missing ID', async () => {
+		const missing = completed.replace('  cashier_id: "completed-id"\n', '');
+		const source = missing + '\n' + draft + '\n' + balance + '\n';
+		expectParsed(source, ['transaction', 'transaction', 'balance']);
+		state.files.set('cashier.bean', source);
+		const accepted = await prepareLocalTransactions();
+		const identified = missing.replace('\n', `\n    cashier_id: "${generatedId}"\n`);
+		expect(accepted).toEqual([{ cashierId: generatedId, rawText: identified }]);
+		expect(state.files.get('cashier.bean')).toBe(identified + '\n' + draft + '\n' + balance + '\n');
+		state.files.set('book.bean', identified + '\n');
+		await reconcileLocalJournalFromPaths([], ['book.bean'], {
+			accepted,
+			confirmedIds: parsedServerIds()
+		});
+		expect(state.files.get('cashier.bean')).toBe('\n' + draft + '\n' + balance + '\n');
+	});
+
+	test('prepares a standalone indented completed entry without losing source indentation', async () => {
+		const rawText = indent + completed;
+		state.files.set('cashier.bean', rawText + '\n');
+		expect(await prepareLocalTransactions()).toEqual([{ cashierId: 'completed-id', rawText }]);
+		expect(state.files.get('cashier.bean')).toBe(rawText + '\n');
+		// 0.14.1 accepts this indentation after a transaction, but not at document start.
+		const standalone = new ParsedLedger(rawText + '\n');
+		try {
+			expect(standalone.getParseErrors().length).toBeGreaterThan(0);
+		} finally {
+			standalone.free();
+		}
+	});
+
+	test('prepares and reconciles a WASM-accepted indented completed entry after a draft', async () => {
+		const prefix = draft.trimStart();
+		const rawText = indent + completed;
+		const source = prefix + '\n' + rawText + '\n';
+		expectParsed(source, ['transaction', 'transaction']);
+		state.files.set('cashier.bean', source);
+		const accepted = await prepareLocalTransactions();
+		expect(accepted).toEqual([{ cashierId: 'completed-id', rawText }]);
+		state.files.set('book.bean', completed + '\n');
+		await reconcileLocalJournalFromPaths([], ['book.bean'], {
+			accepted,
+			confirmedIds: parsedServerIds()
+		});
+		expect(state.files.get('cashier.bean')).toBe(prefix + '\n\n');
+	});
 });

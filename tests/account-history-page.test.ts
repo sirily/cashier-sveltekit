@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
 import { Account } from '#lib/data/model';
 import Page from '../src/routes/accounts/account-xacts/[accountName]/+page.svelte';
 import type { PageData } from '../src/routes/accounts/account-xacts/[accountName]/$types';
+import type { UnifiedXact } from '../src/routes/accounts/account-xacts/[accountName]/+page';
 
 const mocks = vi.hoisted(() => ({ invalidate: vi.fn() }));
 vi.mock('$app/navigation', () => ({ invalidate: mocks.invalidate, goto: vi.fn() }));
@@ -86,3 +87,97 @@ test('a late result for a previous account cannot replace the new history', asyn
 	expect(view.container.querySelector('header')?.textContent).toContain('RUB');
 	expect(view.container.querySelector('header')?.textContent).toContain('USD');
 });
+
+test.each([undefined, 'null', 'NaN', 'not a decimal'])(
+	'unresolved amount %j does not hide valid rows or render a fabricated zero',
+	async (amountText) => {
+		const result = success();
+		result.data!.unifiedRows = [false, true].map((isDevice) => ({
+			date: '2026-11-10',
+			payee: '',
+			narration: `Unresolved ${isDevice}`,
+			amount: NaN,
+			amountText,
+			currency: '',
+			isDevice
+		}));
+		result.data!.unifiedRows.push({
+			date: '2026-11-10',
+			payee: '',
+			narration: 'Valid precise row',
+			amount: 2.123456789,
+			amountText: '2.123456789',
+			currency: 'USD',
+			isDevice: false
+		});
+		const view = render(Page, {
+			data: { accountName: 'Assets:Cash', history: Promise.resolve(result) }
+		});
+		await waitFor(() => expect(view.queryByRole('status')).toBeNull());
+		expect(view.getAllByText('Amount unresolved')).toHaveLength(2);
+		for (const unresolved of view.getAllByText('Amount unresolved')) {
+			expect(unresolved.getAttribute('title')).toBe(
+				'Review the posting amount in Journal or Validation.'
+			);
+			expect(unresolved.textContent).not.toContain('0.00');
+		}
+		expect(
+			view
+				.getByText('Valid precise row')
+				.parentElement!.querySelector('data:last-child')
+				?.textContent?.replace(/\s/g, '')
+		).toBe('2.123456789USD');
+		expect(view.queryByRole('alert')).toBeNull();
+	}
+);
+
+test.each([false, true])(
+	'operation rows preserve exact units with isDevice=%s',
+	async (isDevice) => {
+		const amounts = [
+			['2.123456789', '2.123456789'],
+			['1.23456789', '1.23456789'],
+			['9007199254740993.123456789', '9,007,199,254,740,993.123456789'],
+			['-0.000000000000000001', '-0.000000000000000001'],
+			['+1234.5', '1,234.50'],
+			['12', '12.00'],
+			['0', '0.00']
+		];
+		const result = success();
+		result.data!.unifiedRows = amounts.map(([amountText], index) => ({
+			date: '2026-11-10',
+			payee: '',
+			narration: `Exact row ${index}`,
+			amount: Number(amountText),
+			amountText,
+			currency: 'USD',
+			isDevice
+		}));
+		// Existing numeric-only callers keep working without an amountText field.
+		result.data!.unifiedRows.push({
+			date: '2026-11-10',
+			payee: '',
+			narration: 'Numeric fallback',
+			amount: 1.23456789,
+			currency: 'USD',
+			isDevice
+		} satisfies UnifiedXact);
+		result.data!.hasDeviceXacts = isDevice;
+		const view = render(Page, {
+			data: { accountName: 'Assets:Cash', history: Promise.resolve(result) }
+		});
+		await waitFor(() => expect(view.queryByRole('status')).toBeNull());
+		for (const [index, [, expected]] of amounts.entries()) {
+			const row = view.getByText(`Exact row ${index}`).parentElement!;
+			expect(row.querySelector('data:last-child')?.textContent?.replace(/\s/g, '')).toBe(
+				`${expected}USD`
+			);
+		}
+		expect(
+			view
+				.getByText('Numeric fallback')
+				.parentElement!.querySelector('data:last-child')
+				?.textContent?.replace(/\s/g, '')
+		).toBe('1.23456789USD');
+	}
+);

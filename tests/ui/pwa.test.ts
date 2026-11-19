@@ -93,7 +93,12 @@ test('real worker update waits for Reload and preserves the local journal throug
 }) => {
 	const proxy = new PwaPreviewProxy();
 	const origin = await proxy.start();
-	const context = await browser.newContext({ baseURL: origin });
+	const context = await browser.newContext({
+		baseURL: origin,
+		viewport: { width: 390, height: 844 },
+		isMobile: true,
+		hasTouch: true
+	});
 	const page = await context.newPage();
 	const note = `PWA update ${Date.now()}`;
 	const originalBook = book(note);
@@ -143,6 +148,11 @@ test('real worker update waits for Reload and preserves the local journal throug
 			.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
 			.toBe(true);
 
+		await page.locator('button.fixed').click();
+		await expect(page).toHaveURL(/\/tx$/);
+		const newNote = 'Saved with an update waiting';
+		await page.getByTitle('Note', { exact: true }).fill(newNote);
+
 		const wrapperBaseline = await (await page.request.get(`${origin}/sw.js`)).text();
 		const importBaseline = await (await page.request.get(`${origin}/service-worker.js`)).text();
 		expect(importBaseline).toContain('// pwa-test-worker-baseline');
@@ -174,11 +184,20 @@ test('real worker update waits for Reload and preserves the local journal throug
 		expect(waitingState.waitingState).toBe('installed');
 		expect(waitingState.activeScript).toBe(`${origin}/sw.js`);
 		expect(waitingState.waitingScript).toBe(`${origin}/sw.js`);
+		const prompt = page.locator('.toast').filter({ hasText: 'New content available' });
+		const reload = prompt.getByRole('button', { name: 'Reload', exact: true });
+		await reload.click({ trial: true });
+		await prompt.getByRole('button', { name: 'Close', exact: true }).click({ trial: true });
+		await page.getByRole('button', { name: 'Save', exact: true }).click();
 		await expect(page).toHaveURL(/\/journal$/);
-		expect(await readLocalBook(page)).toBe(originalBook);
+		await expect(page.getByRole('main')).toContainText(newNote);
+		await expect(prompt).toBeVisible();
+		const savedBook = await readLocalBook(page);
+		expect(savedBook.startsWith(originalBook)).toBe(true);
+		expect(savedBook).toContain(newNote);
 
 		const reloaded = page.waitForEvent('load');
-		await page.getByRole('button', { name: 'Reload' }).click();
+		await reload.click();
 		await reloaded;
 		await expect(page).toHaveURL(/\/journal$/);
 		await expect(page.getByRole('main')).toContainText(note);
@@ -196,7 +215,7 @@ test('real worker update waits for Reload and preserves the local journal throug
 			)
 			.toEqual({ activeState: 'activated', waiting: false, controlled: true });
 		const finalBook = await readLocalBook(page);
-		expect(finalBook).toBe(originalBook);
+		expect(finalBook).toBe(savedBook);
 		const savedSyncToken = await page.evaluate(async () => {
 			const db = await new Promise<IDBDatabase>((resolve, reject) => {
 				const request = indexedDB.open('Cashier');

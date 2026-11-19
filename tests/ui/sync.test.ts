@@ -39,9 +39,7 @@ async function seedApp(page: Page, localTransactions: string) {
 				syncServerUrl: apiBase,
 				syncApiToken: token,
 				syncBeancountRootFile: 'main.bean',
-				syncLedgerFiles: true,
-				syncAccounts: false,
-				syncPayees: false,
+
 				ledgerCacheEnabled: false,
 				userBookFilename: 'main.bean'
 			},
@@ -52,7 +50,7 @@ async function seedApp(page: Page, localTransactions: string) {
 	await page.reload();
 	await page.goto('/sync');
 	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
-	await expect(page.getByLabel('Send → pull → reconcile')).toBeChecked();
+	await expect(page.getByRole('main').getByRole('checkbox')).toHaveCount(0);
 }
 
 async function readCashierFile(page: Page) {
@@ -68,7 +66,20 @@ async function mockServer(page: Page, options: MockOptions = {}) {
 	const acceptedById = new Map<string, string>();
 	const posts: string[][] = [];
 	const unexpectedRequests: string[] = [];
+	const requests: string[] = [];
 	let pullFailuresRemaining = options.failPullOnce ? 1 : 0;
+
+	page.on('request', (request) => {
+		if (!request.url().startsWith(`${apiBase}/`)) return;
+		const url = new URL(request.url());
+		requests.push(`${request.method()} ${url.pathname}${url.search}`);
+		if (
+			!(request.method() === 'POST' && url.pathname === '/api/xact') &&
+			!(request.method() === 'GET' && url.pathname === '/api/infrastructure')
+		) {
+			unexpectedRequests.push(`${request.method()} ${request.url()}`);
+		}
+	});
 
 	await page.route(`${apiBase}/**`, async (route) => {
 		const request = route.request();
@@ -116,7 +127,7 @@ async function mockServer(page: Page, options: MockOptions = {}) {
 		await route.abort('failed');
 	});
 
-	return { accepted, acceptedById, posts, unexpectedRequests };
+	return { accepted, acceptedById, posts, requests, unexpectedRequests };
 }
 
 async function synchronize(page: Page, expectedLocalNote?: string, expectedError?: string) {
@@ -159,7 +170,9 @@ test('mock API: completed transaction is pushed, pulled, reconciled once, and no
 		`2025-01-02 * "Cafe" "${note}"\n  Expenses:Food  12.50 USD\n  Assets:Cash  -12.50 USD\n`
 	);
 
+	expect(mock.requests).toEqual([]);
 	await synchronize(page, note);
+	expect(mock.requests).toEqual(['POST /api/xact', 'GET /api/infrastructure?file_path=main.bean']);
 	const localAfterFirstSync = await readCashierFile(page);
 	expect(localAfterFirstSync).not.toContain(note);
 	expect(mock.posts).toHaveLength(1);
@@ -182,6 +195,48 @@ test('mock API: completed transaction is pushed, pulled, reconciled once, and no
 	await page.getByRole('link', { name: 'Journal' }).click();
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 	expect(mock.unexpectedRequests).toEqual([]);
+});
+
+test('mock API: explicit full Sync with an empty batch pulls the book without reference BQL', async ({
+	page
+}) => {
+	const mock = await mockServer(page);
+	await seedApp(page, '');
+	await expect(page.getByLabel('Cashier Server URL')).toHaveValue(apiBase);
+	await expect(page.getByLabel('API token')).toHaveValue(token);
+	await expect(page.getByLabel('Remote root book file')).toHaveValue('main.bean');
+	await expect(page.getByRole('main').getByRole('checkbox')).toHaveCount(0);
+
+	await page.getByRole('link', { name: 'Journal', exact: true }).click();
+	await expect(page).toHaveURL(/\/journal$/);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/sync$/);
+	await expect(page.getByRole('button', { name: 'Synchronize' })).toBeEnabled();
+	expect(mock.requests).toEqual([]);
+
+	await synchronize(page);
+	expect(mock.posts).toEqual([]);
+	expect(mock.requests).toEqual(['GET /api/infrastructure?file_path=main.bean']);
+	expect(mock.unexpectedRequests).toEqual([]);
+	expect(await readCashierFile(page)).toBe('');
+	const downloaded = await page.evaluate(async () => {
+		const root = await navigator.storage.getDirectory();
+		const handle = await root.getFileHandle('main.bean');
+		return (await handle.getFile()).text();
+	});
+	expect(downloaded).toBe(baseBook);
+
+	const diagnostics = page.locator('.card').filter({ hasText: 'Sync diagnostics' });
+	await expect(diagnostics.getByText('Parse result', { exact: true }).locator('+ div')).toHaveText(
+		'ok'
+	);
+	await expect(
+		diagnostics.getByText('Display refresh', { exact: true }).locator('+ div')
+	).toHaveText('ok');
+	await expect(diagnostics).not.toContainText('Sync mode');
+	await expect(diagnostics).not.toContainText('Accounts');
+	await expect(diagnostics).not.toContainText('Payees');
+	await expect(page.locator('body')).not.toContainText(token);
 });
 
 test('mock API: incomplete local transaction stays local and is not sent', async ({ page }) => {
@@ -252,6 +307,12 @@ test('mock API: accepted transaction survives a failed pull and retries with the
 	expect(mock.acceptedById.size).toBe(1);
 
 	await synchronize(page, note);
+	expect(mock.requests).toEqual([
+		'POST /api/xact',
+		'GET /api/infrastructure?file_path=main.bean',
+		'POST /api/xact',
+		'GET /api/infrastructure?file_path=main.bean'
+	]);
 	expect(mock.posts).toHaveLength(2);
 	expect(mock.posts[1]).toHaveLength(1);
 	expect(mock.posts[1][0]).toContain(`cashier_id: "${firstCashierId}"`);
@@ -367,7 +428,7 @@ test('mock API: editing after accepted send and failed pull keeps the ID and sho
 test('D4 mock API: wrong token survives navigation and corrected credentials recover', async ({
 	page
 }) => {
-	await mockServer(page);
+	const mock = await mockServer(page);
 	await page.route(apiBase + '/**', async (route) => {
 		if (route.request().headers().authorization !== `Bearer ${token}`)
 			return route.fulfill({
@@ -397,6 +458,7 @@ test('D4 mock API: wrong token survives navigation and corrected credentials rec
 	await page.getByLabel('API token').blur();
 	await synchronize(page, 'Auth retry');
 	await expect(page.getByRole('alert')).toHaveCount(0);
+	expect(mock.unexpectedRequests).toEqual([]);
 });
 
 for (const reason of [
@@ -406,7 +468,7 @@ for (const reason of [
 	test(`D3 mixed mock batch retains ${reason} through navigation`, async ({ page }) => {
 		const accepted = `2025-01-02 * "Cafe" "Accepted mixed"\n  cashier_id: "mixed-ok"\n  Expenses:Food  12 USD\n  Assets:Cash  -12 USD\n`;
 		const rejected = `2025-01-03 * "Cafe" "Rejected mixed"\n  cashier_id: "mixed-rejected"\n  Expenses:Food  7 USD\n  Assets:Cash  -7 USD\n`;
-		await mockServer(page);
+		const mock = await mockServer(page);
 		await page.route(apiBase + '/xact', (route) =>
 			route.fulfill({
 				json: { synchronized: ['mixed-ok'], rejected: [{ cashier_id: 'mixed-rejected', reason }] }
@@ -427,13 +489,14 @@ for (const reason of [
 		await expect(page.getByRole('alert')).toContainText(reason);
 		await expect(page.getByRole('alert')).toContainText('mixed-rejected');
 		expect(await readCashierFile(page)).toBe(source);
+		expect(mock.unexpectedRequests).toEqual([]);
 	});
 }
 
 test('D3 delayed failure updates a remounted Sync page and next run resets it', async ({
 	page
 }) => {
-	await mockServer(page);
+	const mock = await mockServer(page);
 	let release!: () => void;
 	let requested!: () => void;
 	const started = new Promise<void>((resolve) => {
@@ -478,4 +541,5 @@ test('D3 delayed failure updates a remounted Sync page and next run resets it', 
 	await expect(page.getByRole('alert')).toHaveCount(0);
 	releaseRetry();
 	await expect.poll(() => readCashierFile(page)).not.toContain('Delayed failure');
+	expect(mock.unexpectedRequests).toEqual([]);
 });

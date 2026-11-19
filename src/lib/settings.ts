@@ -56,13 +56,6 @@ export const SettingKeys = {
 	syncBeancountRootFile: 'syncBeancountRootFile',
 	// Server source; legacy values are normalized when read.
 	ledgerDataSource: 'ledgerDataSource',
-	// synchronization choices
-	syncAccounts: 'syncAccounts',
-	syncAaValues: 'syncAaValues',
-	syncAssetAllocation: 'syncAssetAllocation',
-	syncPayees: 'syncPayees',
-	syncLedgerFiles: 'syncLedgerFiles',
-	syncOpeningBalances: 'syncOpeningBalances',
 	// Home cards
 	visibleCards: 'homeCardNames',
 	// Peer sync

@@ -8,19 +8,13 @@
 	import Notifier from '#lib/utils/notifier';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import * as SyncBeancount from '#lib/sync/sync-beancount';
-		import { syncFeedback } from '#lib/sync/sync-feedback.svelte';
+	import { syncFeedback } from '#lib/sync/sync-feedback.svelte';
 
 	import { goto } from '$app/navigation';
 
 	import { syncProgress } from '#lib/stores/syncProgressStore';
 
 	Notifier.init();
-
-	let syncAll = $state(false);
-	let syncAccounts = $state(false);
-
-	let syncPayees = $state(false);
-	let syncLedgerFiles = $state(false);
 
 	const DEFAULT_BEANCOUNT_ROOT_FILE = 'main.bean';
 
@@ -31,15 +25,6 @@
 	let rotationClass = $state('');
 	const syncStarted = $derived(diagnostics !== null);
 	let syncing = $state(false);
-
-
-	function hasSelectedSyncStep() {
-		return syncAccounts || syncPayees || syncLedgerFiles;
-	}
-
-	function recomputeSyncAll() {
-		syncAll = syncAccounts && syncPayees && syncLedgerFiles;
-	}
 
 	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
 		const trimmedUrl = rawUrl.trim();
@@ -164,12 +149,6 @@
 		syncServerUrl = storedSyncServerUrl || activeStoredServer?.url || '';
 		syncApiToken = storedSyncApiToken;
 		syncBeancountRootFile = storedRootFile;
-
-		syncAccounts = (await settings.get(SettingKeys.syncAccounts)) ?? false;
-
-		syncPayees = (await settings.get(SettingKeys.syncPayees)) ?? false;
-		syncLedgerFiles = (await settings.get<boolean>(SettingKeys.syncLedgerFiles)) ?? false;
-		recomputeSyncAll();
 	}
 
 	async function onOpfsClick() {
@@ -178,11 +157,6 @@
 	}
 
 	async function onSyncClicked() {
-		if (!hasSelectedSyncStep()) {
-			Notifier.error('Select at least one synchronization step before starting sync.');
-			return;
-		}
-
 		const validatedUrl = await persistSyncServerUrl(true);
 		if (!validatedUrl) return;
 
@@ -191,22 +165,12 @@
 
 		Notifier.info('Synchronization starting...');
 
-
 		syncing = true;
 
 		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
 
 		try {
-			const syncOptions: SyncBeancount.SyncSteps = {
-				syncAccounts,
-				syncOpeningBalances: false,
-				syncAaValues: false,
-				syncAssetAllocation: false,
-				syncPayees,
-				syncLedgerFiles
-			};
-
-			const syncResult = await SyncBeancount.synchronize(syncOptions);
+			const syncResult = await SyncBeancount.synchronize();
 
 			if (!syncResult) {
 				throw new Error(
@@ -215,11 +179,7 @@
 				);
 			}
 
-			Notifier.success(
-				!syncOptions.syncLedgerFiles
-					? 'Metadata synchronization completed successfully.'
-					: 'Synchronization completed successfully!'
-			);
+			Notifier.success('Synchronization completed successfully!');
 			rotationClass = '';
 			syncing = false;
 		} catch (error: any) {
@@ -228,15 +188,6 @@
 			console.error(error);
 			Notifier.error(error.message);
 		}
-	}
-
-
-	async function saveSettings() {
-		recomputeSyncAll();
-		await settings.set(SettingKeys.syncAccounts, syncAccounts);
-
-		await settings.set(SettingKeys.syncPayees, syncPayees);
-		await settings.set(SettingKeys.syncLedgerFiles, syncLedgerFiles);
 	}
 
 	async function saveSyncServerUrl() {
@@ -252,18 +203,6 @@
 		syncBeancountRootFile = normalizeRootBookPath(syncBeancountRootFile);
 		await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile);
 	}
-
-	async function toggleAllCheckboxes(checked: boolean) {
-		syncAll = checked;
-		syncAccounts = checked;
-		syncPayees = checked;
-		syncLedgerFiles = checked;
-		await saveSettings();
-	}
-
-	function onToggleAllChange(event: Event) {
-		toggleAllCheckboxes((event.currentTarget as HTMLInputElement).checked);
-	}
 </script>
 
 <Toolbar title="Server synchronization">
@@ -276,8 +215,7 @@
 	<div class="card bg-base-100 border border-base-300 shadow-sm">
 		<div class="card-body gap-3 p-4">
 			<p>
-				Configure your Python Beancount server. Nothing is synchronized until you choose an action
-				below.
+				Configure your Python Beancount server. Nothing is synchronized until you press Synchronize.
 			</p>
 			<label class="form-control w-full">
 				<div class="label"><span class="label-text">Cashier Server URL</span></div>
@@ -329,107 +267,47 @@
 	{/snippet}
 
 	<p>
-		Enable “Send → pull → reconcile” to send completed local entries, download and validate the
-		server book, then remove only confirmed local copies. Leave it off to synchronize selected
-		accounts and payees only, without sending entries or replacing the book.
+		Synchronize sends completed local entries, downloads and validates the server book, then removes
+		only confirmed local copies and refreshes the displayed book.
 	</p>
 
 	<table class="table table-zebra w-full table-raised border border-base-300 rounded-xl">
 		<thead>
 			<tr>
-				<th class="w-0.5">
-					<input
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncAll}
-						onchange={onToggleAllChange}
-					/>
-				</th>
-				<th>Data type</th>
-				{#if syncStarted}<th class="w-0.5"></th>{/if}
+				<th>Send → pull → reconcile</th>
+				{#if syncStarted}<th class="w-0.5">Status</th>{/if}
 			</tr>
 		</thead>
 		<tbody>
 			<tr>
-				<td>
-					<input
-						id="sync-accounts"
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncAccounts}
-						onchange={saveSettings}
-					/>
-				</td>
-				<td>
-					<label for="sync-accounts" class="block cursor-pointer py-3">Accounts</label>
-				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 1)?.status)}</td
+				<td>Send completed local transactions</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 0)?.status)}</td
 					>{/if}
 			</tr>
-
 			<tr>
-				<td>
-					<input
-						id="sync-payees"
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncPayees}
-						onchange={saveSettings}
-					/>
-				</td>
-				<td>
-					<label for="sync-payees" class="block cursor-pointer py-3">Payees</label>
-				</td>
-				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 5)?.status)}</td
-					>{/if}
-			</tr>
-
-			<tr>
-				<td>
-					<input
-						id="sync-ledger-files"
-						class="checkbox checkbox-primary rounded"
-						type="checkbox"
-						bind:checked={syncLedgerFiles}
-						onchange={saveSettings}
-					/>
-				</td>
-				<td>
-					<label for="sync-ledger-files" class="block cursor-pointer py-3"
-						>Send → pull → reconcile</label
-					>
-				</td>
+				<td>Download server book</td>
 				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 6)?.status)}</td
 					>{/if}
 			</tr>
-			{#if syncLedgerFiles}
+			<tr>
+				<td>Select downloaded root book</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 7)?.status)}</td
+					>{/if}
+			</tr>
+			<tr>
+				<td>Validate downloaded server book</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 8)?.status)}</td
+					>{/if}
+			</tr>
+			<tr>
+				<td>Reconcile local journal</td>
+				{#if syncStarted}<td>{@render statusIcon($syncProgress.find((s) => s.id === 9)?.status)}</td
+					>{/if}
+			</tr>
+			{#if diagnostics}
 				<tr>
-					<td></td>
-					<td>Send completed local transactions</td>
-					{#if syncStarted}<td
-							>{@render statusIcon($syncProgress.find((s) => s.id === 0)?.status)}</td
-						>{/if}
-				</tr>
-				<tr>
-					<td></td>
-					<td>Select downloaded root book</td>
-					{#if syncStarted}<td
-							>{@render statusIcon($syncProgress.find((s) => s.id === 7)?.status)}</td
-						>{/if}
-				</tr>
-				<tr>
-					<td></td>
-					<td>Validate downloaded server book</td>
-					{#if syncStarted}<td
-							>{@render statusIcon($syncProgress.find((s) => s.id === 8)?.status)}</td
-						>{/if}
-				</tr>
-				<tr>
-					<td></td>
-					<td>Reconcile local journal</td>
-					{#if syncStarted}<td
-							>{@render statusIcon($syncProgress.find((s) => s.id === 9)?.status)}</td
-						>{/if}
+					<td>Refresh displayed book</td>
+					<td>{diagnostics.refreshResult ?? '-'}</td>
 				</tr>
 			{/if}
 		</tbody>
@@ -454,7 +332,8 @@
 					{#each diagnostics.syncErrors as error, i (`${error.stage}:${error.message}:${i}`)}
 						<li>
 							<span class="font-medium">{error.stage}:</span>
-							{#if error.cashierId}<code>{error.cashierId}</code> — {/if}
+							{#if error.cashierId}<code>{error.cashierId}</code> —
+							{/if}
 							{error.message}
 						</li>
 					{/each}
@@ -468,12 +347,6 @@
 			<div class="card-body p-4">
 				<h2 class="card-title">Sync diagnostics</h2>
 				<div class="grid grid-cols-2 gap-2 text-sm">
-					<div>Sync mode</div>
-					<div>{diagnostics.syncMode ?? '-'}</div>
-					<div>Accounts</div>
-					<div>{diagnostics.accountsCount ?? '-'}</div>
-					<div>Payees</div>
-					<div>{diagnostics.payeesCount ?? '-'}</div>
 					<div>Ledger files</div>
 					<div>{diagnostics.ledgerFilesCount ?? '-'}</div>
 					<div>Selected root book</div>
@@ -484,6 +357,8 @@
 					<div>{diagnostics.parseResult ?? '-'}</div>
 					<div>Parse errors</div>
 					<div>{diagnostics.parseErrorCount ?? '-'}</div>
+					<div>Display refresh</div>
+					<div>{diagnostics.refreshResult ?? '-'}</div>
 					{#if diagnostics.lastError}
 						<div>Last error</div>
 						<div class="break-words">{diagnostics.lastError}</div>
@@ -500,5 +375,4 @@
 			</div>
 		</div>
 	{/if}
-
 </main>
