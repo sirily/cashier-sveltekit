@@ -8,42 +8,37 @@ One-button writeback of PWA-created manual transactions pushes completed entries
 
 ## Requirements
 
-### Requirement: One-Button Sync Operation
+### Requirement: Writeback in Explicit Full Sync
 
-When ledger-file synchronization is enabled, the system SHALL perform writeback within the
-existing explicit Sync action in the order push (`POST /api/xact`), pull, reconcile.
-Selected reference-data stages can precede this sequence; they SHALL NOT reorder its
-writeback phases. Writeback SHALL use this explicit Sync action, not a second permanent
-writeback button or a hidden background write loop.
+The system SHALL perform writeback within the existing explicit Sync action in the order push (`POST /api/xact`), pull, reconcile. Writeback SHALL use this explicit Sync action, not a second permanent writeback button or a hidden background write loop.
 
 #### Scenario: Full cycle
 
-- **WHEN** the user presses the Sync button with ledger-file synchronization enabled and
-  completed local transactions present
-- **THEN** the system attempts to push eligible local transactions before pulling the full
-  ledger and reconciling confirmed overlays within the same visible operation
-- **AND** reference-data steps may run before writeback without changing this relative order
-
-#### Scenario: Metadata-only synchronization
-
-- **WHEN** the user synchronizes reference data with ledger-file synchronization disabled
-- **THEN** the system does not push local transactions, pull ledger files, or reconcile
-  local overlays as part of that operation
-- **AND** the local journal remains unchanged by writeback
+- **WHEN** the user presses the Sync button with completed local transactions present
+- **THEN** the system attempts to push eligible local transactions before pulling and validating the full server book
 
 #### Scenario: No pending transactions
 
-- **WHEN** ledger-file synchronization is enabled but no completed local transactions are
-  eligible for sending
+- **WHEN** no completed local transactions are eligible for sending
 - **THEN** the system skips `POST /api/xact` and continues the full-ledger pull and parse
 - **AND** it does not manufacture transactions or send an empty writeback request
 
 #### Scenario: Send failure does not suppress pull
 
-- **WHEN** transaction preparation or the POST attempt fails during a ledger-file Sync
+- **WHEN** transaction preparation or the POST attempt fails during Sync
 - **THEN** the system records the send failure and still attempts the full-ledger pull
-- **AND** subsequent reconciliation obeys the confirmation and unresolved-outcome safeguards
-  rather than treating a successful pull as proof that sending succeeded
+- **AND** subsequent reconciliation obeys the confirmation and unresolved-outcome safeguards rather than treating a successful pull as proof that sending succeeded
+
+#### Scenario: Mixed drafts and exact total prices
+
+- **GIVEN** the local journal contains a completed transaction with an exact `@@` total
+  and an incomplete `!` transaction
+- **WHEN** full Sync prepares, sends, pulls, validates, and reconciles the entries
+- **THEN** only the completed transaction is sent, with its exact authored total-price value
+  rather than a reconstructed rounded unit price
+- **AND** the `!` entry remains local and unchanged by writeback
+- **AND** retry uses the same persisted `cashier_id` and content
+- **AND** safe confirmation removes only the completed local copy without creating another transaction
 
 ### Requirement: Stable Transaction Identity
 

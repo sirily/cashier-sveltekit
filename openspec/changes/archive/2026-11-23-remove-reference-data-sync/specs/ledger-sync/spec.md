@@ -2,27 +2,6 @@
 
 ## MODIFIED Requirements
 
-### Requirement: Server Ledger Pull
-
-The system SHALL pull the authoritative Beancount book from the configured server for offline use through explicit Sync. Account and payee lists SHALL be derived from the locally available book composition. `main.bean` SHALL be the default remote root, not a restriction on configured root names.
-
-#### Scenario: Successful pull
-
-- **WHEN** the user starts Sync against a reachable configured server
-- **THEN** the book is stored locally
-- **AND** the downloaded root is selected only as part of a successful book update
-- **AND** each stage has a visible outcome
-
-#### Scenario: Configured remote root
-
-- **WHEN** the user configures a supported root such as `books/personal.bean` and synchronizes it
-- **THEN** that root, rather than an assumed `main.bean`, determines the downloaded book and its selected local root
-
-#### Scenario: Server unavailable
-
-- **WHEN** a selected stage cannot obtain its data because the server is unreachable or returns an error
-- **THEN** the failed stage is reported and its previously usable local data is preserved
-
 ### Requirement: Read-Only Pull Boundary
 
 The pull stages SHALL only read the server book. Server transaction writes SHALL occur exclusively through manual-transaction writeback, never through pull, report queries, local editing, or snapshot repair. The server book SHALL remain authoritative for already synchronized transactions.
@@ -78,7 +57,30 @@ Protected Cashier API requests SHALL use the locally configured `Authorization: 
 - **THEN** the new attempt uses the corrected credential
 - **AND** it retries pending entries with their existing identities rather than generating replacement transactions
 
-### Requirement: Sync Diagnostics And Offline Continuity
+## ADDED Requirements
+
+### Requirement: Full Server Book Pull
+
+The system SHALL pull the authoritative Beancount book from the configured server for offline use through explicit Sync. Account and payee lists SHALL be derived from the locally available book composition. `main.bean` SHALL be the default remote root, not a restriction on configured root names.
+
+#### Scenario: Successful pull
+
+- **WHEN** the user starts Sync against a reachable configured server
+- **THEN** the book is stored locally
+- **AND** the downloaded root is selected only as part of a successful book update
+- **AND** each stage has a visible outcome
+
+#### Scenario: Configured remote root
+
+- **WHEN** the user configures a supported root such as `books/personal.bean` and synchronizes it
+- **THEN** that root, rather than an assumed `main.bean`, determines the downloaded book and its selected local root
+
+#### Scenario: Server unavailable
+
+- **WHEN** a selected stage cannot obtain its data because the server is unreachable or returns an error
+- **THEN** the failed stage is reported and its previously usable local data is preserved
+
+### Requirement: Full Sync Diagnostics and Offline Continuity
 
 The system SHALL expose per-stage synchronization results and distinguish validated server-book success, pending writeback, and display-refresh failure. Failed synchronization SHALL NOT require clearing site data or reinstalling the PWA to retain access to local transactions and the last usable book.
 
@@ -99,3 +101,15 @@ The system SHALL expose per-stage synchronization results and distinguish valida
 - **WHEN** the installed app is updated without an explicit user request to delete data
 - **THEN** synchronization recovery does not require clearing IndexedDB, OPFS, or unsent transactions
 - **AND** the user can retry failed synchronization against the retained device state
+
+## REMOVED Requirements
+
+### Requirement: Server Ledger Pull
+
+**Reason**: Sync no longer offers separate account and payee requests or a reference-only mode.
+**Migration**: Use Full Server Book Pull. Account and payee lists come from the locally available book composition.
+
+### Requirement: Sync Diagnostics And Offline Continuity
+
+**Reason**: Separate reference-stage outcomes no longer exist.
+**Migration**: Use Full Sync Diagnostics and Offline Continuity for the retained Sync outcomes and offline guarantees.

@@ -1,8 +1,8 @@
 # Spec Delta
 
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: One-Button Sync Operation
+### Requirement: Writeback in Explicit Full Sync
 
 The system SHALL perform writeback within the existing explicit Sync action in the order push (`POST /api/xact`), pull, reconcile. Writeback SHALL use this explicit Sync action, not a second permanent writeback button or a hidden background write loop.
 
@@ -23,16 +23,20 @@ The system SHALL perform writeback within the existing explicit Sync action in t
 - **THEN** the system records the send failure and still attempts the full-ledger pull
 - **AND** subsequent reconciliation obeys the confirmation and unresolved-outcome safeguards rather than treating a successful pull as proof that sending succeeded
 
-* #### Scenario: Mixed drafts and exact total prices
-*
-* GIVEN the local journal contains a completed transaction
-* with an exact `@@` total and an incomplete `!` transaction
-* WHEN full Sync prepares, sends, pulls, validates,
-* and reconciles the entries
-* THEN only the completed transaction is sent,
-* with its exact authored total-price value rather than
-* a reconstructed rounded unit price
-* AND the `!` entry remains local and unchanged by writeback
-* AND retry uses the same persisted `cashier_id` and content,
-* and safe confirmation removes only the completed local copy
-* without creating another transaction
+#### Scenario: Mixed drafts and exact total prices
+
+- **GIVEN** the local journal contains a completed transaction with an exact `@@` total
+  and an incomplete `!` transaction
+- **WHEN** full Sync prepares, sends, pulls, validates, and reconciles the entries
+- **THEN** only the completed transaction is sent, with its exact authored total-price value
+  rather than a reconstructed rounded unit price
+- **AND** the `!` entry remains local and unchanged by writeback
+- **AND** retry uses the same persisted `cashier_id` and content
+- **AND** safe confirmation removes only the completed local copy without creating another transaction
+
+## REMOVED Requirements
+
+### Requirement: One-Button Sync Operation
+
+**Reason**: Writeback is no longer gated by a ledger-file selection, and reference-only Sync has been retired.
+**Migration**: Use Writeback in Explicit Full Sync, which retains the send, pull, and reconciliation sequence.
