@@ -14,7 +14,6 @@
 	import LandmarkIcon from '@lucide/svelte/icons/landmark';
 	import ScrollIcon from '@lucide/svelte/icons/scroll';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
-	import StarIcon from '@lucide/svelte/icons/star';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import ContainerIcon from '@lucide/svelte/icons/container';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
@@ -117,19 +116,6 @@
 								<span>Account Tree</span>
 							</a>
 						</li>
-						<li>
-							<a
-								href={resolve('/favourites')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/favourites'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<StarIcon />
-								<span>Favourites</span>
-							</a>
-						</li>
-
 						<li>
 							<a
 								href={resolve('/accounts')}

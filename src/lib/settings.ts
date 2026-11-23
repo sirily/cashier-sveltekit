@@ -48,7 +48,6 @@ export const SettingKeys = {
 
 	currency: 'currency',
 	rememberLastTransaction: 'rememberLastTransaction',
-	favouriteAccounts: 'favouriteAccounts',
 
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
@@ -78,7 +77,7 @@ export const SettingKeys = {
 };
 
 export const CardNames = {
-	FavouritesCard: 'FavouritesCard',
+	AccountGroupsCard: 'AccountGroupsCard',
 
 	JournalCard: 'JournalCard',
 

@@ -3,7 +3,6 @@
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import {
 		checkForUpdate,
-		getInstalledBuildTimestamp,
 		needRefresh,
 		updateApp,
 		type UpdateCheckResult
@@ -12,11 +11,6 @@
 
 	let checking = $state(false);
 	let updateResult = $state<UpdateCheckResult | undefined>(undefined);
-	let installedBuild = $state<string | undefined>(undefined);
-
-	$effect(() => {
-		void getInstalledBuildTimestamp().then((timestamp) => (installedBuild = timestamp));
-	});
 
 	async function checkForUpdates() {
 		checking = true;
@@ -59,7 +53,7 @@
 
 		<h3 class="text-3xl font-semibold">Version</h3>
 		<p>
-			Build: <code>{installedBuild ?? __BUILD_TIMESTAMP__}</code>
+			<code>{__BUILD_VERSION__}</code>
 		</p>
 		<p>
 			<button

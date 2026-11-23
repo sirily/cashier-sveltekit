@@ -292,11 +292,15 @@ test('retired schedule action and navigation leave manual journal data intact', 
 });
 
 for (const { name, saved, visible } of [
-	{ name: 'missing setting', saved: null, visible: ['FavouritesCard', 'JournalCard', 'SyncCard'] },
+	{
+		name: 'missing setting',
+		saved: null,
+		visible: ['AccountGroupsCard', 'JournalCard', 'SyncCard']
+	},
 	{
 		name: 'upgraded order',
 		saved: ['SyncCard', 'ForecastCard', 'JournalCard', 'ScheduledXactCard', 'FavouritesCard'],
-		visible: ['SyncCard', 'JournalCard', 'FavouritesCard']
+		visible: ['SyncCard', 'JournalCard', 'AccountGroupsCard']
 	},
 	{ name: 'explicit empty', saved: [], visible: [] },
 	{ name: 'filtered empty', saved: ['ForecastCard', 'ScheduledXactCard'], visible: [] }
@@ -327,7 +331,7 @@ for (const { name, saved, visible } of [
 		const observations = await watchRetiredIngress(page);
 		const before = await readStoredData(page);
 		const titles: Record<string, string> = {
-			FavouritesCard: 'Favourites',
+			AccountGroupsCard: 'Account Groups',
 			JournalCard: 'Device Journal',
 			SyncCard: 'Server Sync'
 		};
@@ -335,17 +339,19 @@ for (const { name, saved, visible } of [
 			await page.goto(path);
 			for (let attempt = 0; attempt < 2; attempt++) {
 				if (path === '/') {
-					await expect(page.locator('.card-body > div > span.grow')).toHaveText(
-						visible.map((card) => titles[card])
-					);
+					await expect(
+						page.locator('section.container > article.card > .card-body > div > span.grow')
+					).toHaveText(visible.map((card) => titles[card]));
 				} else if (path === '/home-settings') {
 					const checkboxes = page.locator('section input[type="checkbox"]');
 					await expect(checkboxes).toHaveCount(3);
-					for (const [index, card] of ['FavouritesCard', 'JournalCard', 'SyncCard'].entries()) {
+					for (const [index, card] of ['AccountGroupsCard', 'JournalCard', 'SyncCard'].entries()) {
 						await expect(checkboxes.nth(index)).toBeChecked({ checked: visible.includes(card) });
 					}
 				} else {
-					await expect(page.locator('[data-item]')).toHaveText(visible);
+					await expect(page.locator('[data-item]')).toHaveText(
+						visible.map((card) => (card === 'AccountGroupsCard' ? 'Account Groups' : card))
+					);
 				}
 				expect(await readStoredData(page)).toEqual(before);
 				if (attempt === 0) await page.reload();
@@ -478,7 +484,11 @@ const retiredLocalPaths = [
 	'/restore/arbitrary-item',
 	'/settings/json-editor',
 	'/opfs/sync',
+	'/settings/beancount',
 	'/settings/filesystem',
+	'/favourites',
+	'/favourites/delete',
+	'/favourites/reorder',
 	'/scheduled-xacts',
 	'/scheduled-xacts/calendar',
 	'/scx-editor',
@@ -980,7 +990,7 @@ for (const partial of [false, true]) {
 	});
 }
 
-test('drawer and home card both open server Sync and expose no filesystem links', async ({
+test('drawer and home card both open Sync settings and expose no filesystem links', async ({
 	page
 }) => {
 	await seedStoredData(page);
@@ -988,8 +998,10 @@ test('drawer and home card both open server Sync and expose no filesystem links'
 	const observations = await watchRetiredIngress(page);
 	const before = await readStoredData(page);
 	await page.goto('/');
-	const cardLink = page.getByRole('main').getByRole('link', { name: 'Server Sync', exact: true });
+	const cardLink = page.getByRole('main').getByRole('link', { name: 'Sync settings', exact: true });
 	await expect(cardLink).toHaveAttribute('href', '/sync');
+	await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'New transaction', exact: true })).toBeVisible();
 	await page.locator('main .navbar button').first().click();
 	await expect(page.locator('#drawer-modal')).toBeChecked();
 	const drawer = page.locator('.drawer-side');

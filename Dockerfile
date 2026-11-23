@@ -7,7 +7,8 @@ COPY .npmrc ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+ARG CASHIER_BUILD_VERSION
+RUN CASHIER_BUILD_VERSION="$CASHIER_BUILD_VERSION" npm run build
 
 FROM caddy:2-alpine
 

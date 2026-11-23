@@ -40,13 +40,15 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const defaults = ['FavouritesCard', 'JournalCard', 'SyncCard'];
+const defaults = ['AccountGroupsCard', 'JournalCard', 'SyncCard'];
+const reorderLabels = (cards: string[]) =>
+	cards.map((card) => (card === 'AccountGroupsCard' ? 'Account Groups' : card));
 const cases: Array<{ name: string; saved: string[] | null; visible: string[] }> = [
 	{ name: 'fresh installation', saved: null, visible: defaults },
 	{
 		name: 'upgrade retaining saved order',
 		saved: ['SyncCard', 'ForecastCard', 'JournalCard', 'ScheduledXactCard', 'FavouritesCard'],
-		visible: ['SyncCard', 'JournalCard', 'FavouritesCard']
+		visible: ['SyncCard', 'JournalCard', 'AccountGroupsCard']
 	},
 	{ name: 'explicit empty list', saved: [], visible: [] },
 	{ name: 'filtered-to-empty list', saved: ['ForecastCard', 'ScheduledXactCard'], visible: [] }
@@ -61,13 +63,17 @@ for (const { name, saved, visible } of cases) {
 		const home = render(Home);
 		await tick();
 		await waitFor(() =>
-			expect(home.container.querySelectorAll('article.card')).toHaveLength(visible.length)
+			expect(home.container.querySelectorAll('section.container > article.card')).toHaveLength(
+				visible.length
+			)
 		);
-		const titles = Array.from(home.container.querySelectorAll('.card-body > div > span.grow')).map(
-			(element) => element.textContent?.trim()
-		);
+		const titles = Array.from(
+			home.container.querySelectorAll(
+				'section.container > article.card > .card-body > div > span.grow'
+			)
+		).map((element) => element.textContent?.trim());
 		const titleByCard: Record<string, string> = {
-			FavouritesCard: 'Favourites',
+			AccountGroupsCard: 'Account Groups',
 			JournalCard: 'Device Journal',
 			SyncCard: 'Server Sync'
 		};
@@ -82,6 +88,7 @@ for (const { name, saved, visible } of cases) {
 				defaults.map((card) => visible.includes(card))
 			);
 		});
+		expect(settings.queryByText('Favourites')).toBeNull();
 		expect(settings.queryByText('Financial Forecast')).toBeNull();
 		expect(settings.queryByText('Scheduled Transactions')).toBeNull();
 		settings.unmount();
@@ -90,7 +97,7 @@ for (const { name, saved, visible } of cases) {
 		await tick();
 		await waitFor(() =>
 			expect(reorder.queryAllByRole('listitem').map((row) => row.textContent?.trim())).toEqual(
-				visible
+				reorderLabels(visible)
 			)
 		);
 		expect(mocks.set).not.toHaveBeenCalled();
@@ -99,12 +106,13 @@ for (const { name, saved, visible } of cases) {
 	});
 }
 
-test('normalization removes only the two literal names, preserving duplicates and unknown values', async () => {
+test('normalization replaces Favourites in place, preserving other supported and unknown entries', async () => {
 	const saved = [
 		'SyncCard',
 		'ForecastCard',
 		'OtherCard',
 		'forecastcard',
+		'FavouritesCard',
 		'SyncCard',
 		'ScheduledXactCard'
 	];
@@ -113,6 +121,7 @@ test('normalization removes only the two literal names, preserving duplicates an
 		'SyncCard',
 		'OtherCard',
 		'forecastcard',
+		'AccountGroupsCard',
 		'SyncCard'
 	]);
 	expect(saved).toContain('ForecastCard');
@@ -136,7 +145,7 @@ for (const { name, saved, visible } of cases) {
 					);
 				} else {
 					expect(view.queryAllByRole('listitem').map((row) => row.textContent?.trim())).toEqual(
-						visible
+						reorderLabels(visible)
 					);
 				}
 			});

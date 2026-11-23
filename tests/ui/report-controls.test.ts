@@ -39,7 +39,6 @@ async function seedBook(page: Page) {
 				userBookFilename: 'main.bean',
 				currency: 'USD',
 				ledgerCacheEnabled: false,
-				favouriteAccounts: ['Assets:Cash'],
 				accountGroups: [{ title: 'Cash accounts', accounts: ['Assets:Cash'] }]
 			})) {
 				transaction.objectStore('settings').put({ key, value: JSON.stringify(value) });
@@ -139,7 +138,7 @@ test('BQL results preserve duplicate column names and update subsequent results'
 	await expect(errors).toEqual([]);
 });
 
-for (const route of ['/favourites', '/accounts/groups']) {
+for (const route of ['/', '/accounts/groups']) {
 	test(`account balance keyboard controls do not navigate on ${route}`, async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (error) => errors.push(error.message));
@@ -150,6 +149,14 @@ for (const route of ['/favourites', '/accounts/groups']) {
 		const balance = row.getByRole('button', { name: /USD.*…/ });
 		await expect(balance).toBeVisible();
 		await expect(row).not.toContainText('EUR');
+		if (route === '/') {
+			await expect(page.getByText('Account Groups', { exact: true })).toBeVisible();
+			await expect(page.getByText('Cash accounts', { exact: true })).toBeVisible();
+			await expect(page.getByRole('link', { name: 'Manage account groups' })).toHaveAttribute(
+				'href',
+				'/accounts/groups'
+			);
+		}
 		await balance.focus();
 		await page.keyboard.press('Enter');
 		await expect(page).toHaveURL(route);

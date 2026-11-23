@@ -7,7 +7,7 @@
 	import { SettingKeys, settings } from '#lib/settings';
 	import Notifier from '#lib/utils/notifier';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
-	import * as SyncBeancount from '#lib/sync/sync-beancount';
+	import { parseSyncServerUrl, syncAction } from '#lib/sync/sync-action.svelte';
 	import { syncFeedback } from '#lib/sync/sync-feedback.svelte';
 
 	import { goto } from '$app/navigation';
@@ -22,38 +22,7 @@
 	let syncApiToken = $state('');
 	let syncBeancountRootFile = $state('');
 	const diagnostics = $derived(syncFeedback.diagnostics);
-	let rotationClass = $state('');
 	const syncStarted = $derived(diagnostics !== null);
-	let syncing = $state(false);
-
-	function validateSyncServerUrl(rawUrl: string, notifyOnError = false) {
-		const trimmedUrl = rawUrl.trim();
-
-		if (!trimmedUrl) {
-			if (notifyOnError) {
-				Notifier.error('Cashier Server URL is required for synchronization.');
-			}
-			return null;
-		}
-
-		try {
-			const url = new URL(trimmedUrl);
-
-			if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-				if (notifyOnError) {
-					Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
-				}
-				return null;
-			}
-
-			return url.toString();
-		} catch {
-			if (notifyOnError) {
-				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
-			}
-			return null;
-		}
-	}
 
 	type SyncServerEntry = {
 		id: string;
@@ -107,7 +76,7 @@
 
 		if (!trimmedUrl) {
 			if (notifyOnError) {
-				validateSyncServerUrl(trimmedUrl, true);
+				Notifier.error('Cashier Server URL is required for synchronization.');
 				return null;
 			}
 			await settings.set(SettingKeys.syncServerUrl, null);
@@ -116,8 +85,11 @@
 			return null;
 		}
 
-		const validatedUrl = validateSyncServerUrl(trimmedUrl, notifyOnError);
+		const validatedUrl = parseSyncServerUrl(trimmedUrl);
 		if (!validatedUrl) {
+			if (notifyOnError) {
+				Notifier.error('Cashier Server URL must be an absolute http:// or https:// URL.');
+			}
 			return null;
 		}
 
@@ -144,8 +116,7 @@
 		const activeStoredServer = activeSyncServerId
 			? (syncServers.find((entry) => entry.id === activeSyncServerId) ?? null)
 			: null;
-		// `/sync` is the active server configuration UI, so it reads and writes the
-		// canonical `syncServerUrl` directly instead of the dormant multi-server settings route.
+		// Prefer the saved URL; use the legacy selection only to prefill a missing URL.
 		syncServerUrl = storedSyncServerUrl || activeStoredServer?.url || '';
 		syncApiToken = storedSyncApiToken;
 		syncBeancountRootFile = storedRootFile;
@@ -157,37 +128,11 @@
 	}
 
 	async function onSyncClicked() {
-		const validatedUrl = await persistSyncServerUrl(true);
-		if (!validatedUrl) return;
-
-		syncBeancountRootFile = normalizeRootBookPath(syncBeancountRootFile);
-		await settings.set(SettingKeys.syncBeancountRootFile, syncBeancountRootFile);
-
-		Notifier.info('Synchronization starting...');
-
-		syncing = true;
-
-		rotationClass = rotationClass == '' ? 'animate-[spin_2s_linear_infinite]' : '';
-
-		try {
-			const syncResult = await SyncBeancount.synchronize();
-
-			if (!syncResult) {
-				throw new Error(
-					diagnostics?.lastError ??
-						'Synchronization failed. Please check the logs for more details.'
-				);
-			}
-
-			Notifier.success('Synchronization completed successfully!');
-			rotationClass = '';
-			syncing = false;
-		} catch (error: any) {
-			rotationClass = '';
-			syncing = false;
-			console.error(error);
-			Notifier.error(error.message);
-		}
+		await syncAction.run(async () => {
+			if (!(await persistSyncServerUrl(true))) return false;
+			await saveBeancountRootFile();
+			return true;
+		});
 	}
 
 	async function saveSyncServerUrl() {
@@ -317,9 +262,10 @@
 		<button
 			class="btn bg-accent text-secondary rounded uppercase"
 			onclick={onSyncClicked}
-			disabled={syncing}
+			disabled={syncAction.running}
+			aria-busy={syncAction.running}
 		>
-			<span><RefreshCcw class={rotationClass} style="animation-direction: reverse;" /></span>
+			<RefreshCcw class={syncAction.running ? 'motion-safe:animate-spin' : ''} />
 			<span>Synchronize</span>
 		</button>
 	</center>

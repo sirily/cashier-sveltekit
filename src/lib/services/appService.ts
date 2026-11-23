@@ -91,11 +91,11 @@ class AppService {
 	async getVisibleCards(): Promise<string[]> {
 		const visibleCardNames = await settings.get<string[]>(SettingKeys.visibleCards);
 		if (visibleCardNames === null) {
-			return [HomeCardNames.FAVOURITES, HomeCardNames.JOURNAL, HomeCardNames.SYNC];
+			return [HomeCardNames.ACCOUNT_GROUPS, HomeCardNames.JOURNAL, HomeCardNames.SYNC];
 		}
-		return visibleCardNames.filter(
-			(name) => name !== 'ForecastCard' && name !== 'ScheduledXactCard'
-		);
+		return visibleCardNames
+			.filter((name) => name !== 'ForecastCard' && name !== 'ScheduledXactCard')
+			.map((name) => (name === 'FavouritesCard' ? HomeCardNames.ACCOUNT_GROUPS : name));
 	}
 
 	/**
@@ -242,40 +242,6 @@ class AppService {
 
 		// return txs;
 	}
-
-	/**
-	 * Loads the favourite accounts.
-	 * @returns {Array} List of Account records which are marked as Favourites.
-	 */
-	// async loadFavouriteAccounts(): Promise<Account[]> {
-	// 	const favArray = await settings.get<string[]>(SettingKeys.favouriteAccounts);
-	// 	if (!favArray) {
-	// 		console.warn('No favourite accounts found.');
-	// 		return [];
-	// 	}
-
-	// 	// load account details
-	// 	const accounts: Account[] = await db.accounts.bulkGet(favArray);
-
-	// 	// Handle any accounts that have not been found.
-	// 	// Keep them in the list. They should be grayed out.
-	// 	for (let i = 0; i < accounts.length; i++) {
-	// 		let account = accounts[i];
-	// 		if (account === undefined) {
-	// 			// the account has been removed but the Favourites record exists.
-	// 			console.warn('Account marked as favourite but not found in Accounts.');
-
-	// 			account = new Account(favArray[i]);
-	// 			account.exists = false;
-	// 			accounts[i] = account;
-
-	// 			// accounts.splice(i, 1)
-	// 			// i--
-	// 		}
-	// 	}
-
-	// 	return accounts;
-	// }
 
 	// saveAccount(account: Account) {
 	// 	return db.accounts.put(account);

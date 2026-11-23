@@ -6,8 +6,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 import type { UserConfig } from 'vite';
+import packageJson from './package.json' with { type: 'json' };
 
 const BUILD_TIMESTAMP = new Date().toISOString();
+const BUILD_VERSION = process.env.CASHIER_BUILD_VERSION?.trim() || `v${packageJson.version} (dev)`;
 
 function staticRevisions(): Record<string, string> {
 	const root = path.resolve(import.meta.dirname, 'static');
@@ -64,11 +66,18 @@ const manifest = {
 const config: UserConfig = defineConfig({
 	define: {
 		__BUILD_TIMESTAMP__: JSON.stringify(BUILD_TIMESTAMP),
+		__BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
 		__STATIC_REVISIONS__: JSON.stringify(staticRevisions())
 	},
 	server: {
 		host: '0.0.0.0',
-		fs: { allow: ['..', path.resolve(import.meta.dirname, '..', '..', '..', 'node_modules')] }
+		fs: { allow: ['..', path.resolve(import.meta.dirname, '..', '..', '..', 'node_modules')] },
+		proxy: {
+			'/api': {
+				target: 'http://192.168.2.117:8080',
+				changeOrigin: true
+			}
+		}
 	},
 	build: { sourcemap: false },
 	plugins: [

@@ -13,16 +13,12 @@
 		Server Sync
 	{/snippet}
 	{#snippet content()}
-		<p>
-			Explicitly send completed entries, pull the server book, and reconcile confirmed local copies.
-		</p>
-	{/snippet}
-	{#snippet footer()}
-		<center>
-			<a href={resolve('/sync')} class="btn btn-outline btn-warning uppercase rounded">
-				<span><SettingsIcon /></span>
-				<span>Server Sync</span>
+		<div class="flex flex-wrap items-center justify-between gap-2 px-2">
+			<p>Send completed entries and download the latest server book.</p>
+			<a href={resolve('/sync')} class="btn btn-ghost btn-sm">
+				<SettingsIcon size={16} />
+				<span>Sync settings</span>
 			</a>
-		</center>
+		</div>
 	{/snippet}
 </CardTemplate>

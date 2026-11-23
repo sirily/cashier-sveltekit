@@ -24,7 +24,9 @@ test('D6 About and Help describe daily use and retain application/update control
 		main.getByRole('link', { name: 'GNU Affero General Public License v3' })
 	).toBeVisible();
 	await expect(main.getByRole('heading', { name: 'Version', exact: true })).toBeVisible();
-	await expect(main.locator('code')).not.toBeEmpty();
+	await expect(main.locator('code')).toHaveText(
+		process.env.CASHIER_BUILD_VERSION?.trim() || /^v\d+\.\d+\.\d+ \(dev\)$/
+	);
 	await main.getByRole('button', { name: 'Check for updates', exact: true }).click();
 	await expect(main.getByRole('button', { name: 'Check for updates', exact: true })).toBeEnabled();
 	await expect(main).toContainText(

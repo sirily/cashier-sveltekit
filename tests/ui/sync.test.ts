@@ -132,8 +132,8 @@ async function mockServer(page: Page, options: MockOptions = {}) {
 
 async function synchronize(page: Page, expectedLocalNote?: string, expectedError?: string) {
 	const button = page.getByRole('button', { name: 'Synchronize' });
-	// Arm before clicking: settings persistence precedes disabled=true, and a fast
-	// sync can finish before click() returns. Observe the whole busy/idle cycle.
+	// Arm before clicking: a fast sync can finish before click() returns.
+	// Observe the whole busy/idle cycle.
 	await button.evaluate((element) => {
 		element.removeAttribute('data-test-sync-complete');
 		let started = false;
@@ -195,6 +195,47 @@ test('mock API: completed transaction is pushed, pulled, reconciled once, and no
 	await page.getByRole('link', { name: 'Journal' }).click();
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 	expect(mock.unexpectedRequests).toEqual([]);
+});
+
+test('home synchronization opens settings without sending requests when no server is configured', async ({
+	page
+}) => {
+	const mock = await mockServer(page);
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Synchronize', exact: true }).click();
+	await expect(page).toHaveURL(/\/sync$/);
+	await expect(page.getByLabel('Cashier Server URL')).toHaveValue('');
+	expect(mock.requests).toEqual([]);
+});
+
+test('mock API: home synchronization retries in place and refreshes the journal preview', async ({
+	page
+}) => {
+	const note = 'Synchronized from Home';
+	const mock = await mockServer(page, { failPullOnce: true });
+	await seedApp(
+		page,
+		`2025-01-02 * "Cafe" "${note}"\n  Expenses:Food  12.50 USD\n  Assets:Cash  -12.50 USD\n`
+	);
+	await page.goto('/');
+	await expect(page.getByText('Cafe', { exact: true })).toBeVisible();
+	expect(mock.requests).toEqual([]);
+
+	await synchronize(page);
+	await expect(page).toHaveURL('/');
+	await expect(page.getByText('Cafe', { exact: true })).toBeVisible();
+	expect(await readCashierFile(page)).toContain(note);
+
+	await synchronize(page, note);
+	await expect(page).toHaveURL('/');
+	await expect(page.getByText('The device journal is empty')).toBeVisible();
+	expect(mock.requests).toEqual([
+		'POST /api/xact',
+		'GET /api/infrastructure?file_path=main.bean',
+		'POST /api/xact',
+		'GET /api/infrastructure?file_path=main.bean'
+	]);
+	expect(mock.posts[1]).toEqual(mock.posts[0]);
 });
 
 test('mock API: explicit full Sync with an empty batch pulls the book without reference BQL', async ({
