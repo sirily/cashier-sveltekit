@@ -79,9 +79,7 @@ export const SettingKeys = {
 export const CardNames = {
 	AccountGroupsCard: 'AccountGroupsCard',
 
-	JournalCard: 'JournalCard',
-
-	SyncCard: 'SyncCard'
+	JournalCard: 'JournalCard'
 };
 
 class Settings {

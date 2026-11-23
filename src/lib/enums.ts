@@ -5,9 +5,7 @@ export const BackupType = {
 export const HomeCardNames = {
 	ACCOUNT_GROUPS: 'AccountGroupsCard',
 
-	JOURNAL: 'JournalCard',
-
-	SYNC: 'SyncCard'
+	JOURNAL: 'JournalCard'
 } as const;
 
 export const SelectionType = {

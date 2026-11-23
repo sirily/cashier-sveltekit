@@ -91,10 +91,10 @@ class AppService {
 	async getVisibleCards(): Promise<string[]> {
 		const visibleCardNames = await settings.get<string[]>(SettingKeys.visibleCards);
 		if (visibleCardNames === null) {
-			return [HomeCardNames.ACCOUNT_GROUPS, HomeCardNames.JOURNAL, HomeCardNames.SYNC];
+			return [HomeCardNames.ACCOUNT_GROUPS, HomeCardNames.JOURNAL];
 		}
 		return visibleCardNames
-			.filter((name) => name !== 'ForecastCard' && name !== 'ScheduledXactCard')
+			.filter((name) => !['ForecastCard', 'ScheduledXactCard', 'SyncCard'].includes(name))
 			.map((name) => (name === 'FavouritesCard' ? HomeCardNames.ACCOUNT_GROUPS : name));
 	}
 

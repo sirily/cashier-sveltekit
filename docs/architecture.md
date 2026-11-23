@@ -60,7 +60,7 @@ Each explicit Sync:
 
 A server acceptance response starts the confirmation process. Removal of a local copy follows confirmation in the successfully downloaded and validated server book. Entries awaiting confirmation remain in the local journal, and retries reuse their persisted identities.
 
-Sync always sends eligible local entries, pulls the book and reconciles confirmed copies; an empty send batch still proceeds with the pull. Accounts and Payees have no independent synchronization requests or controls. The Home action starts the same Sync when a valid server URL is saved, or opens `/sync` for setup otherwise. The drawer and home card link to `/sync` for settings and diagnostics. The two Sync controls share an in-progress guard within the same tab.
+Sync always sends eligible local entries, pulls the book and reconciles confirmed copies; an empty send batch still proceeds with the pull. Accounts and Payees have no independent synchronization requests or controls. The Home action starts the same Sync when a valid server URL is saved, or opens `/sync` for setup otherwise. Data → Server Sync in the drawer opens `/sync` for settings and diagnostics. The two Sync controls share an in-progress guard within the same tab.
 
 Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
 

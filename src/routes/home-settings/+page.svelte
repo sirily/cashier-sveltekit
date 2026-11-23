@@ -12,8 +12,6 @@
 
 	let _showJournal = $state(false);
 
-	let _showSync = $state(false);
-
 	onMount(async () => {
 		await loadData();
 	});
@@ -34,9 +32,6 @@
 		// check the items that are selected on the list.
 		showAccountGroups = visibleCards.includes(HomeCardNames.ACCOUNT_GROUPS);
 
-		if (visibleCards.includes(HomeCardNames.SYNC)) {
-			_showSync = true;
-		}
 		if (visibleCards.includes(HomeCardNames.JOURNAL)) {
 			_showJournal = true;
 		}
@@ -66,12 +61,6 @@
 			removeItem(HomeCardNames.JOURNAL);
 		}
 
-		if (_showSync) {
-			includeItem(HomeCardNames.SYNC);
-		} else {
-			removeItem(HomeCardNames.SYNC);
-		}
-
 		await settings.set(SettingKeys.visibleCards, visibleCards);
 
 		history.back();
@@ -94,11 +83,6 @@
 		<label class="flex items-center space-x-2">
 			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showJournal} />
 			<p>Journal</p>
-		</label>
-
-		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showSync} />
-			<p>Synchronization</p>
 		</label>
 	</div>
 </section>

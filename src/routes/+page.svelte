@@ -10,7 +10,6 @@
 	import { xact, xactSpan } from '#lib/data/mainStore';
 	import { Xact } from '#lib/data/model';
 	import AccountGroupsCard from '#lib/components/AccountGroupsCard.svelte';
-	import SyncCard from '#lib/components/SyncCard.svelte';
 
 	import { onMount, type Component } from 'svelte';
 	import Fab from '#lib/components/FAB.svelte';
@@ -40,9 +39,6 @@
 					card = JournalCard;
 					break;
 
-				case CardNames.SyncCard:
-					card = SyncCard;
-					break;
 			}
 			if (card) {
 				cards.push(card);

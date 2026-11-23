@@ -295,15 +295,15 @@ for (const { name, saved, visible } of [
 	{
 		name: 'missing setting',
 		saved: null,
-		visible: ['AccountGroupsCard', 'JournalCard', 'SyncCard']
+		visible: ['AccountGroupsCard', 'JournalCard']
 	},
 	{
 		name: 'upgraded order',
 		saved: ['SyncCard', 'ForecastCard', 'JournalCard', 'ScheduledXactCard', 'FavouritesCard'],
-		visible: ['SyncCard', 'JournalCard', 'AccountGroupsCard']
+		visible: ['JournalCard', 'AccountGroupsCard']
 	},
 	{ name: 'explicit empty', saved: [], visible: [] },
-	{ name: 'filtered empty', saved: ['ForecastCard', 'ScheduledXactCard'], visible: [] }
+	{ name: 'filtered empty', saved: ['ForecastCard', 'ScheduledXactCard', 'SyncCard'], visible: [] }
 ]) {
 	test(`home card ${name} survives navigation and reload without configuration writes`, async ({
 		page
@@ -332,8 +332,7 @@ for (const { name, saved, visible } of [
 		const before = await readStoredData(page);
 		const titles: Record<string, string> = {
 			AccountGroupsCard: 'Account Groups',
-			JournalCard: 'Device Journal',
-			SyncCard: 'Server Sync'
+			JournalCard: 'Device Journal'
 		};
 		for (const path of ['/', '/home-settings', '/home-reorder']) {
 			await page.goto(path);
@@ -344,8 +343,8 @@ for (const { name, saved, visible } of [
 					).toHaveText(visible.map((card) => titles[card]));
 				} else if (path === '/home-settings') {
 					const checkboxes = page.locator('section input[type="checkbox"]');
-					await expect(checkboxes).toHaveCount(3);
-					for (const [index, card] of ['AccountGroupsCard', 'JournalCard', 'SyncCard'].entries()) {
+					await expect(checkboxes).toHaveCount(2);
+					for (const [index, card] of ['AccountGroupsCard', 'JournalCard'].entries()) {
 						await expect(checkboxes.nth(index)).toBeChecked({ checked: visible.includes(card) });
 					}
 				} else {
@@ -990,7 +989,7 @@ for (const partial of [false, true]) {
 	});
 }
 
-test('drawer and home card both open Sync settings and expose no filesystem links', async ({
+test('drawer opens Sync settings without a duplicate home card or filesystem links', async ({
 	page
 }) => {
 	await seedStoredData(page);
@@ -998,8 +997,11 @@ test('drawer and home card both open Sync settings and expose no filesystem link
 	const observations = await watchRetiredIngress(page);
 	const before = await readStoredData(page);
 	await page.goto('/');
-	const cardLink = page.getByRole('main').getByRole('link', { name: 'Sync settings', exact: true });
-	await expect(cardLink).toHaveAttribute('href', '/sync');
+	const home = page.getByRole('main');
+	await expect(home.getByText('Device Journal', { exact: true })).toBeVisible();
+	await expect(home.getByText('Server Sync', { exact: true })).toHaveCount(0);
+	await expect(home.locator('a[href="/sync"]')).toHaveCount(0);
+	await expect(home.getByRole('button', { name: 'Synchronize', exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Export', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'New transaction', exact: true })).toBeVisible();
 	await page.locator('main .navbar button').first().click();

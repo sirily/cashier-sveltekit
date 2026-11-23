@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const defaults = ['AccountGroupsCard', 'JournalCard', 'SyncCard'];
+const defaults = ['AccountGroupsCard', 'JournalCard'];
 const reorderLabels = (cards: string[]) =>
 	cards.map((card) => (card === 'AccountGroupsCard' ? 'Account Groups' : card));
 const cases: Array<{ name: string; saved: string[] | null; visible: string[] }> = [
@@ -48,10 +48,14 @@ const cases: Array<{ name: string; saved: string[] | null; visible: string[] }> 
 	{
 		name: 'upgrade retaining saved order',
 		saved: ['SyncCard', 'ForecastCard', 'JournalCard', 'ScheduledXactCard', 'FavouritesCard'],
-		visible: ['SyncCard', 'JournalCard', 'AccountGroupsCard']
+		visible: ['JournalCard', 'AccountGroupsCard']
 	},
 	{ name: 'explicit empty list', saved: [], visible: [] },
-	{ name: 'filtered-to-empty list', saved: ['ForecastCard', 'ScheduledXactCard'], visible: [] }
+	{
+		name: 'filtered-to-empty list',
+		saved: ['ForecastCard', 'ScheduledXactCard', 'SyncCard'],
+		visible: []
+	}
 ];
 
 for (const { name, saved, visible } of cases) {
@@ -74,8 +78,7 @@ for (const { name, saved, visible } of cases) {
 		).map((element) => element.textContent?.trim());
 		const titleByCard: Record<string, string> = {
 			AccountGroupsCard: 'Account Groups',
-			JournalCard: 'Device Journal',
-			SyncCard: 'Server Sync'
+			JournalCard: 'Device Journal'
 		};
 		expect(titles).toEqual(visible.map((card) => titleByCard[card]));
 		home.unmount();
@@ -91,6 +94,7 @@ for (const { name, saved, visible } of cases) {
 		expect(settings.queryByText('Favourites')).toBeNull();
 		expect(settings.queryByText('Financial Forecast')).toBeNull();
 		expect(settings.queryByText('Scheduled Transactions')).toBeNull();
+		expect(settings.queryByRole('checkbox', { name: 'Synchronization' })).toBeNull();
 		settings.unmount();
 
 		const reorder = render(Reorder);
@@ -118,11 +122,9 @@ test('normalization replaces Favourites in place, preserving other supported and
 	];
 	mocks.values.set(SettingKeys.visibleCards, saved);
 	expect(await appService.getVisibleCards()).toEqual([
-		'SyncCard',
 		'OtherCard',
 		'forecastcard',
-		'AccountGroupsCard',
-		'SyncCard'
+		'AccountGroupsCard'
 	]);
 	expect(saved).toContain('ForecastCard');
 	expect(mocks.set).not.toHaveBeenCalled();
