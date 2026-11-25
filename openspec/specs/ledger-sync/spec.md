@@ -7,35 +7,16 @@ without making the pull path a server editor or risking unsent on-device transac
 
 ## Requirements
 
-### Requirement: Server Ledger Pull
+### Requirement: Full Server Book Pull
 
-The system SHALL pull the authoritative Beancount book and account/payee references from
-the configured server for offline use. Where selective synchronization is offered, it SHALL
-respect the selected work without presenting skipped work as completed. `main.bean` SHALL
-be the default remote root, not a restriction on configured root names. No particular
-selection controls or settings screen are required.
+The system SHALL pull the authoritative Beancount book from the configured server for offline use through explicit Sync. Account and payee lists SHALL be derived from the locally available book composition. `main.bean` SHALL be the default remote root, not a restriction on configured root names.
 
 #### Scenario: Successful pull
 
-- **WHEN** the user starts Sync for the book and account/payee references against a reachable configured server
-- **THEN** the selected reference data and book are stored locally
-- **AND** the downloaded root is selected for analysis only as part of a successful book update
-- **AND** each selected stage has a visible outcome
-
-#### Scenario: Metadata-only synchronization
-
-- **GIVEN** the application offers a reference-data-only synchronization option
-- **WHEN** the user requests account or payee updates without ledger-file synchronization
-- **THEN** only the selected reference data is updated
-- **AND** no local transactions are sent, no ledger files are replaced, and no overlay reconciliation runs
-- **AND** the result is identified as metadata-only, not full-ledger acceptance
-
-#### Scenario: Unselected reference data
-
-- **GIVEN** the application offers independently selectable synchronization work
-- **WHEN** the user requests book synchronization but leaves accounts or payees unselected
-- **THEN** the unselected reference data is not replaced
-- **AND** its omission is not reported as a successful reference-data refresh
+- **WHEN** the user starts Sync against a reachable configured server
+- **THEN** the book is stored locally
+- **AND** the downloaded root is selected only as part of a successful book update
+- **AND** each stage has a visible outcome
 
 #### Scenario: Configured remote root
 
@@ -46,7 +27,6 @@ selection controls or settings screen are required.
 
 - **WHEN** a selected stage cannot obtain its data because the server is unreachable or returns an error
 - **THEN** the failed stage is reported and its previously usable local data is preserved
-- **AND** independently completed reference-data stages need not be rolled back, but are not evidence that the book synchronized
 
 ### Requirement: Safe Ledger Replacement
 
@@ -198,10 +178,7 @@ The server-only validation gate SHALL not use this combined view as its confirma
 
 ### Requirement: Read-Only Pull Boundary
 
-The pull stages SHALL only read the server book and reference data. Server transaction
-writes SHALL occur exclusively through manual-transaction writeback, never through pull,
-report queries, local editing, or snapshot repair. The server book SHALL remain authoritative
-for already synchronized transactions.
+The pull stages SHALL only read the server book. Server transaction writes SHALL occur exclusively through manual-transaction writeback, never through pull, report queries, local editing, or snapshot repair. The server book SHALL remain authoritative for already synchronized transactions.
 
 #### Scenario: Pull does not write back
 
@@ -222,14 +199,11 @@ for already synchronized transactions.
 
 ### Requirement: API Bearer Authentication
 
-Protected Cashier API requests SHALL use the locally configured `Authorization: Bearer
-<token>`. `/api/health` SHALL remain the explicit unauthenticated readiness endpoint, not
-an authentication check. Credential and server-configuration failures SHALL be visible and
-SHALL NOT trigger a tokenless fallback or a hidden authentication retry loop.
+Protected Cashier API requests SHALL use the locally configured `Authorization: Bearer <token>`. `/api/health` SHALL remain the explicit unauthenticated readiness endpoint, not an authentication check. Credential and server-configuration failures SHALL be visible and SHALL NOT trigger a tokenless fallback or a hidden authentication retry loop.
 
 #### Scenario: Configured token
 
-- **WHEN** the app sends a protected reference-data, infrastructure, or writeback request with a configured token
+- **WHEN** the app sends a protected infrastructure or writeback request with a configured token
 - **THEN** the request carries the Bearer credential to the configured Cashier server
 - **AND** the credential is not placed in the URL
 
@@ -298,18 +272,9 @@ any backup, restore, preview, or comparison feature.
 - **THEN** it does not erase or replace the existing local API credential
 - **AND** the failure is reported without exposing that credential
 
-### Requirement: Sync Diagnostics And Offline Continuity
+### Requirement: Full Sync Diagnostics and Offline Continuity
 
-The system SHALL expose per-stage results for selected synchronization work and distinguish
-metadata success, validated server-book success, pending writeback, and display-refresh
-failure. Failed synchronization SHALL NOT require clearing site data or reinstalling the
-PWA to retain access to local transactions and the last usable book.
-
-#### Scenario: Reference data is not full-book acceptance
-
-- **WHEN** accounts and payees succeed but downloading or parsing the book fails
-- **THEN** the UI retains the successful reference-stage results and the failed book-stage result
-- **AND** it does not report full-ledger synchronization as successful
+The system SHALL expose per-stage synchronization results and distinguish validated server-book success, pending writeback, and display-refresh failure. Failed synchronization SHALL NOT require clearing site data or reinstalling the PWA to retain access to local transactions and the last usable book.
 
 #### Scenario: Server book valid but display refresh fails
 

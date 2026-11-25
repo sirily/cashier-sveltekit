@@ -4,10 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import type { UserConfig } from 'vite';
+import packageJson from './package.json' with { type: 'json' };
 
 const BUILD_TIMESTAMP = new Date().toISOString();
+const BUILD_VERSION = process.env.CASHIER_BUILD_VERSION?.trim() || `v${packageJson.version} (dev)`;
 
 function staticRevisions(): Record<string, string> {
 	const root = path.resolve(import.meta.dirname, 'static');
@@ -61,9 +63,10 @@ const manifest = {
 	]
 };
 
-const config: UserConfig = defineConfig({
+const config: UserConfig = {
 	define: {
 		__BUILD_TIMESTAMP__: JSON.stringify(BUILD_TIMESTAMP),
+		__BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
 		__STATIC_REVISIONS__: JSON.stringify(staticRevisions())
 	},
 	server: {
@@ -90,6 +93,21 @@ const config: UserConfig = defineConfig({
 			}
 		}
 	]
-});
+};
 
-export default config;
+export default defineConfig(({ command, mode, isPreview }) => {
+	if (command !== 'serve' || isPreview) return config;
+
+	const { CASHIER_DEV_PROXY_TARGET } = loadEnv(
+		mode,
+		import.meta.dirname,
+		'CASHIER_DEV_PROXY_TARGET'
+	);
+	const target = CASHIER_DEV_PROXY_TARGET?.trim();
+	if (!target) return config;
+
+	return {
+		...config,
+		server: { ...config.server, proxy: { '/api': { target, changeOrigin: true } } }
+	};
+});

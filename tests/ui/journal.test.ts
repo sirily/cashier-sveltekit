@@ -325,7 +325,7 @@ for (const richSource of [false, true]) {
 			if (scenario !== 'stale second save') {
 				await page.getByRole('link', { name: 'Home', exact: true }).click();
 				await expect(page).toHaveURL(/\/$/);
-				await page.locator('button.fixed').click();
+				await page.getByRole('button', { name: 'New transaction', exact: true }).click();
 				await expect(page).toHaveURL(/\/tx$/);
 				await page.getByTitle('Note', { exact: true }).fill('New entry after editing');
 				await page.locator('button.fixed').click();

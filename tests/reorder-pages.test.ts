@@ -5,7 +5,6 @@ import { get } from 'svelte/store';
 import { xact } from '#lib/data/mainStore';
 import { Xact } from '#lib/data/model';
 import { SettingKeys } from '#lib/settings';
-import Favourites from '../src/routes/favourites/reorder/+page.svelte';
 import Home from '../src/routes/home-reorder/+page.svelte';
 import Postings from '../src/routes/postings/reorder/+page.svelte';
 import AccountGroups from '../src/routes/accounts/groups/reorder/+page.svelte';
@@ -63,24 +62,6 @@ async function moveFirstToLast(view: { container: HTMLElement }) {
 function confirm(view: { container: HTMLElement }) {
 	return fireEvent.click(view.container.querySelector('button.btn-circle')!);
 }
-
-test('favourites keeps duplicate values and saves the parent-bound order on confirmation', async () => {
-	mocks.get.mockResolvedValue(['Assets:Cash', 'Assets:Cash', 'Assets:Bank']);
-	const view = render(Favourites);
-	await moveFirstToLast(view);
-	expect(view.getAllByRole('listitem').map((row) => row.textContent?.trim())).toEqual([
-		'Assets:Cash',
-		'Assets:Bank',
-		'Assets:Cash'
-	]);
-	expect(mocks.set).not.toHaveBeenCalled();
-	await confirm(view);
-	expect(mocks.set).toHaveBeenCalledWith(SettingKeys.favouriteAccounts, [
-		'Assets:Cash',
-		'Assets:Bank',
-		'Assets:Cash'
-	]);
-});
 
 test('home saves the parent-bound card order without dropping duplicate labels', async () => {
 	mocks.getVisibleCards.mockResolvedValue(['Journal', 'Journal', 'Sync']);

@@ -3,11 +3,9 @@ export const BackupType = {
 };
 
 export const HomeCardNames = {
-	FAVOURITES: 'FavouritesCard',
+	ACCOUNT_GROUPS: 'AccountGroupsCard',
 
-	JOURNAL: 'JournalCard',
-
-	SYNC: 'SyncCard'
+	JOURNAL: 'JournalCard'
 } as const;
 
 export const SelectionType = {

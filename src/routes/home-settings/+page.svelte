@@ -8,11 +8,9 @@
 	import { onMount } from 'svelte';
 
 	let visibleCards: string[] = $state([]);
-	let _showFavourites = $state(false);
+	let showAccountGroups = $state(false);
 
 	let _showJournal = $state(false);
-
-	let _showSync = $state(false);
 
 	onMount(async () => {
 		await loadData();
@@ -32,13 +30,8 @@
 		visibleCards = await appService.getVisibleCards();
 
 		// check the items that are selected on the list.
-		if (visibleCards.includes(HomeCardNames.FAVOURITES)) {
-			_showFavourites = true;
-		}
+		showAccountGroups = visibleCards.includes(HomeCardNames.ACCOUNT_GROUPS);
 
-		if (visibleCards.includes(HomeCardNames.SYNC)) {
-			_showSync = true;
-		}
 		if (visibleCards.includes(HomeCardNames.JOURNAL)) {
 			_showJournal = true;
 		}
@@ -56,23 +49,16 @@
 	}
 
 	async function saveSettings() {
-		if (_showFavourites) {
-			// add if missing
-			includeItem(HomeCardNames.FAVOURITES);
+		if (showAccountGroups) {
+			includeItem(HomeCardNames.ACCOUNT_GROUPS);
 		} else {
-			removeItem(HomeCardNames.FAVOURITES);
+			visibleCards = visibleCards.filter((name) => name !== HomeCardNames.ACCOUNT_GROUPS);
 		}
 
 		if (_showJournal) {
 			includeItem(HomeCardNames.JOURNAL);
 		} else {
 			removeItem(HomeCardNames.JOURNAL);
-		}
-
-		if (_showSync) {
-			includeItem(HomeCardNames.SYNC);
-		} else {
-			removeItem(HomeCardNames.SYNC);
 		}
 
 		await settings.set(SettingKeys.visibleCards, visibleCards);
@@ -90,18 +76,13 @@
 
 	<div class="flex flex-col space-y-4 p-4">
 		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showFavourites} />
-			<p>Favourites</p>
+			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={showAccountGroups} />
+			<p>Account Groups</p>
 		</label>
 
 		<label class="flex items-center space-x-2">
 			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showJournal} />
 			<p>Journal</p>
-		</label>
-
-		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showSync} />
-			<p>Synchronization</p>
 		</label>
 	</div>
 </section>

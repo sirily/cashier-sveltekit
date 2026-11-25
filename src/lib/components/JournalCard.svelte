@@ -1,7 +1,6 @@
 <script lang="ts">
-	import FileUpIcon from '@lucide/svelte/icons/file-up';
-import ScrollIcon from '@lucide/svelte/icons/scroll';
-import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import ScrollIcon from '@lucide/svelte/icons/scroll';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import HomeCardTemplate from './HomeCardTemplate.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -13,6 +12,7 @@ import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { readFile } from '#lib/utils/opfslib';
 	import { CASHIER_XACT_FILE } from '#lib/constants';
 	import ledgerService from '#lib/services/ledgerService';
+	import { syncAction } from '#lib/sync/sync-action.svelte';
 
 	Notifier.init();
 
@@ -24,6 +24,7 @@ import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	$effect(() => {
 		const _v = $lsVersion;
+		const _sync = syncAction.completedRuns;
 		loadData();
 	});
 
@@ -44,7 +45,6 @@ import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	async function loadData() {
 		isLoading = true;
-		xactBalances = [];
 
 		try {
 			await ensureInitialized();
@@ -64,14 +64,13 @@ import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 				const directives: any[] = ledger.getDirectives();
 				const txDirectives = directives.filter((d) => d.type === 'transaction');
 				// Last 5, newest first
-				const last5 = txDirectives.slice(-5).reverse();
-				xacts = last5.map(directiveToXact);
+				const last5 = txDirectives.slice(-5).reverse().map(directiveToXact);
+				xactBalances = XactAugmenter.calculateXactAmounts(last5);
+				xacts = last5;
 			} finally {
 				ledger.free();
 			}
 
-			const amounts = XactAugmenter.calculateXactAmounts(xacts);
-			xactBalances.push(...amounts);
 		} catch (error: any) {
 			console.error(error);
 			Notifier.error(error.message);
@@ -98,11 +97,6 @@ import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	async function onClick() {
 		await goto(resolve('/journal'));
-	}
-
-	async function onExportClick(e: Event) {
-		e.stopPropagation();
-		await goto(resolve('/export/[dataType=exportType]', { dataType: 'journal' }));
 	}
 </script>
 
@@ -138,17 +132,5 @@ import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 				{/each}
 			</div>
 		{/if}
-	{/snippet}
-	{#snippet footer()}
-		<center>
-			<button
-				type="button"
-				class="btn btn-outline btn-warning uppercase rounded"
-				onclick={onExportClick}
-			>
-				<FileUpIcon />
-				<span>Export</span>
-			</button>
-		</center>
 	{/snippet}
 </HomeCardTemplate>
