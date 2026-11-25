@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import HomeCardTemplate from '#lib/components/HomeCardTemplate.svelte';
+	import ReportLinks from '#lib/components/ReportLinks.svelte';
 	import JournalCard from '#lib/components/JournalCard.svelte';
 	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -11,40 +13,20 @@
 	import { Xact } from '#lib/data/model';
 	import AccountGroupsCard from '#lib/components/AccountGroupsCard.svelte';
 
-	import { onMount, type Component } from 'svelte';
+	import { onMount } from 'svelte';
 	import Fab from '#lib/components/FAB.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
-	import { CardNames, SettingKeys, settings } from '#lib/settings';
+	import { HomeCardNames } from '#lib/enums';
+	import { homeShortcuts } from '#lib/navigation';
+	import { SettingKeys, settings } from '#lib/settings';
 	import appService from '#lib/services/appService';
 	import { parseSyncServerUrl, syncAction } from '#lib/sync/sync-action.svelte';
 
-	let cards: Array<Component> = $state([]);
+	let visibleCards = $state<string[]>([]);
 
 	onMount(async () => {
-		// display the cards ordered.
-		await loadCardList();
+		visibleCards = await appService.getVisibleCards();
 	});
-
-	async function loadCardList() {
-		let cardsOrder = await appService.getVisibleCards();
-
-		cardsOrder.forEach((name: string) => {
-			let card;
-			switch (name) {
-				case CardNames.AccountGroupsCard:
-					card = AccountGroupsCard;
-					break;
-
-				case CardNames.JournalCard:
-					card = JournalCard;
-					break;
-
-			}
-			if (card) {
-				cards.push(card);
-			}
-		});
-	}
 
 	async function onSynchronize() {
 		await syncAction.run(async () => {
@@ -85,8 +67,37 @@
 	<!-- Main -->
 	<section class="container mx-auto flex max-w-full flex-col gap-2 px-1 pt-1 pb-28 lg:max-w-screen-sm">
 		<!-- Cards are displayed dynamically, in the selected order. -->
-		{#each cards as Card, index (index)}
-			<Card></Card>
+		{#each visibleCards as id, index (index)}
+			{@const shortcut = homeShortcuts.find((item) => item.id === id)}
+			{#if id === HomeCardNames.ACCOUNT_GROUPS}
+				<AccountGroupsCard />
+			{:else if id === HomeCardNames.JOURNAL}
+				<JournalCard />
+			{:else if shortcut?.path === '/reports'}
+				<HomeCardTemplate>
+					{#snippet icon()}
+						<shortcut.Icon aria-hidden="true" />
+					{/snippet}
+					{#snippet title()}
+						<a href={resolve(shortcut.path)} class="hover:underline">{shortcut.label}</a>
+					{/snippet}
+					{#snippet content()}
+						<div class="grid gap-2 px-1 sm:grid-cols-2">
+							<ReportLinks />
+						</div>
+					{/snippet}
+				</HomeCardTemplate>
+			{:else if shortcut}
+				<a
+					href={resolve(shortcut.path)}
+					class="card bg-base-100 hover:bg-base-200 focus-visible:outline-accent"
+				>
+					<span class="flex min-h-12 items-center gap-3 px-3 py-2 text-lg">
+						<shortcut.Icon aria-hidden="true" />
+						{shortcut.label}
+					</span>
+				</a>
+			{/if}
 		{/each}
 
 		<button

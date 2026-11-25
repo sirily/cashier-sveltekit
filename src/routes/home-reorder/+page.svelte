@@ -3,7 +3,7 @@
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { SettingKeys, settings } from '#lib/settings';
-	import { HomeCardNames } from '#lib/enums';
+	import { homeCardOptions } from '#lib/navigation';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
 	import appService from '#lib/services/appService';
@@ -29,10 +29,10 @@
 </script>
 
 <Toolbar title="Reorder Cards" />
-<Fab Icon={CheckIcon} onclick={onFabClicked} />
+<Fab Icon={CheckIcon} label="Save Card Order" onclick={onFabClicked} />
 
 <DragReorderList
 	bind:items
-	getLabel={(item) => (item.name === HomeCardNames.ACCOUNT_GROUPS ? 'Account Groups' : item.name)}
-	class="space-y-2 p-1 max-w-6xl mx-auto overflow-y-auto"
+	getLabel={(item) => homeCardOptions.find(({ id }) => id === item.name)?.label ?? item.name}
+	class="mx-auto max-w-6xl space-y-2 overflow-y-auto p-1 pb-28"
 />

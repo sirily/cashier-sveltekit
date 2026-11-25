@@ -342,14 +342,19 @@ for (const { name, saved, visible } of [
 						page.locator('section.container > article.card > .card-body > div > span.grow')
 					).toHaveText(visible.map((card) => titles[card]));
 				} else if (path === '/home-settings') {
-					const checkboxes = page.locator('section input[type="checkbox"]');
-					await expect(checkboxes).toHaveCount(2);
-					for (const [index, card] of ['AccountGroupsCard', 'JournalCard'].entries()) {
-						await expect(checkboxes.nth(index)).toBeChecked({ checked: visible.includes(card) });
+					const selected = page.locator('main section').getByRole('checkbox', { checked: true });
+					await expect(selected).toHaveCount(visible.length);
+					for (const [card, label] of [
+						['AccountGroupsCard', 'Account Groups'],
+						['JournalCard', 'Journal']
+					]) {
+						await expect(page.getByRole('checkbox', { name: label, exact: true })).toBeChecked({
+							checked: visible.includes(card)
+						});
 					}
 				} else {
 					await expect(page.locator('[data-item]')).toHaveText(
-						visible.map((card) => (card === 'AccountGroupsCard' ? 'Account Groups' : card))
+						visible.map((card) => (card === 'AccountGroupsCard' ? 'Account Groups' : 'Journal'))
 					);
 				}
 				expect(await readStoredData(page)).toEqual(before);

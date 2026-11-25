@@ -95,7 +95,15 @@ class AppService {
 		}
 		return visibleCardNames
 			.filter((name) => !['ForecastCard', 'ScheduledXactCard', 'SyncCard'].includes(name))
-			.map((name) => (name === 'FavouritesCard' ? HomeCardNames.ACCOUNT_GROUPS : name));
+			.map((name) =>
+				name === 'FavouritesCard' || name === 'shortcut:/accounts/groups'
+					? HomeCardNames.ACCOUNT_GROUPS
+					: name
+			)
+			.filter(
+				(name, index, cards) =>
+					name !== HomeCardNames.ACCOUNT_GROUPS || cards.indexOf(name) === index
+			);
 	}
 
 	/**

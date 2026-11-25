@@ -1,88 +1,56 @@
 <script lang="ts">
 	import Fab from '#lib/components/FAB.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import { HomeCardNames } from '#lib/enums';
+	import { homeCardOptions } from '#lib/navigation';
 	import appService from '#lib/services/appService';
 	import { SettingKeys, settings } from '#lib/settings';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 
-	let visibleCards: string[] = $state([]);
-	let showAccountGroups = $state(false);
-
-	let _showJournal = $state(false);
+	let savedCards: string[] = [];
+	let selectedCards = $state<SvelteSet<string> | null>(null);
 
 	onMount(async () => {
-		await loadData();
+		savedCards = await appService.getVisibleCards();
+		selectedCards = new SvelteSet(savedCards);
 	});
 
-	/**
-	 * Show the selected item.
-	 * @param item The name of the card to have displayed.
-	 */
-	function includeItem(item: string) {
-		if (!visibleCards.includes(item)) {
-			visibleCards.push(item);
-		}
-	}
-
-	async function loadData() {
-		visibleCards = await appService.getVisibleCards();
-
-		// check the items that are selected on the list.
-		showAccountGroups = visibleCards.includes(HomeCardNames.ACCOUNT_GROUPS);
-
-		if (visibleCards.includes(HomeCardNames.JOURNAL)) {
-			_showJournal = true;
-		}
-	}
-
-	async function onFabClicked() {
-		await saveSettings();
-	}
-
-	function removeItem(item: string): void {
-		const index = visibleCards.indexOf(item);
-		if (index > -1) {
-			visibleCards.splice(index, 1);
-		}
+	function toggleCard(id: string, checked: boolean) {
+		if (!selectedCards) return;
+		if (checked) selectedCards.add(id);
+		else selectedCards.delete(id);
 	}
 
 	async function saveSettings() {
-		if (showAccountGroups) {
-			includeItem(HomeCardNames.ACCOUNT_GROUPS);
-		} else {
-			visibleCards = visibleCards.filter((name) => name !== HomeCardNames.ACCOUNT_GROUPS);
-		}
-
-		if (_showJournal) {
-			includeItem(HomeCardNames.JOURNAL);
-		} else {
-			removeItem(HomeCardNames.JOURNAL);
-		}
-
-		await settings.set(SettingKeys.visibleCards, visibleCards);
-
+		const selected = selectedCards;
+		if (!selected) return;
+		await settings.set(SettingKeys.visibleCards, [
+			...savedCards.filter((id) => selected.has(id)),
+			...[...selected].filter((id) => !savedCards.includes(id))
+		]);
 		history.back();
 	}
 </script>
 
 <Toolbar title="Home Settings" />
 
-<Fab Icon={CheckIcon} onclick={onFabClicked} />
+<Fab Icon={CheckIcon} label="Save Home Settings" onclick={saveSettings} />
 
-<section class="p-1">
+<section class="p-1 pb-28">
 	<h3 class="h3">Show Cards:</h3>
 
-	<div class="flex flex-col space-y-4 p-4">
-		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={showAccountGroups} />
-			<p>Account Groups</p>
-		</label>
-
-		<label class="flex items-center space-x-2">
-			<input class="checkbox checkbox-primary" type="checkbox" bind:checked={_showJournal} />
-			<p>Journal</p>
-		</label>
-	</div>
+	<fieldset class="flex flex-col space-y-4 p-4" disabled={selectedCards === null}>
+		{#each homeCardOptions as { id, label } (id)}
+			<label class="flex items-center space-x-2">
+				<input
+					class="checkbox checkbox-primary"
+					type="checkbox"
+					checked={selectedCards?.has(id) ?? false}
+					onchange={(event) => toggleCard(id, event.currentTarget.checked)}
+				/>
+				<span>{label}</span>
+			</label>
+		{/each}
+	</fieldset>
 </section>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import appService from '#lib/services/appService';
 import { SettingKeys } from '#lib/settings';
@@ -41,14 +41,31 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const defaults = ['AccountGroupsCard', 'JournalCard'];
-const reorderLabels = (cards: string[]) =>
-	cards.map((card) => (card === 'AccountGroupsCard' ? 'Account Groups' : card));
+const builtInLabels: Record<string, string> = {
+	AccountGroupsCard: 'Account Groups',
+	JournalCard: 'Journal'
+};
+const reorderLabels = (cards: string[]) => cards.map((card) => builtInLabels[card] ?? card);
+const checkedLabels = (view: { container: HTMLElement }) =>
+	within(view.container)
+		.queryAllByRole('checkbox', { checked: true })
+		.map((checkbox) => checkbox.parentElement?.textContent?.trim());
 const cases: Array<{ name: string; saved: string[] | null; visible: string[] }> = [
 	{ name: 'fresh installation', saved: null, visible: defaults },
 	{
 		name: 'upgrade retaining saved order',
 		saved: ['SyncCard', 'ForecastCard', 'JournalCard', 'ScheduledXactCard', 'FavouritesCard'],
 		visible: ['JournalCard', 'AccountGroupsCard']
+	},
+	{
+		name: 'saved My Accounts shortcut',
+		saved: ['JournalCard', 'shortcut:/accounts/groups'],
+		visible: ['JournalCard', 'AccountGroupsCard']
+	},
+	{
+		name: 'saved duplicate account cards',
+		saved: ['shortcut:/accounts/groups', 'JournalCard', 'AccountGroupsCard'],
+		visible: ['AccountGroupsCard', 'JournalCard']
 	},
 	{ name: 'explicit empty list', saved: [], visible: [] },
 	{
@@ -86,11 +103,11 @@ for (const { name, saved, visible } of cases) {
 		const settings = render(HomeSettings);
 		await tick();
 		await waitFor(() => {
-			const checkboxes = settings.getAllByRole('checkbox') as HTMLInputElement[];
-			expect(checkboxes.map((checkbox) => checkbox.checked)).toEqual(
-				defaults.map((card) => visible.includes(card))
+			expect(checkedLabels(settings)).toEqual(
+				reorderLabels(defaults.filter((card) => visible.includes(card)))
 			);
 		});
+		expect(settings.queryByRole('checkbox', { name: /^My Accounts$/ })).toBeNull();
 		expect(settings.queryByText('Favourites')).toBeNull();
 		expect(settings.queryByText('Financial Forecast')).toBeNull();
 		expect(settings.queryByText('Scheduled Transactions')).toBeNull();
@@ -109,6 +126,33 @@ for (const { name, saved, visible } of cases) {
 		expect(mocks.values.get(SettingKeys.visibleCards)).toEqual(saved ?? undefined);
 	});
 }
+
+test('Home Settings saves additions and removals without disturbing the existing order', async () => {
+	mocks.values.set(SettingKeys.visibleCards, [
+		'shortcut:/sync',
+		'JournalCard',
+		'AccountGroupsCard'
+	]);
+	const view = render(HomeSettings);
+	const reports = view.getByRole('checkbox', { name: 'Reports' });
+	const calculator = view.getByRole('checkbox', { name: 'Calculator' });
+	const sync = view.getByRole('checkbox', { name: 'Server Sync' });
+	const journal = view.getByRole('checkbox', { name: 'Journal' });
+	await waitFor(() => expect(sync).toHaveProperty('checked', true));
+	await fireEvent.click(calculator);
+	await fireEvent.click(sync);
+	await fireEvent.click(reports);
+	await fireEvent.click(journal);
+	await fireEvent.click(journal);
+	expect(mocks.set).not.toHaveBeenCalled();
+	await fireEvent.click(view.getByRole('button', { name: 'Save Home Settings' }));
+	expect(mocks.set).toHaveBeenCalledExactlyOnceWith(SettingKeys.visibleCards, [
+		'JournalCard',
+		'AccountGroupsCard',
+		'shortcut:/calculator',
+		'shortcut:/reports'
+	]);
+});
 
 test('normalization replaces Favourites in place, preserving other supported and unknown entries', async () => {
 	const saved = [
@@ -141,9 +185,8 @@ for (const { name, saved, visible } of cases) {
 			await tick();
 			await waitFor(() => {
 				if (pageName === 'Home Settings') {
-					const checkboxes = view.getAllByRole('checkbox') as HTMLInputElement[];
-					expect(checkboxes.map((checkbox) => checkbox.checked)).toEqual(
-						defaults.map((card) => visible.includes(card))
+					expect(checkedLabels(view)).toEqual(
+						reorderLabels(defaults.filter((card) => visible.includes(card)))
 					);
 				} else {
 					expect(view.queryAllByRole('listitem').map((row) => row.textContent?.trim())).toEqual(
