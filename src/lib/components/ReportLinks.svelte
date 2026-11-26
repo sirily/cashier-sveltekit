@@ -10,6 +10,8 @@
 	] as const;
 </script>
 
-{#each reports as { path, label } (path)}
-	<a href={resolve(path)} class="btn btn-primary">{label}</a>
-{/each}
+<div class="grid gap-2">
+	{#each reports as { path, label } (path)}
+		<a href={resolve(path)} class="btn btn-primary">{label}</a>
+	{/each}
+</div>

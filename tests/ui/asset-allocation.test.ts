@@ -66,6 +66,53 @@ async function validateAllocation(page: Page) {
 	await page.getByRole('menu').getByRole('button', { name: 'Validate', exact: true }).click();
 }
 
+test('Asset Allocation shows targets and current local values after an edited book', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedAllocation(page, 'allocation.toml', definition, {
+		source: `option "operating_currency" "EUR"
+2000-01-01 open Assets:Investments:Fund FUND
+2000-01-01 open Assets:Cash EUR
+2025-01-01 price FUND 15 EUR
+2025-01-01 * "Broker" "Buy fund"
+  Assets:Investments:Fund  2 FUND {10 EUR}
+  Assets:Cash            -20 EUR
+`
+	});
+	await page.goto('/asset-allocation');
+	const equity = page
+		.getByRole('row')
+		.filter({ has: page.getByRole('link', { name: 'Equity', exact: true }) });
+	await expect(equity.getByRole('cell')).toHaveText([
+		'Equity',
+		'100.00',
+		'100.00',
+		'0.00',
+		'30.00',
+		'30.00',
+		'0.00'
+	]);
+	await page.goto('/opfs/edit-file?file=cashier.bean');
+	const editor = page.locator('textarea');
+	await expect(editor).toHaveValue(/2025-01-01 price FUND 15 EUR/);
+	await editor.fill((await editor.inputValue()).replace('15 EUR', '25 EUR'));
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await expect(page.getByText('File saved successfully')).toBeVisible();
+	await page.goBack();
+	await expect(equity.getByRole('cell')).toHaveText([
+		'Equity',
+		'100.00',
+		'100.00',
+		'0.00',
+		'50.00',
+		'50.00',
+		'0.00'
+	]);
+	await equity.getByRole('link', { name: 'Equity' }).click();
+	await expect(page).toHaveURL(/\/assetclass-detail\/Allocation(?::|%3A)Equity$/i);
+});
+
 test('Asset Class Detail opens from the cold list and on direct reload without journal validation', async ({
 	page
 }) => {
@@ -157,7 +204,7 @@ test('Asset Allocation Validate rejects a previously loaded definition deleted v
 
 	await navigateFromDrawer(page, 'File Storage');
 	const file = page.getByRole('row').filter({ hasText: path });
-	await file.getByRole('button').click();
+	await file.getByRole('button', { name: 'Delete ' + path }).click();
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await expect(file).toHaveCount(0);
 	await page.goBack();

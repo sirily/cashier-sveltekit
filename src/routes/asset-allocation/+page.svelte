@@ -1,33 +1,17 @@
 <script lang="ts">
-	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { PageData } from './$types';
-
-	import { validate } from '#lib/assetAllocation/assetAllocationValidation.js';
-	import type { AssetClass } from '#lib/assetAllocation/AssetClass.js';
+	import { validate } from '#lib/assetAllocation/assetAllocationValidation';
+	import { resetAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
+	import AssetAllocationBody from '#lib/components/AssetAllocationBody.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
-	import AssetClassRow from '#lib/components/AssetClassRow.svelte';
-	import { AssetAllocationLoadedAtStore } from '#lib/data/mainStore.js';
-	import { resetAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
-	import Notifier from '#lib/utils/notifier.js';
+	import Notifier from '#lib/utils/notifier';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import FileDownIcon from '@lucide/svelte/icons/file-down';
 	import ScaleIcon from '@lucide/svelte/icons/scale';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 
-	Notifier.init();
-
-	let { data }: { data: PageData } = $props();
-	let _allocation = $derived<AssetClass[]>(data.aa?.assetClasses ?? []);
-	let childrenIndex = $derived(data.aa?.childrenIndex);
-	let collapsedState = $state<Record<string, boolean>>({});
-	let viewMode = $state<'allocation' | 'value'>('allocation');
-
-	function toggleCollapse(fullname: string) {
-		collapsedState[fullname] = !collapsedState[fullname];
-	}
-
+	let body = $state<ReturnType<typeof AssetAllocationBody>>();
 
 	function downloadAsFile(content: string) {
 		let now = new Date();
@@ -59,29 +43,27 @@
 
 	async function onRefreshClick() {
 		resetAssetAllocation();
-		await invalidate('allocation:definition');
+		await body?.reload();
 	}
 
 	function onExportClick() {
-		if (!data.aa) {
-			Notifier.error(data.loadError ?? 'Asset allocation is not loaded.');
+		const result = body?.current();
+		if (!result?.engine) {
+			Notifier.error(result?.error ?? 'Asset allocation is not loaded.');
 			return;
 		}
-		downloadAsFile(data.aa.formatAllocationRowsForTxtExport(data.aa.assetClasses));
+		downloadAsFile(result.engine.formatAllocationRowsForTxtExport(result.engine.assetClasses));
 	}
 
 	async function onValidateClick() {
-		await invalidate('allocation:definition');
-		if (!data.aa) {
-			Notifier.error(data.loadError ?? 'Asset allocation is not loaded.');
+		const result = await body?.reload();
+		if (!result?.engine) {
+			Notifier.error(result?.error ?? 'Asset allocation is not loaded.');
 			return;
 		}
-		const errors = validate(data.aa);
-		if (errors.length > 0) {
-			Notifier.error(errors.join('\n'));
-		} else {
-			Notifier.success('The allocation is valid.');
-		}
+		const errors = validate(result.engine);
+		if (errors.length) Notifier.error(errors.join('\n'));
+		else Notifier.success('The allocation is valid.');
 	}
 </script>
 
@@ -97,118 +79,10 @@
 			/>
 		{/snippet}
 	</Toolbar>
-
-	<!-- View mode toggle — small screens only -->
-	<div class="lg:hidden shrink-0 flex items-center justify-center bg-primary py-1.5">
-		<div class="view-toggle">
-			<button
-				class="view-toggle-btn"
-				class:active={viewMode === 'allocation'}
-				onclick={() => (viewMode = 'allocation')}
-			>%</button>
-			<button
-				class="view-toggle-btn"
-				class:active={viewMode === 'value'}
-				onclick={() => (viewMode = 'value')}
-			>###</button>
-		</div>
-	</div>
-
-	<section class="p-3 overflow-x-auto">
-		<table class="mx-auto max-w-4xl">
-			<thead>
-				<tr>
-					<th colspan="1"></th>
-					<th
-						colspan="3"
-						class="text-center border-r{viewMode !== 'allocation' ? ' hidden' : ''} lg:table-cell"
-					>Allocation</th>
-					<th
-						colspan="3"
-						class="text-center{viewMode !== 'value' ? ' hidden' : ''} lg:table-cell"
-					>Value</th>
-				</tr>
-				<tr>
-					<th class="table-cell-fit px-2 text-center">Asset Class</th>
-					<th class="table-cell-fit px-2 text-center{viewMode !== 'allocation' ? ' hidden' : ''} lg:table-cell">Target</th>
-					<th class="table-cell-fit px-2 text-center{viewMode !== 'allocation' ? ' hidden' : ''} lg:table-cell">Current</th>
-					<th class="table-cell-fit px-2 text-center{viewMode !== 'allocation' ? ' hidden' : ''} lg:table-cell">Diff %</th>
-					<th class="table-cell-fit px-2 text-center{viewMode !== 'value' ? ' hidden' : ''} lg:table-cell">Allocated</th>
-					<th class="table-cell-fit pr-2 pl-5 text-center{viewMode !== 'value' ? ' hidden' : ''} lg:table-cell">Current</th>
-					<th class="table-cell-fit px-2 text-center{viewMode !== 'value' ? ' hidden' : ''} lg:table-cell">Difference</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#if _allocation && _allocation.length > 0}
-					{#each _allocation.filter((item) => item.depth === 0) as rootItem (rootItem.fullname)}
-						<AssetClassRow
-							assetClass={rootItem}
-							children={childrenIndex?.get(rootItem.fullname)}
-							depth={0}
-							{collapsedState}
-							onToggle={toggleCollapse}
-							{childrenIndex}
-							{viewMode}
-						/>
-					{/each}
-				{:else}
-					<tr>
-						<td colspan="7" class="py-4 text-center">
-							{data.loadError ?? 'No asset allocation data available'}
-						</td>
-					</tr>
-				{/if}
-			</tbody>
-		</table>
-	</section>
-
-	<footer class="flex shrink-0 items-center justify-end gap-2 border-t border-base-300 px-3 py-1 text-xs text-base-content/50">
-		{#if $AssetAllocationLoadedAtStore}
-			<span>Loaded at {$AssetAllocationLoadedAtStore.toLocaleTimeString()}</span>
-		{:else}
-			<span>Not loaded</span>
-		{/if}
-		<button class="btn btn-ghost btn-xs" onclick={onRefreshClick} title="Reload">
+	<AssetAllocationBody bind:this={body} />
+	<footer class="flex justify-end px-3 py-1">
+		<button type="button" class="btn btn-ghost btn-xs" onclick={onRefreshClick} title="Reload">
 			<RefreshCwIcon size={14} />
 		</button>
 	</footer>
 </article>
-
-<style>
-	.view-toggle {
-		display: flex;
-		border-radius: 0.25rem;
-		overflow: hidden;
-		border: 1px solid var(--color-primary-900);
-	}
-
-	.view-toggle-btn {
-		padding: 0.25rem 1.25rem;
-		background-color: var(--color-primary-700);
-		color: var(--color-accent-200);
-		font-size: 0.85rem;
-		font-weight: 700;
-		letter-spacing: 0.04em;
-		cursor: pointer;
-		border: none;
-		box-shadow:
-			0 2px 4px rgba(0, 0, 0, 0.3),
-			inset 0 1px 0 rgba(255, 255, 255, 0.07);
-		transition:
-			background-color 0.1s,
-			box-shadow 0.1s;
-	}
-
-	.view-toggle-btn:not(:last-child) {
-		border-right: 1px solid var(--color-primary-900);
-	}
-
-	.view-toggle-btn.active {
-		background-color: var(--color-primary-950);
-		box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.55);
-	}
-
-	.view-toggle-btn:hover:not(.active) {
-		background-color: var(--color-primary-600);
-	}
-</style>

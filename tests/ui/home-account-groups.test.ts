@@ -57,6 +57,9 @@ for (const route of ['/', '/accounts/groups']) {
 		await page.goto(route);
 		const group = page.locator('article.card').filter({ hasText: 'Configured group' }).last();
 		await expect(group.locator('data')).toHaveText('5 ABC');
+		await group.getByRole('button', { name: /ABC/ }).click();
+		await expect(page).toHaveURL('/accounts/account-xacts/Assets%3AInvestments%3AABC');
+		await expect(page.getByText('Broker | Second lot')).toBeVisible();
 	});
 
 	test(`distinguishes a missing book from an empty group on ${route}`, async ({ page }) => {
@@ -73,10 +76,28 @@ test('a new installation can manage and edit groups without opening an unsaved g
 	page
 }) => {
 	await page.goto('/');
-	const manage = page.getByRole('link', { name: 'Manage account groups' });
+	const manage = page.getByRole('main').getByRole('link', { name: 'Account Groups', exact: true });
 	await expect(manage).toBeVisible();
 	await expect(page.getByText('No groups configured.', { exact: false })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Group settings' })).toHaveCount(0);
+	expect(
+		await page.evaluate(async () => {
+			const db = await new Promise<IDBDatabase>((resolve, reject) => {
+				const request = indexedDB.open('Cashier');
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			});
+			try {
+				return await new Promise((resolve, reject) => {
+					const request = db.transaction('settings').objectStore('settings').get('accountGroups');
+					request.onsuccess = () => resolve(request.result);
+					request.onerror = () => reject(request.error);
+				});
+			} finally {
+				db.close();
+			}
+		})
+	).toBeUndefined();
 	await manage.click();
 	await expect(page).toHaveURL('/accounts/groups');
 	const cash = page.locator('article.card').filter({ hasText: 'Cash Accounts' });

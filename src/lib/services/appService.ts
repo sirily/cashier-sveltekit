@@ -5,6 +5,7 @@ import db from '#lib/data/db';
 import { LastXact, Posting, Xact } from '#lib/data/model';
 import { settings, SettingKeys } from '#lib/settings';
 import { HomeCardNames } from '#lib/enums';
+import { homeCardOptions } from '#lib/navigation';
 import { DefaultCurrencyStore } from '#lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
@@ -14,6 +15,28 @@ import { readFile } from '#lib/utils/opfslib';
 import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 import { ensureInitialized, createParsedLedger } from './rustledger';
 import { mapDirectiveSpans } from '#lib/rledger/sourceEditor';
+
+const homeCardIds = new Set(homeCardOptions.map(({ id }) => id));
+const retiredHomeCardIds = new Set(['ForecastCard', 'ScheduledXactCard', 'SyncCard']);
+
+async function readHomeCardNames(): Promise<string[]> {
+	const saved = await settings.get<string[]>(SettingKeys.visibleCards);
+	if (!Array.isArray(saved)) return [HomeCardNames.ACCOUNT_GROUPS, HomeCardNames.JOURNAL];
+
+	const names: string[] = [];
+	const seen = new Set<string>();
+	for (const name of saved) {
+		if (typeof name !== 'string' || retiredHomeCardIds.has(name)) continue;
+		const id =
+			name === 'FavouritesCard' || name === 'shortcut:/accounts/groups'
+				? HomeCardNames.ACCOUNT_GROUPS
+				: name;
+		if (homeCardIds.has(id) && seen.has(id)) continue;
+		names.push(id);
+		seen.add(id);
+	}
+	return names;
+}
 
 class AppService {
 	/**
@@ -89,21 +112,20 @@ class AppService {
 	}
 
 	async getVisibleCards(): Promise<string[]> {
-		const visibleCardNames = await settings.get<string[]>(SettingKeys.visibleCards);
-		if (visibleCardNames === null) {
-			return [HomeCardNames.ACCOUNT_GROUPS, HomeCardNames.JOURNAL];
+		return (await readHomeCardNames()).filter((id) => homeCardIds.has(id));
+	}
+
+	async saveVisibleCards(ids: readonly string[]): Promise<void> {
+		const selected = [...new Set(ids.filter((id) => homeCardIds.has(id)))];
+		const stored = await readHomeCardNames();
+		const next: string[] = [];
+		let index = 0;
+		// Fill the known card slots in the new order without dropping forward-compatible IDs.
+		for (const id of stored) {
+			if (!homeCardIds.has(id)) next.push(id);
+			else if (index < selected.length) next.push(selected[index++]);
 		}
-		return visibleCardNames
-			.filter((name) => !['ForecastCard', 'ScheduledXactCard', 'SyncCard'].includes(name))
-			.map((name) =>
-				name === 'FavouritesCard' || name === 'shortcut:/accounts/groups'
-					? HomeCardNames.ACCOUNT_GROUPS
-					: name
-			)
-			.filter(
-				(name, index, cards) =>
-					name !== HomeCardNames.ACCOUNT_GROUPS || cards.indexOf(name) === index
-			);
+		await settings.set(SettingKeys.visibleCards, [...next, ...selected.slice(index)]);
 	}
 
 	/**

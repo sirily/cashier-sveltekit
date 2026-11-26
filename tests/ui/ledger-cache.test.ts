@@ -187,7 +187,7 @@ test('cold cache honors a changed selected root and a deleted include', async ({
 	);
 	await page.goto('/util/validation');
 	await expect(page.getByText('Invalid', { exact: true })).toBeVisible();
-	await expect(page.locator('main main')).toContainText('included.bean');
+	await expect(page.getByRole('main')).toContainText('included.bean');
 });
 
 test('failed worker cache rewrite is visible and the next document rejects the surviving old binary', async ({
@@ -217,7 +217,7 @@ test('failed worker cache rewrite is visible and the next document rejects the s
 	await navigate(page, 'Validation');
 	await page.getByRole('button', { name: 'Reload & Validate', exact: true }).click();
 	await expect(page.getByText('Failed to load ledger', { exact: true })).toBeVisible();
-	await expect(page.locator('main main')).toContainText('Cache write denied for regression');
+	await expect(page.getByRole('alert')).toContainText('Cache write denied for regression');
 	const persisted = await page.evaluate(async () => {
 		const root = await navigator.storage.getDirectory();
 		let hasMetadata = true;

@@ -18,11 +18,48 @@ import SettingsIcon from '@lucide/svelte/icons/settings';
 import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 import WrenchIcon from '@lucide/svelte/icons/wrench';
+import type { Component } from 'svelte';
+
+export type HomeCardBodyLoader = () => Promise<{ default: Component }>;
+
+type CardOptions = {
+	id?: string;
+	label?: string;
+	title?: string;
+	loadBody: HomeCardBodyLoader;
+};
+
+function section<Path extends string>(
+	path: Path,
+	label: string,
+	Icon: typeof HouseIcon,
+	card: CardOptions
+) {
+	return {
+		path,
+		label,
+		Icon,
+		card: {
+			id: card.id ?? `shortcut:${path}`,
+			label: card.label ?? label,
+			title: card.title ?? card.label ?? label,
+			loadBody: card.loadBody
+		}
+	};
+}
 
 export const primaryLinks = [
 	{ path: '/', label: 'Home', Icon: HouseIcon },
-	{ path: '/accounts/groups', label: 'My Accounts', Icon: LandmarkIcon },
-	{ path: '/journal', label: 'Journal', Icon: ScrollIcon }
+	section('/accounts/groups', 'My Accounts', LandmarkIcon, {
+		id: HomeCardNames.ACCOUNT_GROUPS,
+		label: 'Account Groups',
+		loadBody: () => import('#lib/components/AccountGroupsBody.svelte')
+	}),
+	section('/journal', 'Journal', ScrollIcon, {
+		id: HomeCardNames.JOURNAL,
+		title: 'Device Journal',
+		loadBody: () => import('#lib/components/JournalBody.svelte')
+	})
 ] as const;
 
 export const drawerGroups = [
@@ -30,37 +67,65 @@ export const drawerGroups = [
 		label: 'Analysis',
 		Icon: ChartNoAxesCombinedIcon,
 		links: [
-			{ path: '/reports', label: 'Reports', Icon: ChartLineIcon },
-			{ path: '/accounts/tree', label: 'Account Tree', Icon: ListTreeIcon },
-			{ path: '/accounts', label: 'Accounts', Icon: LandmarkIcon },
-			{ path: '/asset-allocation', label: 'Asset Allocation', Icon: ChartPieIcon },
-			{ path: '/payees', label: 'Payees', Icon: UsersRoundIcon }
+			section('/reports', 'Reports', ChartLineIcon, {
+				loadBody: () => import('#lib/components/ReportLinks.svelte')
+			}),
+			section('/accounts/tree', 'Account Tree', ListTreeIcon, {
+				loadBody: () => import('#lib/components/AccountTreeBody.svelte')
+			}),
+			section('/accounts', 'Accounts', LandmarkIcon, {
+				loadBody: () => import('#lib/components/AccountsBody.svelte')
+			}),
+			section('/asset-allocation', 'Asset Allocation', ChartPieIcon, {
+				loadBody: () => import('#lib/components/AssetAllocationBody.svelte')
+			}),
+			section('/payees', 'Payees', UsersRoundIcon, {
+				loadBody: () => import('#lib/components/PayeesBody.svelte')
+			})
 		]
 	},
 	{
 		label: 'Data',
 		Icon: HardDriveIcon,
 		links: [
-			{ path: '/sync', label: 'Server Sync', Icon: ArrowLeftRightIcon },
-			{ path: '/backup', label: 'Backup', Icon: DatabaseIcon },
-			{ path: '/opfs', label: 'File Storage', Icon: FolderOpenIcon }
+			section('/sync', 'Server Sync', ArrowLeftRightIcon, {
+				loadBody: () => import('#lib/components/ServerSyncBody.svelte')
+			}),
+			section('/backup', 'Backup', DatabaseIcon, {
+				loadBody: () => import('#lib/components/BackupBody.svelte')
+			}),
+			section('/opfs', 'File Storage', FolderOpenIcon, {
+				loadBody: () => import('#lib/components/FileStorageBody.svelte')
+			})
 		]
 	},
 	{
 		label: 'Utilities',
 		Icon: WrenchIcon,
 		links: [
-			{ path: '/tools/serialization', label: 'Serialization', Icon: ContainerIcon },
-			{ path: '/calculator', label: 'Calculator', Icon: CalculatorIcon },
-			{ path: '/util/validation', label: 'Validation', Icon: ShieldCheckIcon }
+			section('/tools/serialization', 'Serialization', ContainerIcon, {
+				loadBody: () => import('#lib/components/SerializationBody.svelte')
+			}),
+			section('/calculator', 'Calculator', CalculatorIcon, {
+				loadBody: () => import('#lib/components/CalculatorBody.svelte')
+			}),
+			section('/util/validation', 'Validation', ShieldCheckIcon, {
+				loadBody: () => import('#lib/components/ValidationBody.svelte')
+			})
 		]
 	}
 ] as const;
 
 export const footerLinks = [
-	{ path: '/help', label: 'Help', Icon: CircleQuestionMarkIcon },
-	{ path: '/about', label: 'About', Icon: InfoIcon },
-	{ path: '/settings', label: 'Settings', Icon: SettingsIcon }
+	section('/help', 'Help', CircleQuestionMarkIcon, {
+		loadBody: () => import('#lib/components/HelpBody.svelte')
+	}),
+	section('/about', 'About', InfoIcon, {
+		loadBody: () => import('#lib/components/AboutBody.svelte')
+	}),
+	section('/settings', 'Settings', SettingsIcon, {
+		loadBody: () => import('#lib/components/SettingsBody.svelte')
+	})
 ] as const;
 
 export type DrawerLink =
@@ -68,14 +133,16 @@ export type DrawerLink =
 	| (typeof drawerGroups)[number]['links'][number]
 	| (typeof footerLinks)[number];
 
-// The primary destinations are Home itself or already have dedicated cards.
-export const homeShortcuts = [
-	...drawerGroups.flatMap<DrawerLink>((group) => group.links),
-	...footerLinks
-].map((link) => ({ ...link, id: `shortcut:${link.path}` }));
+type CardSection = Extract<DrawerLink, { card: object }>;
 
-export const homeCardOptions = [
-	{ id: HomeCardNames.ACCOUNT_GROUPS, label: 'Account Groups' },
-	{ id: HomeCardNames.JOURNAL, label: 'Journal' },
-	...homeShortcuts
+const drawerLinks: readonly DrawerLink[] = [
+	...primaryLinks,
+	...drawerGroups.flatMap<DrawerLink>(({ links }) => links),
+	...footerLinks
 ];
+
+export const homeCardOptions = drawerLinks
+	.filter((link): link is CardSection => 'card' in link)
+	.map(({ path, Icon, card }) => ({ path, Icon, ...card }));
+
+export type HomeCardOption = (typeof homeCardOptions)[number];

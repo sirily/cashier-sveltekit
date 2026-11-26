@@ -25,7 +25,10 @@ vi.mock('#lib/services/rustledger', () => ({
 }));
 vi.mock('#lib/utils/opfslib', () => ({ readFile: async () => '' }));
 vi.mock('#lib/services/ledgerService', async () => ({
-	default: { version: (await import('svelte/store')).writable(0) }
+	default: {
+		version: (await import('svelte/store')).writable(0),
+		getXactsWithSpans: async () => []
+	}
 }));
 vi.mock('#lib/services/ledgerWorkerClient', async () => {
 	const { writable } = await import('svelte/store');
@@ -64,7 +67,7 @@ const cases: Array<{ name: string; saved: string[] | null; visible: string[] }> 
 	},
 	{
 		name: 'saved duplicate account cards',
-		saved: ['shortcut:/accounts/groups', 'JournalCard', 'AccountGroupsCard'],
+		saved: ['shortcut:/accounts/groups', 'JournalCard', 'AccountGroupsCard', 'FavouritesCard'],
 		visible: ['AccountGroupsCard', 'JournalCard']
 	},
 	{ name: 'explicit empty list', saved: [], visible: [] },
@@ -88,11 +91,10 @@ for (const { name, saved, visible } of cases) {
 				visible.length
 			)
 		);
-		const titles = Array.from(
-			home.container.querySelectorAll(
-				'section.container > article.card > .card-body > div > span.grow'
-			)
-		).map((element) => element.textContent?.trim());
+		const cards = within(home.getByRole('region', { name: 'Home cards' }));
+		const titles = cards
+			.queryAllByRole('heading', { level: 2 })
+			.map((element) => element.textContent?.trim());
 		const titleByCard: Record<string, string> = {
 			AccountGroupsCard: 'Account Groups',
 			JournalCard: 'Device Journal'
@@ -130,6 +132,7 @@ for (const { name, saved, visible } of cases) {
 test('Home Settings saves additions and removals without disturbing the existing order', async () => {
 	mocks.values.set(SettingKeys.visibleCards, [
 		'shortcut:/sync',
+		'FutureCard',
 		'JournalCard',
 		'AccountGroupsCard'
 	]);
@@ -148,30 +151,60 @@ test('Home Settings saves additions and removals without disturbing the existing
 	await fireEvent.click(view.getByRole('button', { name: 'Save Home Settings' }));
 	expect(mocks.set).toHaveBeenCalledExactlyOnceWith(SettingKeys.visibleCards, [
 		'JournalCard',
+		'FutureCard',
 		'AccountGroupsCard',
 		'shortcut:/calculator',
 		'shortcut:/reports'
 	]);
 });
 
-test('normalization replaces Favourites in place, preserving other supported and unknown entries', async () => {
+test('only known non-retired cards are visible and shortcut order is not rewritten', async () => {
 	const saved = [
-		'SyncCard',
+		'shortcut:/calculator',
 		'ForecastCard',
 		'OtherCard',
 		'forecastcard',
+		'JournalCard',
+		'shortcut:/reports',
 		'FavouritesCard',
 		'SyncCard',
 		'ScheduledXactCard'
 	];
 	mocks.values.set(SettingKeys.visibleCards, saved);
 	expect(await appService.getVisibleCards()).toEqual([
-		'OtherCard',
-		'forecastcard',
+		'shortcut:/calculator',
+		'JournalCard',
+		'shortcut:/reports',
 		'AccountGroupsCard'
 	]);
-	expect(saved).toContain('ForecastCard');
+	expect(mocks.values.get(SettingKeys.visibleCards)).toEqual(saved);
 	expect(mocks.set).not.toHaveBeenCalled();
+});
+
+test('Reorder hides unknown cards and preserves them on confirmation', async () => {
+	mocks.values.set(SettingKeys.visibleCards, ['JournalCard', 'FutureCard', 'shortcut:/reports']);
+	const view = render(Reorder);
+	await waitFor(() =>
+		expect(view.getAllByRole('listitem').map((row) => row.textContent?.trim())).toEqual([
+			'Journal',
+			'Reports'
+		])
+	);
+	expect(mocks.set).not.toHaveBeenCalled();
+	await fireEvent.click(view.getByRole('button', { name: 'Save Card Order' }));
+	expect(mocks.set).toHaveBeenCalledExactlyOnceWith(SettingKeys.visibleCards, [
+		'JournalCard',
+		'FutureCard',
+		'shortcut:/reports'
+	]);
+});
+
+test('saving an empty visible layout keeps only unknown IDs', async () => {
+	mocks.values.set(SettingKeys.visibleCards, ['JournalCard', 'SyncCard', 'FutureCard']);
+	await appService.saveVisibleCards([]);
+	expect(mocks.set).toHaveBeenCalledExactlyOnceWith(SettingKeys.visibleCards, ['FutureCard']);
+	mocks.values.set(SettingKeys.visibleCards, ['FutureCard']);
+	expect(await appService.getVisibleCards()).toEqual([]);
 });
 
 for (const { name, saved, visible } of cases) {
@@ -185,10 +218,12 @@ for (const { name, saved, visible } of cases) {
 			await tick();
 			await waitFor(() => {
 				if (pageName === 'Home Settings') {
+					expect(view.container.querySelector('fieldset')).toHaveProperty('disabled', false);
 					expect(checkedLabels(view)).toEqual(
 						reorderLabels(defaults.filter((card) => visible.includes(card)))
 					);
 				} else {
+					expect(view.container.querySelector('section[role="list"]')).not.toBeNull();
 					expect(view.queryAllByRole('listitem').map((row) => row.textContent?.trim())).toEqual(
 						reorderLabels(visible)
 					);
@@ -196,7 +231,9 @@ for (const { name, saved, visible } of cases) {
 			});
 			expect(mocks.set).not.toHaveBeenCalled();
 			await fireEvent.click(view.container.querySelector('button.btn-circle')!);
-			expect(mocks.set).toHaveBeenCalledExactlyOnceWith(SettingKeys.visibleCards, visible);
+			await waitFor(() =>
+				expect(mocks.set).toHaveBeenCalledExactlyOnceWith(SettingKeys.visibleCards, visible)
+			);
 		});
 	}
 }

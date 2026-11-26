@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
+import { waitForOfflineControl } from './fixtures/offline';
 
 async function openReadyJournal(page: Page) {
 	const browserErrors: string[] = [];
@@ -9,7 +10,7 @@ async function openReadyJournal(page: Page) {
 
 	await page.goto('/');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
-	await page.getByRole('link', { name: 'Journal' }).click();
+	await page.getByRole('link', { name: 'Journal', exact: true }).click();
 	await expect(page).toHaveURL(/\/journal$/);
 	await expect(page.locator('main')).toContainText('The device journal is empty');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
@@ -52,6 +53,7 @@ test('editing a local transaction preserves its cashier_id across saves and relo
 	const neighbor = `\n2025-01-02 ! "Neighbor" "Untouched"\n  cashier_id: "neighbor-ui-id"\n  Expenses:Food  3.00 USD\n  Assets:Cash  -3.00 USD\n`;
 
 	await writeLocalJournal(page, prefix + transaction + neighbor);
+	await waitForOfflineControl(page);
 	await page.reload();
 	await expect(page.getByRole('main')).toContainText(originalNote);
 
@@ -420,8 +422,45 @@ test('Duplicate refuses a purchase whose lot cost cannot be preserved', async ({
 	await expect(note).toHaveCount(1);
 });
 
+test('Home distinguishes incomplete entries and refreshes its recent entries after local save', async ({
+	page
+}) => {
+	await page.goto('/');
+	const main = page.getByRole('main');
+	await expect(main.getByText('The device journal is empty')).toBeVisible();
+	await writeLocalJournal(
+		page,
+		`option "operating_currency" "USD"
+2000-01-01 open Assets:Cash USD
+2000-01-01 open Expenses:Food USD
+2025-01-01 * "Completed cafe"
+  Expenses:Food  1 USD
+  Assets:Cash  -1 USD
+2025-01-02 ! "Incomplete cafe"
+  Expenses:Food  2 USD
+  Assets:Cash  -2 USD
+`
+	);
+	await page.reload();
+	await expect(main.getByText('Completed cafe')).toBeVisible();
+	await expect(main.getByText('Incomplete cafe')).toBeVisible();
+	await expect(main.getByRole('img', { name: 'Incomplete entry' })).toHaveCount(1);
+	await expect(main.getByText('Incomplete cafe').getByRole('img')).toHaveAttribute(
+		'aria-label',
+		'Incomplete entry'
+	);
+
+	await main.getByRole('button', { name: 'New transaction' }).click();
+	await expect(page).toHaveURL('/tx');
+	await page.getByTitle('Note', { exact: true }).fill('New Home cafe');
+	await main.getByRole('button', { name: 'Save', exact: true }).click();
+	await expect(page).toHaveURL('/');
+	await expect(main.getByText('New Home cafe')).toBeVisible();
+});
+
 test('saves a journal entry offline and persists it after reload', async ({ page, context }) => {
 	const browserErrors = await openReadyJournal(page);
+	await waitForOfflineControl(page);
 	const note = `Offline UI ${Date.now()}`;
 	await page.locator('button.fixed').click();
 	await expect(page).toHaveURL(/\/tx$/);

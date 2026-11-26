@@ -3,7 +3,6 @@
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import { homeCardOptions } from '#lib/navigation';
 	import appService from '#lib/services/appService';
-	import { SettingKeys, settings } from '#lib/settings';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -25,7 +24,7 @@
 	async function saveSettings() {
 		const selected = selectedCards;
 		if (!selected) return;
-		await settings.set(SettingKeys.visibleCards, [
+		await appService.saveVisibleCards([
 			...savedCards.filter((id) => selected.has(id)),
 			...[...selected].filter((id) => !savedCards.includes(id))
 		]);

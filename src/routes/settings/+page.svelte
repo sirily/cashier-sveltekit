@@ -18,10 +18,9 @@
 	import { page } from '$app/state';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { USER_BOOK_FILENAME } from '#lib/constants';
+	import { DEFAULT_DATE_FORMAT, readSettingsPreferences } from '#lib/services/settingsPreferences';
 
 	Notifier.init();
-
-	const DATE_FORMAT_DEFAULT = 'D MMM YYYY';
 
 	const dateFormatOptions = [
 		{ label: '29 Aug 2026', value: 'D MMM YYYY' },
@@ -38,7 +37,7 @@
 	let bookFilename = $state<string | null>(null);
 	let assetAllocationDefinition = $state<string | null>(null);
 	let rootInvestmentAccount = $state<string>();
-	let dateFormat = $state<string>(DATE_FORMAT_DEFAULT);
+	let dateFormat = $state<string>(DEFAULT_DATE_FORMAT);
 	let loaded = $state(false);
 
 	// Saved (DB) values for revert comparison
@@ -47,7 +46,7 @@
 	let savedAssetAllocationDefinition = $state<string | null>(null);
 	let savedRootInvestmentAccount = $state<string | undefined>(undefined);
 	let savedRememberLastTransaction = $state<boolean | undefined>(undefined);
-	let savedDateFormat = $state<string>(DATE_FORMAT_DEFAULT);
+	let savedDateFormat = $state<string>(DEFAULT_DATE_FORMAT);
 
 	// Dirty flags — only meaningful after initial load
 	let currencyDirty = $derived(loaded && currency !== savedCurrency);
@@ -115,17 +114,14 @@
 		bookCurrencies = await fullLedgerService.getOperatingCurrencies();
 
 		// Load saved DB values (used for revert comparison and as fallback)
-		savedCurrency = (await appService.getDefaultCurrency()) ?? undefined;
-		savedBookFilename = (await appService.readBookFilename()) ?? null;
-		savedRootInvestmentAccount = (await settings.get<string>(SettingKeys.rootInvestmentAccount)) as
-			string | undefined;
-		savedRememberLastTransaction = (await settings.get<boolean>(
-			SettingKeys.rememberLastTransaction
-		)) as boolean | undefined;
-		ledgerCacheEnabled = (await settings.get<boolean>(SettingKeys.ledgerCacheEnabled)) ?? true;
-		savedAssetAllocationDefinition =
-			(await settings.get<string>(SettingKeys.assetAllocationDefinition)) ?? null;
-		savedDateFormat = (await settings.get<string>(SettingKeys.dateFormat)) ?? DATE_FORMAT_DEFAULT;
+		const saved = await readSettingsPreferences();
+		savedCurrency = saved.currency;
+		savedBookFilename = saved.bookFilename;
+		savedRootInvestmentAccount = saved.rootInvestmentAccount;
+		savedRememberLastTransaction = saved.rememberLastTransaction;
+		ledgerCacheEnabled = saved.ledgerCacheEnabled;
+		savedAssetAllocationDefinition = saved.assetAllocationDefinition;
+		savedDateFormat = saved.dateFormat;
 
 		// Auto-detect currency from book if not saved yet
 		if (!savedCurrency && bookCurrencies.length > 0) {

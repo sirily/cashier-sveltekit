@@ -1,16 +1,15 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import AccountGroupCard from '#lib/components/AccountGroupCard.svelte';
+	import AccountGroupsBody from '#lib/components/AccountGroupsBody.svelte';
 	import { defaultAccountGroups, SettingKeys, settings, type AccountGroup } from '#lib/settings';
 	import { onMount } from 'svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
-import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
+	import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 	import { goto } from '$app/navigation';
 
-
-	let groups: AccountGroup[] = $state([]);
+	let groups = $state<AccountGroup[] | null>(null);
 	let isAddGroupModalOpen = $state(false);
 	let newGroupName = $state('');
 
@@ -36,7 +35,7 @@ import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 			accounts: []
 		};
 
-		const updatedGroups = [...groups, newGroup];
+		const updatedGroups = [...(groups ?? []), newGroup];
 		await settings.set(SettingKeys.accountGroups, updatedGroups);
 		groups = updatedGroups;
 
@@ -51,11 +50,7 @@ import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 <article class="flex h-screen flex-col">
 	<Toolbar title="Account Groups">
 		{#snippet menuItems()}
-			<ToolbarMenuItem
-				text="Add Group"
-				Icon={CirclePlusIcon}
-				onclick={openAddGroupModal}
-			/>
+			<ToolbarMenuItem text="Add Group" Icon={CirclePlusIcon} onclick={openAddGroupModal} />
 			<ToolbarMenuItem
 				text="Reorder Groups"
 				Icon={ArrowUpDownIcon}
@@ -66,11 +61,11 @@ import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 	<section class="flex grow flex-col gap-3 p-2">
 		<div class="alert alert-info alert-soft">
 			<span>If a synced account is missing from these groups, open the full accounts list.</span>
-			<button type="button" class="btn btn-sm" onclick={() => goto(resolve('/accounts'))}>Open /accounts</button>
+			<button type="button" class="btn btn-sm" onclick={() => goto(resolve('/accounts'))}
+				>Open /accounts</button
+			>
 		</div>
-		{#each groups as group, i (group.title)}
-			<AccountGroupCard {group} index={i} onAccountClick={(name) => goto(resolve('/accounts/account-xacts/[accountName]', { accountName: encodeURIComponent(name) }))} />
-		{/each}
+		<AccountGroupsBody {groups} />
 	</section>
 </article>
 
@@ -97,7 +92,7 @@ import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 					placeholder="Enter group name"
 					class="input input-bordered w-full"
 					bind:value={newGroupName}
-					onkeydown={e => e.key === 'Enter' && createGroup()}
+					onkeydown={(e) => e.key === 'Enter' && createGroup()}
 				/>
 			</div>
 		</article>

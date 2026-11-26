@@ -7,9 +7,13 @@ import {
 import { SettingKeys, settings } from '#lib/settings';
 import { AppError, UserError } from '#lib/utils/errors';
 import { readFile } from '#lib/utils/opfslib';
+import fullLedgerService from '#lib/services/ledgerWorkerClient';
 import { AssetAllocationEngine } from './AssetAllocation';
 
+let generation = 0;
+
 export function resetAssetAllocation() {
+	generation++;
 	AssetAllocationStore.set(undefined);
 	AaStocksStore.set(undefined);
 	AssetAllocationLoadedAtStore.set(undefined);
@@ -43,10 +47,19 @@ export async function loadAssetAllocation() {
 		resetAssetAllocation();
 		throw error;
 	});
+	await fullLedgerService.ensureLoaded();
+	if (!fullLedgerService.isLoaded) throw new UserError('No local book loaded.');
+	const ledgerVersion = get(fullLedgerService.version);
 	const cached = get(AssetAllocationStore);
-	if (cached?.path === path && cached.definition === definition) return cached.engine;
+	if (
+		cached?.path === path &&
+		cached.definition === definition &&
+		cached.ledgerVersion === ledgerVersion
+	)
+		return cached.engine;
 
 	resetAssetAllocation();
+	const request = generation;
 	const aa = new AssetAllocationEngine();
 	try {
 		await aa.loadFullAssetAllocation(definition);
@@ -64,7 +77,13 @@ export async function loadAssetAllocation() {
 		);
 	}
 
-	AssetAllocationStore.set({ path, definition, engine: aa });
-	AssetAllocationLoadedAtStore.set(new Date());
+	if (
+		request === generation &&
+		ledgerVersion === get(fullLedgerService.version) &&
+		fullLedgerService.isLoaded
+	) {
+		AssetAllocationStore.set({ path, definition, ledgerVersion, engine: aa });
+		AssetAllocationLoadedAtStore.set(new Date());
+	}
 	return aa;
 }

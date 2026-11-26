@@ -339,7 +339,7 @@ for (const { name, saved, visible } of [
 			for (let attempt = 0; attempt < 2; attempt++) {
 				if (path === '/') {
 					await expect(
-						page.locator('section.container > article.card > .card-body > div > span.grow')
+						page.getByRole('region', { name: 'Home cards' }).getByRole('heading', { level: 2 })
 					).toHaveText(visible.map((card) => titles[card]));
 				} else if (path === '/home-settings') {
 					const selected = page.locator('main section').getByRole('checkbox', { checked: true });
