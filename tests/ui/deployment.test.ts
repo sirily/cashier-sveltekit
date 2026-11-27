@@ -38,7 +38,7 @@ test('a stale lazy-loaded route recovers by navigating to the new deployment', a
 
 		await calculatorLink.click();
 		await expect(page).toHaveURL(/\/calculator$/);
-		await expect(page.getByRole('button', { name: 'AC' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'AC', exact: true })).toBeVisible();
 		expect(staleChunkFailed).toBeGreaterThan(0);
 		expect(documentNavigations.some((url) => new URL(url).pathname === '/calculator')).toBe(true);
 	} finally {
