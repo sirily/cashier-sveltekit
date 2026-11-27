@@ -54,8 +54,8 @@
 
 			if (meta.selectionType === 'account' && meta.selectedId) {
 				$xact.postings[0].account = meta.selectedId as string;
-			} else if (meta.selectionType === 'amount' && meta.selectedId !== undefined) {
-				enteredBalance = String(meta.selectedId);
+			} else if (meta.selectionType === 'amount' && typeof meta.selectedId === 'string') {
+				enteredBalance = meta.selectedId;
 			}
 			await loadBalances(previous);
 			if (active && get(xact) === previous) ready = true;
@@ -145,7 +145,8 @@
 		const meta = new SelectionModeMetadata();
 		meta.origin = 'bal-adj';
 		meta.selectionType = 'amount';
-		meta.initialValue = parseFloat(enteredBalance) || 0;
+		meta.calculatorAccount = accountName || undefined;
+		meta.initialValue = enteredBalance || undefined;
 		selectionMetadata.set(meta);
 		await goto(resolve('/calculator'));
 	}
@@ -265,7 +266,8 @@
 							type="number"
 							step="0.01"
 							class="input bg-primary/20 flex-1"
-							bind:value={enteredBalance}
+							value={enteredBalance}
+							oninput={(event) => (enteredBalance = event.currentTarget.value)}
 							placeholder="0.00"
 						/>
 						<button
