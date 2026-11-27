@@ -82,11 +82,22 @@ The calculator SHALL use the local analysis book for balance lookup without netw
 - **WHEN** the user opens the calculator, applies without editing, and saves the otherwise unchanged transaction
 - **THEN** the editor retains `12.30` and the journal source remains unchanged
 
+#### Scenario: Apply a decimal without a leading zero
+
+- **GIVEN** the calculator opens with `.50`, `-.50`, or `+.50` from a posting draft
+- **WHEN** the user applies without editing
+- **THEN** the amount has a leading zero for Beancount, with the sign and fractional digits preserved
+
 #### Scenario: Apply a precise balance adjustment
 
 - **GIVEN** an account has a balance of `1 ETH`
 - **WHEN** the user enters `1.000000000000000001 ETH` through the calculator and prepares the balance adjustment
 - **THEN** the adjustment shows `0.000000000000000001 ETH` and prepares opposite postings of exactly that magnitude
+
+#### Scenario: Step the current balance
+
+- **WHEN** the user increments the Current Balance field with its native number control
+- **THEN** the step is `0.01`, without limiting the precision of typed or calculated values
 
 #### Scenario: Calculate without an amount editor
 

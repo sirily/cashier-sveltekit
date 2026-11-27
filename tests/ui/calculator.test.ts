@@ -149,6 +149,55 @@ test('applying an untouched calculator amount keeps the journal byte-for-byte un
 	expect(saved).toBe(source);
 });
 
+for (const [input, expected] of [
+	['.50', '0.50'],
+	['-.50', '-0.50'],
+	['+.50', '+0.50']
+]) {
+	test(`applying ${input} from an existing posting keeps the journal readable`, async ({
+		page
+	}) => {
+		const note = 'Leading zero for Beancount';
+		await seedBook(
+			page,
+			journal +
+				`
+2025-02-01 * "Cafe" "${note}"
+  Assets:Checking
+  Equity:Opening 0.50 USD
+`
+		);
+		await page.goto('/journal');
+		await page.getByText(`; ${note}`, { exact: true }).click();
+		await keys(page, 'Edit');
+		const amount = page.getByTitle('Amount', { exact: true }).nth(1);
+		await amount.fill(input);
+		await page.getByTitle('Open calculator').nth(1).click();
+		await expect(result(page)).toHaveText(input);
+		await keys(page, 'Apply amount');
+		await expect(amount).toHaveValue(expected);
+		await keys(page, 'Save');
+		await expect(page).toHaveURL(/\/xact-actions$/);
+		const saved = await page.evaluate(async () => {
+			const root = await navigator.storage.getDirectory();
+			return (await (await root.getFileHandle('cashier.bean')).getFile()).text();
+		});
+		expect(saved).toContain(`  Equity:Opening ${expected} USD`);
+		await page.goto('/journal');
+		await expect(page.getByText(`; ${note}`, { exact: true })).toBeVisible();
+	});
+}
+
+test('Current Balance increments by a cent with Arrow Up', async ({ page }) => {
+	await seedBook(page);
+	await page.goto('/accounts/bal-adj?account=Assets:Checking');
+	const current = page.getByLabel('Current Balance');
+	await expect(current).toHaveValue('198.28');
+	await current.press('ArrowUp');
+	await expect(current).toHaveValue('198.29');
+	await expect(page.getByText('+0.01', { exact: false })).toBeVisible();
+});
+
 for (const [baseline, target] of [
 	['1', '1.000000000000000001'],
 	['1.000000000000000001', '1.000000000000000002']

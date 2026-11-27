@@ -178,9 +178,9 @@ export class Calculator {
 	}
 
 	amountToApply() {
-		// An untouched posting is already a result; keep its decimal spelling.
+		// Keep the decimal spelling, but Beancount needs a digit before the point.
 		if (this.evaluated && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(this.display)) {
-			return this.display;
+			return this.display.replace(/^([+-]?)\./, (_, sign: string) => `${sign}0.`);
 		}
 		return this.calculate();
 	}

@@ -262,7 +262,7 @@
 						<input
 							id="entered-balance"
 							type="number"
-							step="any"
+							step="0.01"
 							class="input bg-primary/20 flex-1"
 							value={enteredBalance}
 							oninput={(event) => (enteredBalance = event.currentTarget.value)}
