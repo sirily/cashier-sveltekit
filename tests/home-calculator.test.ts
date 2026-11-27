@@ -19,7 +19,7 @@ test('the Home calculator works without reading or applying an editor selection'
 	editor.postings[0].amount = 100;
 	xact.set(editor);
 	const selection = Object.assign(new SelectionModeMetadata(), {
-		initialValue: 100,
+		initialValue: '100',
 		postingIndex: 0,
 		selectionType: 'amount'
 	});
@@ -43,7 +43,7 @@ test.each(['account', 'payee'])(
 	'standalone calculator ignores %s picker metadata',
 	async (selectionType) => {
 		const selection = Object.assign(new SelectionModeMetadata(), {
-			initialValue: 100,
+			initialValue: '100',
 			selectionType
 		});
 		selectionMetadata.set(selection);
@@ -60,13 +60,13 @@ test.each(['account', 'payee'])(
 
 test('the standalone calculator returns an explicit amount selection', async () => {
 	const selection = Object.assign(new SelectionModeMetadata(), {
-		initialValue: 100,
+		initialValue: '100.123456789012345678',
 		selectionType: 'amount'
 	});
 	selectionMetadata.set(selection);
 	const back = vi.spyOn(history, 'back').mockImplementation(() => {});
 	const view = render(CalculatorPage);
 	await fireEvent.click(view.getByRole('button', { name: 'Apply amount' }));
-	expect(selection.selectedId).toBe(100);
+	expect(selection.selectedId).toBe('100.123456789012345678');
 	expect(back).toHaveBeenCalledOnce();
 });

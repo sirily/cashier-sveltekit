@@ -1,229 +1,27 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import CalculatorBalancePicker from './CalculatorBalancePicker.svelte';
+	import { Calculator } from '#lib/utils/calculator.svelte';
 
-	let {
-		initialValue,
-		onapply,
-		actions
-	}: {
-		initialValue?: number;
-		onapply?: (value: number) => void;
+	let { initialValue, account, onapply, actions }: {
+		initialValue?: string;
+		account?: string;
+		onapply?: (value: string | undefined) => void;
 		actions?: Snippet<[apply: () => void]>;
 	} = $props();
-	let displayValue = $state('0');
-	let currentExpression = $state('');
-	let lastExpression = $state('');
+	const calculator = new Calculator();
+	let picking = $state(false);
 
 	$effect(() => {
-		if (initialValue !== undefined) {
-			displayValue = currentExpression = lastExpression = String(initialValue);
-		}
+		calculator.reset(initialValue);
 	});
 
-	// Helper function to find the last operator index in an expression
-	const getLastOperatorIndex = (expression: string): number => {
-		return Math.max(
-			expression.lastIndexOf('+'),
-			expression.lastIndexOf('-'),
-			expression.lastIndexOf('×'),
-			expression.lastIndexOf('÷'),
-			expression.lastIndexOf('('),
-			expression.lastIndexOf(')')
-		);
-	};
-
-	// Helper function to get the current number being built (after the last operator)
-	const getCurrentNumber = (expression: string): string => {
-		const lastOpIndex = getLastOperatorIndex(expression);
-		if (lastOpIndex === -1) {
-			// No operators in the expression yet
-			return expression;
-		} else {
-			// Return the number after the last operator
-			return expression.substring(lastOpIndex + 1);
-		}
-	};
-
-	// Helper function to update current number in the expression
-	const updateCurrentNumber = (expression: string, newNumber: string): string => {
-		const lastOpIndex = getLastOperatorIndex(expression);
-		if (lastOpIndex === -1) {
-			// No operators in the expression yet
-			return newNumber;
-		} else {
-			// Replace the number after the last operator
-			return expression.substring(0, lastOpIndex + 1) + newNumber;
-		}
-	};
-
-	const inputNumber = (num: string) => {
-		// If the display currently shows the result of a previous calculation, start a new expression
-		if (currentExpression === displayValue && lastExpression !== '') {
-			currentExpression = num;
-			displayValue = num;
-		} else if (currentExpression === '' || currentExpression === '0') {
-			currentExpression = num;
-			displayValue = num;
-		} else {
-			// Find the last operator in the current expression to determine the current number being built
-			const lastOpIndex = getLastOperatorIndex(currentExpression);
-
-			if (lastOpIndex === -1) {
-				// No operators in the expression yet, just building the first number
-				currentExpression += num;
-				displayValue = currentExpression;
-			} else {
-				// There are operators, we're adding to the number after the last operator
-				currentExpression += num;
-				const currentNumber = getCurrentNumber(currentExpression);
-				displayValue = currentNumber;
-			}
-		}
-	};
-
-	const inputDecimal = () => {
-		// If the display currently shows the result of a previous calculation, start a new expression
-		if (currentExpression === displayValue && lastExpression !== '') {
-			const currentNumber = getCurrentNumber(currentExpression);
-
-			if (!currentNumber.includes('.')) {
-				currentExpression += '.';
-				displayValue = getCurrentNumber(currentExpression);
-			}
-		} else {
-			// Only add decimal if the current number doesn't already have one
-			const currentNumber = getCurrentNumber(currentExpression);
-
-			if (!currentNumber.includes('.')) {
-				currentExpression += '.';
-				displayValue = getCurrentNumber(currentExpression);
-			}
-		}
-	};
-
-	const clear = () => {
-		currentExpression = '';
-		lastExpression = '';
-		displayValue = '0';
-	};
-
-	const backspace = () => {
-		if (currentExpression.length > 0) {
-			currentExpression = currentExpression.slice(0, -1);
-			// Update display to show the last number in the expression
-			if (currentExpression === '') {
-				displayValue = '0';
-			} else {
-				displayValue = getCurrentNumber(currentExpression) || '0';
-			}
-		}
-	};
-
-	const inputParenthesis = (paren: string) => {
-		currentExpression += paren;
-		displayValue = paren; // Show the parenthesis that was just entered
-	};
-
-	const inputOperator = (op: string) => {
-		// If the display currently shows the result of a previous calculation, start a new expression with the result
-		if (currentExpression === displayValue && lastExpression !== '') {
-			currentExpression = displayValue + op;
-			displayValue = op; // Show the operator that was just entered
-		} else if (currentExpression && !['+', '-', '×', '÷'].includes(currentExpression.slice(-1))) {
-			currentExpression += op;
-			displayValue = op; // Show the operator that was just entered
-		}
-	};
-
-	const toggleSign = () => {
-		// If the display currently shows the result of a previous calculation, toggle the sign of that result
-		if (currentExpression === displayValue && lastExpression !== '') {
-			const resultNum = parseFloat(displayValue);
-			if (!isNaN(resultNum)) {
-				const toggledNum = (resultNum * -1).toString();
-				currentExpression = toggledNum;
-				displayValue = toggledNum;
-			}
-		} else if (
-			currentExpression === '' ||
-			['+', '-', '×', '÷', '(', ')'].includes(currentExpression.slice(-1))
-		) {
-			currentExpression += '-';
-			displayValue = '-'; // Show the minus sign that was just entered
-		} else {
-			// Toggle the sign of the current number (the number being built after the last operator)
-			const currentNumber = getCurrentNumber(currentExpression);
-			if (currentNumber && !isNaN(parseFloat(currentNumber))) {
-				const lastNum = parseFloat(currentNumber);
-				const newNum = (lastNum * -1).toString();
-				currentExpression = updateCurrentNumber(currentExpression, newNum);
-				displayValue = newNum;
-			}
-		}
-	};
-
-	const inputPercent = () => {
-		// If the display currently shows the result of a previous calculation, convert that result to percentage
-		if (currentExpression === displayValue && lastExpression !== '') {
-			const resultNum = parseFloat(displayValue);
-			if (!isNaN(resultNum)) {
-				const percentNum = (resultNum / 100).toString();
-				currentExpression = percentNum;
-				displayValue = percentNum;
-			}
-		} else {
-			// Convert the current number to percentage (the number being built after the last operator)
-			const currentNumber = getCurrentNumber(currentExpression);
-			if (currentNumber && !isNaN(parseFloat(currentNumber))) {
-				const lastNum = parseFloat(currentNumber);
-				const newNum = (lastNum / 100).toString();
-				currentExpression = updateCurrentNumber(currentExpression, newNum);
-				displayValue = newNum;
-			}
-		}
-	};
-
-	// Safe evaluation function that handles parentheses and operations properly
-	const evaluateExpression = (expr: string): number => {
-		// Remove extra spaces
-		expr = expr.replace(/\s+/g, '');
-
-		// Check for balanced parentheses
-		const openCount = (expr.match(/\(/g) || []).length;
-		const closeCount = (expr.match(/\)/g) || []).length;
-		if (openCount !== closeCount) {
-			throw new Error('Unbalanced parentheses');
-		}
-
-		// Replace our operators with JavaScript operators
-		expr = expr.replace(/×/g, '*').replace(/÷/g, '/');
-
-		// Only allow safe characters: numbers, operators, parentheses, decimal point
-		if (!/^[0-9+\-*/().]+$/.test(expr)) {
-			throw new Error('Invalid characters in expression');
-		}
-
-		// Use Function constructor for safe evaluation (alternative to eval)
-		return new Function('return ' + expr)();
-	};
-
-	const handleEquals = () => {
-		if (currentExpression) {
-			lastExpression = currentExpression;
-			try {
-				const result = evaluateExpression(currentExpression);
-				displayValue = result.toString();
-				// Keep the current expression unchanged so the formula stays visible in the small display
-				// currentExpression remains as the full formula
-			} catch (e) {
-				displayValue = 'Error';
-				console.error('Calculation error:', e);
-			}
-		}
-	};
+	function indexLabel(index: number) {
+		return calculator.tokens.slice(0, index + 1).filter((token) => typeof token === 'object').length;
+	}
 
 	function apply() {
-		onapply?.(parseFloat(displayValue));
+		onapply?.(calculator.amountToApply());
 	}
 </script>
 
@@ -235,14 +33,27 @@
 		<div
 			class="min-h-6 overflow-x-auto text-right font-mono text-sm whitespace-nowrap text-green-400"
 		>
-			{currentExpression}
+			{#each calculator.tokens as token, index (index)}
+				{#if typeof token === 'object'}
+					<button
+						type="button"
+						class="min-h-11 min-w-11 rounded px-1 hover:underline aria-pressed:bg-primary aria-pressed:text-primary-content"
+						aria-label={`Select operand ${indexLabel(index)}: ${token.amount}${token.currency ? ` ${token.currency}` : ''}`}
+						aria-pressed={calculator.selected === index}
+						title={token.account}
+						onclick={() => calculator.select(index)}
+					>{token.amount}{token.currency ? ` ${token.currency}` : ''}</button>
+				{:else}
+					<span>{token}</span>
+				{/if}
+			{/each}
 		</div>
 		<div
 			role="status"
 			aria-label="Calculator result"
 			class="mt-1 overflow-x-auto text-right font-mono text-3xl font-bold whitespace-nowrap text-green-400"
 		>
-			{displayValue}
+			{calculator.display}
 		</div>
 	</div>
 
@@ -250,144 +61,148 @@
 	<div class="grid grid-cols-4 gap-2 [&>button]:min-w-0 [&>button]:px-1">
 		<button
 			class="btn btn-lg rounded-lg border border-gray-500 bg-gray-300 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
-			onclick={clear}
+			onclick={() => calculator.reset()}
 		>
 			AC
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-500 bg-gray-300 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
-			onclick={() => inputParenthesis('(')}
+			onclick={() => calculator.parenthesis('(')}
 		>
 			(
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-500 bg-gray-300 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
-			onclick={() => inputParenthesis(')')}
+			onclick={() => calculator.parenthesis(')')}
 		>
 			)
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-500 bg-gray-300 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
-			onclick={backspace}
+			onclick={() => calculator.backspace()}
 		>
 			⌫
 		</button>
 
 		<button
+			type="button"
 			class="btn btn-lg bg-primary flex items-center justify-center rounded-lg border border-gray-900 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
+			aria-label="Insert account balance"
+			title="Insert account balance"
+			onclick={() => (picking = true)}
 		>
-			<img src="/icons/cashier-logo.svg" alt="Cashier Logo" width="32" height="32" />
+			<img src="/icons/cashier-logo.svg" alt="" width="32" height="32" />
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-500 bg-gray-300 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
-			onclick={toggleSign}
+			onclick={() => calculator.toggleSign()}
 		>
 			+/-
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-500 bg-gray-300 text-lg font-bold text-gray-800 shadow-md hover:bg-gray-400"
-			onclick={inputPercent}
+			onclick={() => calculator.percent()}
 		>
 			%
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-orange-600 bg-orange-500 text-xl font-bold text-white shadow-md hover:bg-orange-600"
-			onclick={() => inputOperator('÷')}
+			onclick={() => calculator.operator('÷')}
 		>
 			÷
 		</button>
 
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('7')}
+			onclick={() => calculator.digit('7')}
 		>
 			7
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('8')}
+			onclick={() => calculator.digit('8')}
 		>
 			8
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('9')}
+			onclick={() => calculator.digit('9')}
 		>
 			9
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-orange-600 bg-orange-500 text-xl font-bold text-white shadow-md hover:bg-orange-600"
-			onclick={() => inputOperator('×')}
+			onclick={() => calculator.operator('×')}
 		>
 			×
 		</button>
 
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('4')}
+			onclick={() => calculator.digit('4')}
 		>
 			4
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('5')}
+			onclick={() => calculator.digit('5')}
 		>
 			5
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('6')}
+			onclick={() => calculator.digit('6')}
 		>
 			6
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-orange-600 bg-orange-500 text-xl font-bold text-white shadow-md hover:bg-orange-600"
-			onclick={() => inputOperator('+')}
+			onclick={() => calculator.operator('+')}
 		>
 			+
 		</button>
 
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('1')}
+			onclick={() => calculator.digit('1')}
 		>
 			1
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('2')}
+			onclick={() => calculator.digit('2')}
 		>
 			2
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('3')}
+			onclick={() => calculator.digit('3')}
 		>
 			3
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-orange-600 bg-orange-500 text-xl font-bold text-white shadow-md hover:bg-orange-600"
-			onclick={() => inputOperator('-')}
+			onclick={() => calculator.operator('-')}
 		>
 			-
 		</button>
 
 		<button
 			class="btn btn-lg col-span-2 rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={() => inputNumber('0')}
+			onclick={() => calculator.digit('0')}
 		>
 			0
 		</button>
 
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-200 text-xl font-bold text-gray-800 shadow-md hover:bg-gray-300"
-			onclick={inputDecimal}
+			onclick={() => calculator.decimal()}
 		>
 			.
 		</button>
 		<button
 			class="btn btn-lg rounded-lg border border-gray-400 bg-gray-900 text-xl font-bold text-gray-200 shadow-md hover:bg-gray-700"
-			onclick={handleEquals}
+			onclick={() => calculator.calculate()}
 		>
 			=
 		</button>
@@ -395,4 +210,14 @@
 </div>
 {#if onapply && actions}
 	{@render actions(apply)}
+{/if}
+{#if picking}
+	<CalculatorBalancePicker
+		{account}
+		onselect={(balance) => {
+			calculator.insertBalance(balance);
+			picking = false;
+		}}
+		oncancel={() => (picking = false)}
+	/>
 {/if}

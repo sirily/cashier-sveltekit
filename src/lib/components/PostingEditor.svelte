@@ -40,10 +40,9 @@
 		meta.selectionType = 'amount';
 
 		// Store the current amount value to initialize the calculator
-		const currentAmount = $xact.postings[index].amount;
-		if (currentAmount !== undefined && currentAmount !== null) {
-			meta.initialValue = currentAmount;
-		}
+		const posting = $xact.postings[index];
+		meta.calculatorAccount = posting.account || undefined;
+		meta.initialValue = postingAmountText(posting);
 
 		selectionMetadata.set(meta);
 

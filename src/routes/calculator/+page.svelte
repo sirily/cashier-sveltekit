@@ -9,10 +9,19 @@
 		$selectionMetadata?.selectionType === 'amount' ? $selectionMetadata : undefined
 	);
 
-	function applyAmount(amount: number) {
+	function applyAmount(amount: string | undefined) {
 		if (!amountSelection) return;
-		if (Number.isFinite(amount)) amountSelection.selectedId = amount;
-		else Notifier.error('The value is not a number!');
+		if (amount === undefined) {
+			Notifier.error('Enter a valid calculation before applying the amount.');
+			return;
+		}
+		// Postings retain the text but also require a finite numeric projection.
+		const projected = Number(amount);
+		if (!Number.isFinite(projected) || (projected === 0 && /[1-9]/.test(amount))) {
+			Notifier.error('This result is outside the supported amount range.');
+			return;
+		}
+		amountSelection.selectedId = amount;
 		history.back();
 	}
 </script>
@@ -20,6 +29,7 @@
 <article class="bg-base-300 flex min-h-screen flex-col items-center justify-center p-4">
 	<CalculatorBody
 		initialValue={amountSelection?.initialValue}
+		account={amountSelection?.calculatorAccount}
 		onapply={amountSelection ? applyAmount : undefined}
 	>
 		{#snippet actions(apply)}
