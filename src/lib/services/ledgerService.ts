@@ -282,6 +282,15 @@ class LedgerService {
 		if (!tempLedger) throw new Error('Could not parse the local journal.');
 
 		try {
+			// A syntax failure can leave both the directive list and source spans empty.
+			// Do not reject booking/interpolation diagnostics when source entries are still readable.
+			if (tempLedger.getDirectives().length === 0) {
+				const diagnostic = tempLedger.getParseErrors().find((issue) => issue.severity === 'error');
+				if (diagnostic) {
+					const location = diagnostic.line == null ? '' : ` (line ${diagnostic.line})`;
+					throw new Error(`Invalid journal source${location}: ${diagnostic.message}`);
+				}
+			}
 			const spans = mapDirectiveSpans(source, tempLedger);
 			const symbols = tempLedger.getDocumentSymbols();
 			const transactionSpans = spans.filter(

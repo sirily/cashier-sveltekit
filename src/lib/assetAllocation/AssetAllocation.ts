@@ -11,7 +11,8 @@ import type { ReportLedger } from '#lib/services/reportPostings';
 import {
 	allocationPricePolicy,
 	queryAllocationHoldings,
-	type AllocationCriteria
+	type AllocationCriteria,
+	type AllocationHolding
 } from './allocationHoldings';
 
 /**
@@ -24,6 +25,7 @@ export class AssetAllocationEngine {
 	stockIndex: Record<string, string>;
 	childrenIndex: Map<string, AssetClass[]>;
 	warnings: string[] = [];
+	holdings: AllocationHolding[] = [];
 	valuation: AllocationCriteria | undefined;
 	valuationComplete = false;
 	hasAllocationPercentages = false;
@@ -325,6 +327,7 @@ export class AssetAllocationEngine {
 	async loadCurrentValues(criteria: AllocationCriteria, ledger: ReportLedger) {
 		this.valuation = criteria;
 		const { holdings, warnings } = await queryAllocationHoldings(ledger, criteria);
+		this.holdings = holdings;
 		const values = new Map<AssetClass, Big>();
 		for (const { account, commodity, quantity, value } of holdings) {
 			const name = Object.hasOwn(this.stockIndex, commodity) ? this.stockIndex[commodity] : '';

@@ -270,10 +270,7 @@ function homeCard(page: Page, name: string) {
 		});
 }
 
-test('changing the selected book refreshes the warm Home ledger in the same document', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 1280, height: 900 });
+async function seedSecondBook(page: Page) {
 	await seedCardBook(page);
 	await page.evaluate(async (content) => {
 		const root = await navigator.storage.getDirectory();
@@ -283,6 +280,24 @@ test('changing the selected book refreshes the warm Home ledger in the same docu
 		await writer.close();
 	}, 'option "operating_currency" "EUR"\n2000-01-01 open Assets:NewCash EUR\n2000-01-01 open Assets:Cash EUR\n2000-01-01 open Expenses:Food EUR\n2025-01-01 * "Second book" "Current data"\n  Assets:NewCash  99 EUR\n  Assets:Cash  -99 EUR\n');
 	await selectHomeCards(page, ['Account Tree', 'Accounts', 'Settings']);
+}
+
+async function saveSecondBook(page: Page) {
+	await homeCard(page, 'Settings').getByRole('link', { name: 'Settings', exact: true }).click();
+	await page.getByRole('main').getByRole('button', { name: 'Select', exact: true }).first().click();
+	await page.getByRole('button', { name: 'second.bean', exact: true }).click();
+	await page.getByRole('main').locator('button.fixed').click();
+	await expect(page).toHaveURL('/settings');
+	await expect(page.getByRole('main').getByText('second.bean', { exact: true })).toBeVisible();
+	await page.getByRole('main').locator('button.fixed').click();
+	await expect(page).toHaveURL('/');
+}
+
+test('changing the selected book refreshes the warm Home ledger in the same document', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedSecondBook(page);
 	const tree = homeCard(page, 'Account Tree');
 	const accounts = homeCard(page, 'Accounts');
 	const settings = homeCard(page, 'Settings');
@@ -291,14 +306,7 @@ test('changing the selected book refreshes the warm Home ledger in the same docu
 	await expect(settings.getByText('main.bean', { exact: true })).toBeVisible();
 	await page.evaluate(() => Reflect.set(window, 'testWarmBookSwitch', true));
 
-	await settings.getByRole('link', { name: 'Settings', exact: true }).click();
-	await page.getByRole('main').getByRole('button', { name: 'Select', exact: true }).first().click();
-	await page.getByRole('button', { name: 'second.bean', exact: true }).click();
-	await page.getByRole('main').locator('button.fixed').click();
-	await expect(page).toHaveURL('/settings');
-	await expect(page.getByRole('main').getByText('second.bean', { exact: true })).toBeVisible();
-	await page.getByRole('main').locator('button.fixed').click();
-	await expect(page).toHaveURL('/');
+	await saveSecondBook(page);
 	await expect(settings.getByText('second.bean', { exact: true })).toBeVisible();
 	await expect(
 		tree.getByRole('link', { name: 'NewCash', exact: true }).locator('..')
@@ -306,6 +314,62 @@ test('changing the selected book refreshes the warm Home ledger in the same docu
 	await expect(accounts.getByRole('link', { name: /Assets:NewCash/ })).toBeVisible();
 	await expect(accounts.getByRole('link', { name: /Assets:Investments:Fund/ })).toHaveCount(0);
 	expect(await page.evaluate(() => Reflect.get(window, 'testWarmBookSwitch'))).toBe(true);
+});
+
+test('changing the book refreshes an already-open Home in another tab without navigation', async ({
+	page,
+	context
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedSecondBook(page);
+	await selectHomeCards(page, ['Asset Allocation']);
+	const tree = homeCard(page, 'Account Tree');
+	await expect(tree.getByRole('link', { name: 'Investments', exact: true })).toBeVisible();
+	await page.evaluate(() => Reflect.set(window, 'testCrossTabBookSwitch', true));
+	const before = await snapshotCardStorage(page);
+	const other = await context.newPage();
+	const detail = await context.newPage();
+	try {
+		await other.goto('/');
+		await detail.goto('/');
+		await homeCard(detail, 'Asset Allocation')
+			.getByRole('link', { name: 'Equity', exact: true })
+			.click();
+		await expect(detail.getByRole('main')).toContainText(
+			'Assets:Investments:Fund, 2 FUND — 30.00 EUR'
+		);
+		await saveSecondBook(other);
+		await expect(detail.getByRole('main')).toContainText('The local book changed.');
+		await expect(detail.getByRole('main')).not.toContainText('Assets:Investments:Fund, 2 FUND');
+		await expect(homeCard(page, 'Settings')).toContainText('second.bean');
+		await expect(
+			tree.getByRole('link', { name: 'NewCash', exact: true }).locator('..')
+		).toContainText('99 EUR');
+		await expect(tree.getByRole('link', { name: 'Investments', exact: true })).toHaveCount(0);
+		await expect(
+			homeCard(page, 'Accounts').getByRole('link', { name: /Assets:NewCash/ })
+		).toBeVisible();
+		expect(await page.evaluate(() => Reflect.get(window, 'testCrossTabBookSwitch'))).toBe(true);
+		expect((await snapshotCardStorage(page)).files).toEqual(before.files);
+	} finally {
+		await Promise.all([other.close(), detail.close()]);
+	}
+});
+
+test('the Journal card reports syntax errors instead of a confirmed empty journal', async ({
+	page
+}) => {
+	await seedCardBook(page);
+	await page.evaluate(async (source) => {
+		const file = await (await navigator.storage.getDirectory()).getFileHandle('cashier.bean');
+		const writer = await file.createWritable();
+		await writer.write(source);
+		await writer.close();
+	}, '2025-99-99 * "Bad date"\n  Assets:Cash 1 EUR\n  Expenses:Food -1 EUR\n');
+	await page.reload();
+	const journal = homeCard(page, 'Device Journal');
+	await expect(journal.getByRole('alert')).toContainText(/Invalid journal source.*invalid date/i);
+	await expect(journal.getByText('The device journal is empty')).toHaveCount(0);
 });
 
 test('Home Account Tree marks available balances incomplete when a book include is missing', async ({

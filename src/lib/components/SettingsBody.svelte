@@ -2,20 +2,28 @@
 	import { readSettingsPreferences } from '#lib/services/settingsPreferences';
 	import { ReportRequest } from '#lib/services/reportRequest.svelte';
 	import { syncAction } from '#lib/sync/sync-action.svelte';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	const request = new ReportRequest<Awaited<ReturnType<typeof readSettingsPreferences>>>();
 	const preferences = $derived(request.value);
+	const version = fullLedgerService.version;
+	const reloading = fullLedgerService.isReloading;
 
 	$effect(() => {
 		const runs = syncAction.completedRuns;
-		void request.run(readSettingsPreferences, () => runs === syncAction.completedRuns);
+		const currentVersion = $version;
+		if ($reloading) return;
+		void request.run(
+			readSettingsPreferences,
+			() => runs === syncAction.completedRuns && currentVersion === $version && !$reloading
+		);
 		return () => request.cancel();
 	});
 </script>
 
 {#if request.error}
 	<p class="p-2" role="alert">Could not read settings: {request.error}</p>
-{:else if !preferences}
+{:else if $reloading || !preferences}
 	<p class="p-2" role="status">Loading saved settings…</p>
 {:else}
 	<dl

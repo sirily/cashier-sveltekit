@@ -17,6 +17,7 @@
 	import Fab from '#lib/components/FAB.svelte';
 	import { page } from '$app/state';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { notifyBookSelectionChanged } from '#lib/services/bookSelectionEvents';
 	import { USER_BOOK_FILENAME } from '#lib/constants';
 	import { DEFAULT_DATE_FORMAT, readSettingsPreferences } from '#lib/services/settingsPreferences';
 
@@ -161,6 +162,7 @@
 			let refreshError: string | undefined;
 			if (bookFilename && bookFilename !== (await appService.readBookFilename())) {
 				await appService.writeBookFilename(bookFilename);
+				notifyBookSelectionChanged();
 				// Invalidate the old composition before Home can query it under the new book's name.
 				try {
 					await fullLedgerService.invalidate();

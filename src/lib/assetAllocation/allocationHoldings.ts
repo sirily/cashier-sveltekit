@@ -7,7 +7,7 @@ export type AllocationCriteria = Readonly<{ rootAccount: string; currency: strin
 export const allocationPricePolicy =
 	'RustLedger values net holding units using the latest available prices in the local analysis book, including indirect rates and transaction-implied prices. All book dates are included, even future dates; there is no age cutoff.';
 
-interface Holding {
+export interface AllocationHolding {
 	account: string;
 	commodity: string;
 	quantity: Big;
@@ -41,15 +41,22 @@ async function rows(ledger: ReportLedger, bql: string, columns: string[]): Promi
 	});
 }
 
-export async function queryAllocationHoldings(ledger: ReportLedger, criteria: AllocationCriteria) {
-	const { rootAccount, currency } = criteria;
+export function allocationAccountFilter(rootAccount: string): string {
 	if (!/^[\p{Lu}][\p{L}\p{N}-]*(?::[\p{Lu}\p{N}][\p{L}\p{N}-]*)*$/u.test(rootAccount)) {
 		throw new UserError('Missing or invalid investment account root.', 'Set it in Settings.');
 	}
-	if (!/^[A-Za-z][A-Za-z0-9._'-]*$/.test(currency)) {
+	// RustLedger's BQL regex comparison is case-insensitive unless opted out.
+	return `account ~ "(?-i:^${rootAccount}(:|$))"`;
+}
+
+export async function queryAllocationHoldings(ledger: ReportLedger, criteria: AllocationCriteria) {
+	const { rootAccount, currency } = criteria;
+	const scope = allocationAccountFilter(rootAccount);
+	// Accept RustLedger commodity tokens, including slash-prefixed futures, without
+	// accepting characters that can escape the double-quoted BQL string below.
+	if (!/^(?:[A-Za-z][A-Za-z0-9._'-]*|\/[A-Z0-9._'-]*[A-Z][A-Z0-9._'-]*)$/.test(currency)) {
 		throw new UserError('Missing or invalid valuation currency.', 'Select a currency in Settings.');
 	}
-	const scope = `account ~ "^${rootAccount}(:|$)"`;
 	const [accounts, unresolved, balances, diagnostics] = await Promise.all([
 		rows(ledger, `SELECT account FROM #accounts WHERE ${scope} LIMIT 1`, ['account']),
 		rows(ledger, `SELECT date, account, narration WHERE ${scope} AND position IS NULL`, [
@@ -81,7 +88,7 @@ export async function queryAllocationHoldings(ledger: ReportLedger, criteria: Al
 			`${date} · ${account}${narration ? ` · ${narration}` : ''}: Unresolved posting amount. Correct the source transaction.`
 		);
 	}
-	const holdings: Holding[] = [];
+	const holdings: AllocationHolding[] = [];
 	for (const [account, commodity, quantity, rawRate] of balances) {
 		const units = decimal(quantity);
 		if (!units || typeof account !== 'string' || typeof commodity !== 'string' || !commodity) {

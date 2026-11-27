@@ -15,6 +15,8 @@ symbols = ["LONGCOIN", "USD"]
 const rootAccount = 'Assets:Investments';
 const book = `2000-01-01 open Assets:Investments
 2000-01-01 open Assets:Investments:Mixed
+2000-01-01 open Assets:INVESTMENTS
+2000-01-01 open Assets:INVESTMENTS:Mixed
 2000-01-01 open Assets:InvestmentsExtra
 2000-01-01 open Assets:Cash
 `;
@@ -70,6 +72,10 @@ const mixed = `2025-01-01 price FUND 15 EUR
 2025-03-05 * "Not a descendant"
   Assets:InvestmentsExtra 900 USD
   Assets:Cash -900 USD
+2025-03-06 ! "Different root casing, not in scope"
+  Assets:INVESTMENTS  800 USD
+  Assets:INVESTMENTS:Mixed  200 USD
+  Assets:Cash  -1000 USD
 2030-01-01 price LONGCOIN 7 USD
 2030-01-01 price FUND 25 EUR
 `;
@@ -80,6 +86,10 @@ test.each([false, true])(
 		const euro = await allocation(mixed, 'EUR', rootAccount, cached);
 		expect(euro.valuationComplete).toBe(true);
 		expect(euro.warnings).toEqual([]);
+		expect([...new Set(euro.holdings.map((holding) => holding.account))].sort()).toEqual([
+			rootAccount,
+			'Assets:Investments:Mixed'
+		]);
 		expect(
 			euro.assetClasses.map((row) => [row.name, row.currentValue.toString(), row.currency])
 		).toEqual([
@@ -99,6 +109,18 @@ test.each([false, true])(
 		]);
 	}
 );
+
+test('values holdings in a RustLedger slash-prefixed commodity', async () => {
+	const engine = await allocation(
+		mixed + '\n2030-01-01 price EUR 2 /ES\n2030-01-01 price USD 4 /ES\n',
+		'/ES'
+	);
+	expect(engine.warnings).toEqual([]);
+	expect(engine.valuationComplete).toBe(true);
+	expect(engine.assetClasses[0]).toMatchObject({ currency: '/ES' });
+	expect(engine.assetClasses[0].currentValue.toString()).toBe('366');
+	await expect(allocation(mixed, '/ES"')).rejects.toThrow('invalid valuation currency');
+});
 
 test('keeps original units and ledger diagnostics, deduplicates identical warnings, and omits partial totals from export', async () => {
 	const engine = await allocation(

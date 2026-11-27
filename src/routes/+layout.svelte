@@ -14,20 +14,26 @@
 	import Notifier from '#lib/utils/notifier';
 	import ReloadPrompt from '#lib/components/ReloadPrompt.svelte';
 	import { ensureInitialized } from '#lib/data/initializer';
+	import { observeBookSelectionChanges } from '#lib/services/bookSelectionEvents';
 
 	let { children } = $props();
 
-	onMount(async () => {
+	onMount(() => {
+		const stop = observeBookSelectionChanges(() => {
+			// Read the new composition without rewriting the source files or binary cache.
+			void fullLedgerService.load().catch((error: unknown) => {
+				const message = error instanceof Error ? error.message : String(error);
+				Notifier.warning(`Could not refresh the selected book: ${message}`);
+			});
+		});
 		void import('#lib/services/pwaUpdate.svelte')
 			.then(({ initPwa }) => initPwa())
 			.catch((error) => console.error('PWA initialization failed:', error));
 
-		// Initialize the Ledger service.
-		const initialized = await initializeApp();
-		if (!initialized) {
-			Notifier.error('Failed to initialize the engine.');
-			return;
-		}
+		void initializeApp().then((initialized) => {
+			if (!initialized) Notifier.error('Failed to initialize the engine.');
+		});
+		return stop;
 	});
 
 	async function initializeApp(): Promise<boolean> {
@@ -64,7 +70,7 @@
 	<title>Cashier</title>
 
 	<!-- PWA -->
-	<base href={resolve("/")} />
+	<base href={resolve('/')} />
 </svelte:head>
 
 <div class="drawer">
@@ -78,22 +84,26 @@
 				<NavigationV3 />
 			</aside>
 
-			<main class="col-span-1 bg-base-300 h-full overflow-auto touch-pan-y"
+			<main
+				class="col-span-1 bg-base-300 h-full overflow-auto touch-pan-y"
 				{...useSwipe(handleSwipe, () => ({
 					timeframe: 350,
 					minSwipeDistance: 25,
 					touchAction: 'pan-y'
-				}))}>
+				}))}
+			>
 				{@render children()}
 			</main>
 		</div>
 	</div>
-	<div class="drawer-side"
+	<div
+		class="drawer-side"
 		{...useSwipe(handleDrawerSideSwipe, () => ({
 			timeframe: 350,
 			minSwipeDistance: 25,
 			touchAction: 'pan-y'
-		}))}>
+		}))}
+	>
 		<label for="drawer-modal" class="drawer-overlay"></label>
 		<div class="bg-base-200 w-[288px] h-screen overflow-y-auto">
 			<!-- <Navigation /> -->

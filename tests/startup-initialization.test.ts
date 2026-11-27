@@ -1,21 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/svelte';
+import { cleanup, render, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import Layout from '../src/routes/+layout.svelte';
 
 const mocks = vi.hoisted(() => ({
-	mounts: [] as Array<() => Promise<void>>,
 	initialize: vi.fn(),
 	load: vi.fn(),
 	error: vi.fn(),
-	pwa: vi.fn()
+	pwa: vi.fn(),
+	observe: vi.fn(),
+	stop: vi.fn()
 }));
-vi.mock('svelte', async (importOriginal) => ({
-	...(await importOriginal<typeof import('svelte')>()),
-	onMount: (callback: () => Promise<void>) => {
-		mocks.mounts.push(callback);
-	}
+vi.mock('#lib/services/bookSelectionEvents', () => ({
+	observeBookSelectionChanges: mocks.observe
 }));
 vi.mock('#lib/data/initializer', () => ({ ensureInitialized: mocks.initialize }));
 vi.mock('#lib/services/ledgerWorkerClient', () => ({ default: { ensureLoaded: mocks.load } }));
@@ -36,24 +34,27 @@ vi.mock('svelte-gestures', () => ({ useSwipe: () => ({}) }));
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	mocks.mounts.length = 0;
+	mocks.observe.mockReturnValue(mocks.stop);
 	mocks.initialize.mockResolvedValue(undefined);
 	mocks.load.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
 
 function mount() {
-	render(Layout, { children: createRawSnippet(() => ({ render: () => '<p>App content</p>' })) });
-	expect(mocks.mounts).toHaveLength(1);
-	return mocks.mounts[0]();
+	return render(Layout, {
+		children: createRawSnippet(() => ({ render: () => '<p>App content</p>' }))
+	});
 }
 
 test('startup journal storage denial is handled and notified, not an unhandled mount rejection', async () => {
 	const denied = new DOMException('Journal OPFS access denied', 'NotAllowedError');
 	mocks.initialize.mockRejectedValueOnce(denied);
 	const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-	await expect(mount()).resolves.toBeUndefined();
-	expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining('Journal OPFS access denied'));
+	mount();
+	await waitFor(() => {
+		expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining('Journal OPFS access denied'));
+		expect(mocks.error).toHaveBeenCalledWith('Failed to initialize the engine.');
+	});
 	expect(logged).toHaveBeenCalledWith('Failed to initialize FullLedgerService:', denied);
 	expect(mocks.load).not.toHaveBeenCalled();
 });
@@ -66,7 +67,10 @@ test('successful startup initializes durable journal storage before loading anal
 	mocks.load.mockImplementationOnce(async () => {
 		expect(initialized).toBe(true);
 	});
-	await expect(mount()).resolves.toBeUndefined();
-	expect(mocks.load).toHaveBeenCalledTimes(1);
+	const view = mount();
+	await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1));
 	expect(mocks.error).not.toHaveBeenCalled();
+	expect(mocks.observe).toHaveBeenCalledOnce();
+	view.unmount();
+	expect(mocks.stop).toHaveBeenCalledOnce();
 });
