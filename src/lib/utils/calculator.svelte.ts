@@ -177,6 +177,14 @@ export class Calculator {
 		}
 	}
 
+	amountToApply() {
+		// An untouched posting is already a result; keep its decimal spelling.
+		if (this.evaluated && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(this.display)) {
+			return this.display;
+		}
+		return this.calculate();
+	}
+
 	calculate() {
 		this.selected = null;
 		try {

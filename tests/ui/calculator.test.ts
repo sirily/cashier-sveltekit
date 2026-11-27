@@ -13,7 +13,7 @@ const journal = `option "operating_currency" "EUR"
   Equity:Opening -20 USD
 `;
 
-async function seedBook(page: Page) {
+async function seedBook(page: Page, source = journal) {
 	await page.goto('/');
 	await expect(page.getByRole('button', { name: 'New transaction' })).toBeVisible();
 	await page.evaluate(async (source) => {
@@ -22,7 +22,7 @@ async function seedBook(page: Page) {
 		const writer = await file.createWritable();
 		await writer.write(source);
 		await writer.close();
-	}, journal);
+	}, source);
 	await page.reload();
 }
 
@@ -121,6 +121,78 @@ test('the second posting keeps the exact prefill and receives the exact displaye
 	await expect(amounts.first()).toHaveValue('2');
 	await expect(amounts.nth(1)).toHaveValue(quotient);
 });
+
+test('applying an untouched calculator amount keeps the journal byte-for-byte unchanged', async ({
+	page
+}) => {
+	const source = `${journal}
+2025-02-01 * "Cafe" "Keep written precision"
+  Assets:Checking -12.30 USD
+  Equity:Opening 12.30 USD
+`;
+	await seedBook(page, source);
+	await page.goto('/journal');
+	await page.getByText('; Keep written precision', { exact: true }).click();
+	await keys(page, 'Edit');
+	const amount = page.getByTitle('Amount', { exact: true }).nth(1);
+	await expect(amount).toHaveValue('12.30');
+	await page.getByTitle('Open calculator').nth(1).click();
+	await expect(result(page)).toHaveText('12.30');
+	await keys(page, 'Apply amount');
+	await expect(amount).toHaveValue('12.30');
+	await keys(page, 'Save');
+	await expect(page).toHaveURL(/\/xact-actions$/);
+	const saved = await page.evaluate(async () => {
+		const root = await navigator.storage.getDirectory();
+		return (await (await root.getFileHandle('cashier.bean')).getFile()).text();
+	});
+	expect(saved).toBe(source);
+});
+
+for (const [baseline, target] of [
+	['1', '1.000000000000000001'],
+	['1.000000000000000001', '1.000000000000000002']
+]) {
+	test(`balance adjustment from ${baseline} ETH retains a difference of one wei`, async ({
+		page
+	}) => {
+		const delta = '0.000000000000000001';
+		await seedBook(
+			page,
+			`option "operating_currency" "ETH"
+2000-01-01 open Assets:Wallet ETH
+2000-01-01 open Equity:Opening ETH
+2000-01-01 open Expenses:Adjustment ETH
+2025-01-01 * "Opening"
+  Assets:Wallet ${baseline} ETH
+  Equity:Opening -${baseline} ETH
+`
+		);
+		await page.goto('/accounts/bal-adj?account=Assets:Wallet');
+		const current = page.getByLabel('Current Balance');
+		await expect(current).toHaveValue(baseline);
+		await page.getByLabel('Expense Account').click();
+		await page.getByRole('button', { name: /^Expenses:Adjustment\b/ }).click();
+		await page.getByTitle('Open calculator').click();
+		await expect(result(page)).toHaveText(baseline);
+		await keys(page, '+', ...delta, '=', 'Apply amount');
+		await expect(current).toHaveValue(target);
+		await expect(page.getByText(`+${delta}`, { exact: false })).toBeVisible();
+		await page.locator('button.fixed').click();
+		await expect(page).toHaveURL(/\/tx$/);
+		const amounts = page.getByTitle('Amount', { exact: true });
+		await expect(amounts.first()).toHaveValue(`-${delta}`);
+		await expect(amounts.nth(1)).toHaveValue(delta);
+		await keys(page, 'Save');
+		await expect(page).toHaveURL(/\/accounts\/bal-adj/);
+		const saved = await page.evaluate(async () => {
+			const root = await navigator.storage.getDirectory();
+			return (await (await root.getFileHandle('cashier.bean')).getFile()).text();
+		});
+		expect(saved).toContain(`Expenses:Adjustment  -${delta} ETH`);
+		expect(saved).toContain(`Assets:Wallet  ${delta} ETH`);
+	});
+}
 
 test('a book with a missing include shows diagnostics in the account chooser', async ({ page }) => {
 	await page.goto('/');

@@ -18,4 +18,4 @@ Keep the picker within the calculator, preserve operand source labels and signed
 
 - Account quantities are original units, not converted values. Label the commodity at selection time and in the expression; the calculator still performs numeric arithmetic, not currency conversion.
 - A pending or refreshed ledger must not expose a stale selectable balance. Reuse the existing version-aware request pattern and invalidate a pending lookup when its dialog closes or account changes.
-- The calculator receives and returns decimal text. Posting editing retains that text alongside its numeric projection; results outside the supported numeric range are not applied. No implicit apply or currency update.
+- The calculator receives and returns decimal text. Applying without editing retains the prefill spelling. Posting editing retains the text alongside its numeric projection; results outside the supported range are not applied. Balance Adjustment uses the same exact balance lookup and subtracts in decimal before preparing or validating posting text. No implicit apply or currency update.

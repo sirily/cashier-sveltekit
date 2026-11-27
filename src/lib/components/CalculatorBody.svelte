@@ -21,7 +21,7 @@
 	}
 
 	function apply() {
-		onapply?.(calculator.calculate());
+		onapply?.(calculator.amountToApply());
 	}
 </script>
 

@@ -76,6 +76,18 @@ The calculator SHALL use the local analysis book for balance lookup without netw
 - **THEN** only the calculated amount is returned to the editor, without losing digits from the displayed result
 - **AND** opening the calculator from a populated posting preserves the initial decimal amount
 
+#### Scenario: Apply an unchanged posting amount
+
+- **GIVEN** an existing posting contains `12.30 USD`
+- **WHEN** the user opens the calculator, applies without editing, and saves the otherwise unchanged transaction
+- **THEN** the editor retains `12.30` and the journal source remains unchanged
+
+#### Scenario: Apply a precise balance adjustment
+
+- **GIVEN** an account has a balance of `1 ETH`
+- **WHEN** the user enters `1.000000000000000001 ETH` through the calculator and prepares the balance adjustment
+- **THEN** the adjustment shows `0.000000000000000001 ETH` and prepares opposite postings of exactly that magnitude
+
 #### Scenario: Calculate without an amount editor
 
 - **WHEN** the user calculates from Home or a standalone calculator opened without an amount request
