@@ -35,6 +35,7 @@
 		{:else}
 			<a
 				class={classes}
+				data-sveltekit-preload-data="off"
 				href={resolve('/accounts/account-xacts/[accountName]', {
 					accountName: encodeURIComponent(account.name)
 				})}>{@render contents()}</a

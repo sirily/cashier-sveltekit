@@ -18,6 +18,7 @@ import { CASHIER_XACT_FILE } from '#lib/constants';
 import { xactToBeancountText } from '#lib/utils/xactUtils';
 import { mergeTransactionEdit } from '#lib/rledger/transactionEdit';
 import { restorePostingSource } from '#lib/rledger/postingSource';
+import { readJournal } from '#lib/sync/journal-storage';
 
 interface QueryError {
 	message: string;
@@ -274,11 +275,11 @@ class LedgerService {
 	 */
 	async getXactsWithSpans(): Promise<Array<{ xact: Xact; span: DirectiveSpan }>> {
 		await ensureInitialized();
-		const source = (await opfslib.readFile(CASHIER_XACT_FILE)) ?? '';
+		const source = (await readJournal()) ?? '';
 		if (!source.trim()) return [];
 
 		const tempLedger = createParsedLedger(source);
-		if (!tempLedger) return [];
+		if (!tempLedger) throw new Error('Could not parse the local journal.');
 
 		try {
 			const spans = mapDirectiveSpans(source, tempLedger);

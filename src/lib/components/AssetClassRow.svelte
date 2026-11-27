@@ -4,17 +4,31 @@
 	import { NUMBER_FORMAT } from '#lib/constants.js';
 	import numeral from 'numeral';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import AssetClassRow from './AssetClassRow.svelte';
 	import { resolve } from '$app/paths';
 
-	export let assetClass: AssetClass;
-	export let children: AssetClass[] = [];
-	export let depth: number = 0;
-	export let collapsedState: Record<string, boolean> = {};
-	export let onToggle: (fullname: string) => void = () => {};
-	export let childrenIndex: Map<string, AssetClass[]> = new Map();
-	export let viewMode: 'allocation' | 'value' = 'allocation';
+	let {
+		assetClass,
+		children = [],
+		depth = 0,
+		collapsedState,
+		onToggle,
+		childrenIndex,
+		viewMode,
+		showValues,
+		showPercentages
+	}: {
+		assetClass: AssetClass;
+		children?: AssetClass[];
+		depth?: number;
+		collapsedState: Record<string, boolean>;
+		onToggle: (fullname: string) => void;
+		childrenIndex?: Map<string, AssetClass[]>;
+		viewMode: 'allocation' | 'value';
+		showValues: boolean;
+		showPercentages: boolean;
+	} = $props();
 
 	function isCollapsible(ac: AssetClass): boolean {
 		return !ac.symbols?.length && children.length > 0;
@@ -37,11 +51,13 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	}
 
 	function getChildren(fullname: string): AssetClass[] {
-		return childrenIndex.get(fullname) || [];
+		return childrenIndex?.get(fullname) || [];
 	}
 
-	$: allocHidden = viewMode !== 'allocation' ? ' hidden lg:table-cell' : '';
-	$: valueHidden = viewMode !== 'value' ? ' hidden lg:table-cell' : '';
+	const allocHidden = $derived(viewMode !== 'allocation' ? ' hidden lg:table-cell' : '');
+	const valueHidden = $derived(viewMode !== 'value' ? ' hidden lg:table-cell' : '');
+	const showRelativeDifference = $derived(showPercentages && assetClass.allocation !== 0);
+	const offsetColor = $derived(showRelativeDifference ? getOffsetColor(assetClass.diffPerc) : '');
 </script>
 
 <!-- Row for this asset class -->
@@ -51,7 +67,12 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 			{#if isCollapsible(assetClass)}
 				<button
 					class="hover:bg-base-300 mr-2 rounded p-1 transition-colors duration-200"
-					on:click|preventDefault|stopPropagation={toggleCollapse}
+					type="button"
+					aria-label={collapsedState[assetClass.fullname]
+						? 'Expand ' + assetClass.name
+						: 'Collapse ' + assetClass.name}
+					aria-expanded={!collapsedState[assetClass.fullname]}
+					onclick={toggleCollapse}
 				>
 					{#if collapsedState[assetClass.fullname]}
 						<ChevronRight class="h-4 w-4" />
@@ -81,19 +102,19 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		{numeral(assetClass.allocation).format(NUMBER_FORMAT)}
 	</td>
 	<td class="text-end{allocHidden}">
-		{numeral(assetClass.currentAllocation).format(NUMBER_FORMAT)}
+		{showPercentages ? numeral(assetClass.currentAllocation).format(NUMBER_FORMAT) : '—'}
 	</td>
-	<td class="text-end{allocHidden} {getOffsetColor(assetClass.diffPerc)}">
-		{numeral(assetClass.diffPerc).format(NUMBER_FORMAT)}
-	</td>
-	<td class="text-end{valueHidden}">
-		{numeral(assetClass.allocatedValue).format(NUMBER_FORMAT)}
+	<td class="text-end{allocHidden} {offsetColor}">
+		{showRelativeDifference ? numeral(assetClass.diffPerc).format(NUMBER_FORMAT) : '—'}
 	</td>
 	<td class="text-end{valueHidden}">
-		{numeral(assetClass.currentValue).format(NUMBER_FORMAT)}
+		{showValues ? numeral(assetClass.allocatedValue).format(NUMBER_FORMAT) : '—'}
 	</td>
-	<td class="pr-1 text-end{valueHidden} {getOffsetColor(assetClass.diffPerc)}">
-		{numeral(assetClass.diffAmount).format(NUMBER_FORMAT)}
+	<td class="text-end{valueHidden}">
+		{showValues ? numeral(assetClass.currentValue).format(NUMBER_FORMAT) : '—'}
+	</td>
+	<td class="pr-1 text-end{valueHidden} {offsetColor}">
+		{showValues ? numeral(assetClass.diffAmount).format(NUMBER_FORMAT) : '—'}
 	</td>
 </tr>
 
@@ -108,6 +129,8 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 			{onToggle}
 			{childrenIndex}
 			{viewMode}
+			{showValues}
+			{showPercentages}
 		/>
 	{/each}
 {/if}

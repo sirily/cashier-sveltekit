@@ -121,17 +121,17 @@ test('content cards can be selected, reordered with built-in cards, and removed'
 	await expect(page).toHaveURL('/reports');
 });
 
-async function seedCardBook(page: Page) {
+async function seedCardBook(page: Page, extraBookText = '') {
 	await page.goto('/');
 	await expect(page.getByRole('main').getByText('The device journal is empty')).toBeVisible();
-	await page.evaluate(async () => {
+	await page.evaluate(async (extraBookText) => {
 		const main =
 			'option "operating_currency" "EUR"\n2000-01-01 open Assets:Investments:Fund FUND\n2000-01-01 open Assets:Cash EUR\n2000-01-01 open Expenses:Food EUR\n2025-01-01 price FUND 15 EUR\n2025-01-01 * "Broker" "Buy fund"\n  Assets:Investments:Fund  2 FUND {10 EUR}\n  Assets:Cash  -20 EUR\n';
 		const local =
 			'2025-01-02 ! "Local cafe" "Device draft"\n  Expenses:Food  2 EUR\n  Assets:Cash  -2 EUR\n';
 		const root = await navigator.storage.getDirectory();
 		for (const [path, content] of Object.entries({
-			'main.bean': main,
+			'main.bean': main + extraBookText,
 			'cashier.bean': local,
 			'allocation.toml':
 				'[Allocation]\nallocation = 100\n[Allocation.Equity]\nallocation = 100\nsymbols = ["FUND"]\n'
@@ -165,7 +165,7 @@ async function seedCardBook(page: Page) {
 		} finally {
 			db.close();
 		}
-	});
+	}, extraBookText);
 	await page.reload();
 	await expect(page.getByRole('main').getByText('Local cafe', { exact: true })).toBeVisible();
 }
@@ -252,6 +252,101 @@ for (const width of [390, 1280]) {
 		await sync.click({ trial: true });
 	});
 }
+
+async function selectHomeCards(page: Page, names: string[]) {
+	await openHomeMenu(page, 'Home Settings');
+	const main = page.getByRole('main');
+	for (const name of names) await main.getByRole('checkbox', { name, exact: true }).check();
+	await main.getByRole('button', { name: 'Save Home Settings' }).click();
+	await expect(page).toHaveURL('/');
+}
+
+function homeCard(page: Page, name: string) {
+	return page
+		.getByRole('region', { name: 'Home cards' })
+		.locator(':scope > article')
+		.filter({
+			has: page.getByRole('heading', { name, exact: true, level: 2 })
+		});
+}
+
+test('changing the selected book refreshes the warm Home ledger in the same document', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedCardBook(page);
+	await page.evaluate(async (content) => {
+		const root = await navigator.storage.getDirectory();
+		const file = await root.getFileHandle('second.bean', { create: true });
+		const writer = await file.createWritable();
+		await writer.write(content);
+		await writer.close();
+	}, 'option "operating_currency" "EUR"\n2000-01-01 open Assets:NewCash EUR\n2000-01-01 open Assets:Cash EUR\n2000-01-01 open Expenses:Food EUR\n2025-01-01 * "Second book" "Current data"\n  Assets:NewCash  99 EUR\n  Assets:Cash  -99 EUR\n');
+	await selectHomeCards(page, ['Account Tree', 'Accounts', 'Settings']);
+	const tree = homeCard(page, 'Account Tree');
+	const accounts = homeCard(page, 'Accounts');
+	const settings = homeCard(page, 'Settings');
+	await expect(tree.getByRole('link', { name: 'Investments', exact: true })).toBeVisible();
+	await expect(accounts.getByRole('link', { name: /Assets:Investments:Fund/ })).toBeVisible();
+	await expect(settings.getByText('main.bean', { exact: true })).toBeVisible();
+	await page.evaluate(() => Reflect.set(window, 'testWarmBookSwitch', true));
+
+	await settings.getByRole('link', { name: 'Settings', exact: true }).click();
+	await page.getByRole('main').getByRole('button', { name: 'Select', exact: true }).first().click();
+	await page.getByRole('button', { name: 'second.bean', exact: true }).click();
+	await page.getByRole('main').locator('button.fixed').click();
+	await expect(page).toHaveURL('/settings');
+	await expect(page.getByRole('main').getByText('second.bean', { exact: true })).toBeVisible();
+	await page.getByRole('main').locator('button.fixed').click();
+	await expect(page).toHaveURL('/');
+	await expect(settings.getByText('second.bean', { exact: true })).toBeVisible();
+	await expect(
+		tree.getByRole('link', { name: 'NewCash', exact: true }).locator('..')
+	).toContainText('99 EUR');
+	await expect(accounts.getByRole('link', { name: /Assets:NewCash/ })).toBeVisible();
+	await expect(accounts.getByRole('link', { name: /Assets:Investments:Fund/ })).toHaveCount(0);
+	expect(await page.evaluate(() => Reflect.get(window, 'testWarmBookSwitch'))).toBe(true);
+});
+
+test('Home Account Tree marks available balances incomplete when a book include is missing', async ({
+	page
+}) => {
+	await seedCardBook(page, '\ninclude "missing-part.bean"\n');
+	await selectHomeCards(page, ['Account Tree']);
+	const tree = homeCard(page, 'Account Tree');
+	const warning = tree.getByRole('alert');
+	await expect(warning).toContainText('Account balances are incomplete.');
+	await warning.getByText('Book diagnostics', { exact: true }).click();
+	await expect(warning.getByText(/missing-part\.bean/)).toBeVisible();
+	await expect(tree.getByRole('link', { name: 'Open Ledger Validation' })).toHaveAttribute(
+		'href',
+		'/util/validation'
+	);
+	await expect(tree.getByRole('link', { name: 'Cash', exact: true })).toBeVisible();
+	await expect(tree.getByText('No accounts in the local book.')).toHaveCount(0);
+});
+
+test('Home account links do not initialize the journal when only hovered', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedCardBook(page);
+	await selectHomeCards(page, ['Account Tree', 'Accounts']);
+	const treeLink = homeCard(page, 'Account Tree').getByRole('link', { name: 'Cash', exact: true });
+	const listLink = homeCard(page, 'Accounts').getByRole('link', { name: /Assets:Cash/ });
+	await expect(treeLink).toBeVisible();
+	await expect(listLink).toBeVisible();
+	await page.evaluate(async () =>
+		(await navigator.storage.getDirectory()).removeEntry('cashier.bean')
+	);
+	for (const link of [treeLink, listLink]) {
+		await expect(link).toHaveAttribute('data-sveltekit-preload-data', 'off');
+		await link.hover();
+	}
+	await expect(page).toHaveURL('/');
+	const stored = await snapshotCardStorage(page);
+	expect(stored.files).not.toHaveProperty('cashier.bean');
+	await treeLink.click();
+	await expect(page).toHaveURL('/accounts/account-xacts/Assets%3ACash');
+});
 
 async function snapshotCardStorage(page: Page) {
 	return page.evaluate(async () => {

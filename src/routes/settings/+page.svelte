@@ -39,6 +39,7 @@
 	let rootInvestmentAccount = $state<string>();
 	let dateFormat = $state<string>(DEFAULT_DATE_FORMAT);
 	let loaded = $state(false);
+	let saving = false;
 
 	// Saved (DB) values for revert comparison
 	let savedCurrency = $state<string | undefined>(undefined);
@@ -146,26 +147,43 @@
 	}
 
 	async function saveSettings() {
-		await settings.set(SettingKeys.currency, currency);
-		DefaultCurrencyStore.set(currency as string);
+		if (!loaded || saving) return;
+		saving = true;
+		try {
+			await settings.set(SettingKeys.currency, currency);
+			DefaultCurrencyStore.set(currency as string);
+			await settings.set(SettingKeys.rootInvestmentAccount, rootInvestmentAccount);
+			await settings.set(SettingKeys.rememberLastTransaction, rememberLastTransaction);
+			await settings.set(SettingKeys.ledgerCacheEnabled, ledgerCacheEnabled);
+			await settings.set(SettingKeys.assetAllocationDefinition, assetAllocationDefinition);
+			await settings.set(SettingKeys.dateFormat, dateFormat);
 
-		await settings.set(SettingKeys.rootInvestmentAccount, rootInvestmentAccount);
-		await settings.set(SettingKeys.rememberLastTransaction, rememberLastTransaction);
-		await settings.set(SettingKeys.ledgerCacheEnabled, ledgerCacheEnabled);
-		await settings.set(SettingKeys.assetAllocationDefinition, assetAllocationDefinition);
-		await settings.set(SettingKeys.dateFormat, dateFormat);
+			let refreshError: string | undefined;
+			if (bookFilename && bookFilename !== (await appService.readBookFilename())) {
+				await appService.writeBookFilename(bookFilename);
+				// Invalidate the old composition before Home can query it under the new book's name.
+				try {
+					await fullLedgerService.invalidate();
+				} catch (error) {
+					refreshError = error instanceof Error ? error.message : String(error);
+				}
+			}
 
-		// Save book filename in cashier.bean
-		if (bookFilename) {
-			await appService.writeBookFilename(bookFilename);
+			loaded = false;
+			PendingSettingsStore.set(undefined);
+			if (refreshError !== undefined)
+				Notifier.warning(
+					'Settings saved, but book analysis could not be refreshed: ' + refreshError
+				);
+			else Notifier.success('Settings saved');
+			await goto(resolve('/'));
+		} catch (error) {
+			Notifier.error(
+				'Could not save settings: ' + (error instanceof Error ? error.message : String(error))
+			);
+		} finally {
+			saving = false;
 		}
-
-		// Clear pending store now that everything is saved
-		PendingSettingsStore.set(undefined);
-
-		Notifier.success('Settings saved');
-
-		await goto(resolve('/')); // Go to home after saving settings
 	}
 </script>
 

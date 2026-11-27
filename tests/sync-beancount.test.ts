@@ -1335,6 +1335,53 @@ describe('CashierSyncBeancount ledger file download', () => {
 		});
 	});
 
+	test('retained reasons, parse diagnostics, toasts and logs use the credential captured by the run', async () => {
+		const oldToken = 'test-old-credential';
+		const newToken = 'test-new-credential';
+		const cashierId = '11111111-1111-4111-8111-111111111111';
+		mockState.settingsStore.set(SettingKeys.syncApiToken, ' ' + oldToken + ' ');
+		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
+		mockState.opfsFiles.set(
+			'cashier.bean',
+			'2026-01-01 * "Local"\n    cashier_id: "' + cashierId + '"'
+		);
+		mockState.pushTransactions.mockImplementationOnce(async (_url, _batch, credential) => {
+			expect(credential).toBe(oldToken);
+			mockState.settingsStore.set(SettingKeys.syncApiToken, newToken);
+			return {
+				synchronized: [],
+				rejected: [{ cashier_id: cashierId, reason: 'Rejected authorization ' + oldToken }]
+			};
+		});
+		const book = oldToken + '.bean';
+		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, book);
+		vi.spyOn(CashierSyncBeancount.prototype, 'readLedgerFiles').mockResolvedValue(
+			new Map([[book, '2026-01-01 open Assets:Cash']])
+		);
+		mockState.parseErrors = [{ message: 'Invalid source ' + oldToken }];
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		await expect(synchronize()).resolves.toBe(false);
+		expect(getLastDiagnostics()).toMatchObject({
+			selectedRootBookFilename: '[redacted].bean',
+			parseErrors: ['{"message":"Invalid source [redacted]"}'],
+			syncErrors: [
+				{ stage: 'send', message: 'Rejected authorization [redacted]', cashierId },
+				{ stage: 'parse', message: 'Full ledger parsed with 1 errors for [redacted].bean' }
+			]
+		});
+		expect(mockState.notifier.warning).toHaveBeenCalledWith('Rejected authorization [redacted]');
+		expect(mockState.notifier.error).toHaveBeenCalledWith(
+			'Full ledger parsed with 1 errors for [redacted].bean'
+		);
+		expect(log).toHaveBeenCalledWith(
+			expect.objectContaining({ message: 'Full ledger parsed with 1 errors for [redacted].bean' })
+		);
+		expect(JSON.stringify(getLastDiagnostics())).not.toContain(oldToken);
+		expect(mockState.settingsStore.get(SettingKeys.syncApiToken)).toBe(newToken);
+		expect(mockState.opfsFiles.get('cashier.bean')).toContain(cashierId);
+	});
+
 	test('repeated rejected writeback keeps surfacing the backend reason', async () => {
 		mockState.settingsStore.set(SettingKeys.syncServerUrl, 'https://cashier.example.test');
 		mockState.settingsStore.set(SettingKeys.syncBeancountRootFile, '/workspace/main.bean');

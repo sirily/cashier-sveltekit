@@ -194,7 +194,7 @@
 		</div>
 	</div>
 
-	<SyncStatus secret={syncApiToken}>
+	<SyncStatus>
 		{#snippet action()}
 			<center class="pt-10">
 				<button

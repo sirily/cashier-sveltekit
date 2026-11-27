@@ -4,7 +4,7 @@
 	import { parseSyncServerUrl } from '#lib/sync/sync-action.svelte';
 	import SyncStatus from './SyncStatus.svelte';
 
-	let configuration = $state<{ validUrl: boolean; token: string }>();
+	let configuration = $state<{ validUrl: boolean; hasToken: boolean }>();
 	let failed = $state(false);
 
 	onMount(() => {
@@ -17,7 +17,7 @@
 				if (active)
 					configuration = {
 						validUrl: Boolean(parseSyncServerUrl(url ?? '')),
-						token: token?.trim() ?? ''
+						hasToken: Boolean(token?.trim())
 					};
 			},
 			() => {
@@ -39,10 +39,10 @@
 		<p>
 			{!configuration.validUrl
 				? 'Server URL is not configured.'
-				: configuration.token
+				: configuration.hasToken
 					? 'Server connection is configured.'
 					: 'Server URL is configured; no API token is saved.'}
 		</p>
-		<SyncStatus secret={configuration.token} />
+		<SyncStatus />
 	{/if}
 </div>

@@ -1,16 +1,18 @@
 /*
     Asset Allocation
 */
-import appService from '#lib/services/appService';
 import { AssetClass, type AssetClassDefinition } from './AssetClass';
 import numeral from 'numeral';
 import toml from 'toml';
-import { getAccountBalance, loadInvestmentAccounts } from '#lib/services/accountsService';
 import Big from 'big.js';
-import { Money } from '../data/model';
 import { NUMBER_FORMAT } from '../constants';
 import { UserError, ValidationError } from '#lib/utils/errors';
-import fullLedgerService from '#lib/services/ledgerWorkerClient';
+import type { ReportLedger } from '#lib/services/reportPostings';
+import {
+	allocationPricePolicy,
+	queryAllocationHoldings,
+	type AllocationCriteria
+} from './allocationHoldings';
 
 /**
  * loadDefinition = loads the pre-set definition
@@ -22,6 +24,9 @@ export class AssetAllocationEngine {
 	stockIndex: Record<string, string>;
 	childrenIndex: Map<string, AssetClass[]>;
 	warnings: string[] = [];
+	valuation: AllocationCriteria | undefined;
+	valuationComplete = false;
+	hasAllocationPercentages = false;
 
 	constructor() {
 		this.assetClassIndex = {};
@@ -30,7 +35,11 @@ export class AssetAllocationEngine {
 		this.warnings = [];
 	}
 
-	async loadFullAssetAllocation(definition: string): Promise<AssetClass[]> {
+	async loadFullAssetAllocation(
+		definition: string,
+		criteria: AllocationCriteria,
+		ledger: ReportLedger
+	): Promise<AssetClass[]> {
 		// aa definition
 
 		this.assetClasses = await this.parseDefinition(definition);
@@ -44,16 +53,11 @@ export class AssetAllocationEngine {
 		// build the stock index
 		this.stockIndex = this.buildStockIndex(this.assetClasses);
 
-		await this.loadCurrentValues();
+		await this.loadCurrentValues(criteria, ledger);
 
-		// Sum the balances for groups.
+		// Sum the balances for groups and calculate offsets only with complete coverage.
 		this.sumGroupBalances(this.assetClassIndex);
-
-		// validation, check the allocation for groups, compare to sum of children's
-		// this.validate(this.assetClassIndex);
-
-		// calculate offsets
-		this.calculateOffsets(this.assetClassIndex);
+		if (this.valuationComplete) this.calculateOffsets(this.assetClassIndex);
 
 		// Format numbers for output. Now done in the view.
 		// this.formatNumbers(this.assetClassIndex)
@@ -140,21 +144,16 @@ export class AssetAllocationEngine {
 	calculateOffsets(dictionary: Record<string, AssetClass>) {
 		const root = dictionary['Allocation'];
 		const total = root.currentValue;
-		if (total.eq(Big(0))) return;
+		this.hasAllocationPercentages = !total.eq(0);
 
 		Object.values(dictionary).forEach((ac) => {
-			// calculate current allocation
-			ac.currentAllocation = ac.currentValue.times(100).div(total).toNumber();
-
-			// diff
-			ac.diff = ac.currentAllocation - ac.allocation;
-
-			// diff %
-			ac.diffPerc = (ac.diff * 100) / ac.allocation;
-
-			ac.allocatedValue = Big((ac.allocation * total.toNumber()) / 100);
-
+			ac.allocatedValue = total.times(ac.allocation).div(100);
 			ac.diffAmount = ac.currentValue.minus(ac.allocatedValue).toNumber();
+			if (!this.hasAllocationPercentages) return;
+
+			ac.currentAllocation = ac.currentValue.times(100).div(total).toNumber();
+			ac.diff = ac.currentAllocation - ac.allocation;
+			if (ac.allocation !== 0) ac.diffPerc = (ac.diff * 100) / ac.allocation;
 		});
 	}
 
@@ -177,7 +176,20 @@ export class AssetAllocationEngine {
 	 * @param {Array} rows
 	 */
 	formatAllocationRowsForTxtExport(rows: AssetClass[]) {
-		const outputRows = [];
+		const outputRows = [
+			`Valuation: ${this.valuation?.currency ?? 'unavailable'} · ${this.valuation?.rootAccount ?? 'no account scope'}`,
+			allocationPricePolicy
+		];
+		if (!this.valuationComplete) {
+			outputRows.push(
+				'Incomplete valuation: current values, percentages and differences are unavailable.',
+				...this.warnings
+			);
+		} else if (!this.hasAllocationPercentages) {
+			outputRows.push(
+				'Current percentages and percentage differences are unavailable when the total is zero.'
+			);
+		}
 		outputRows.push(
 			'Asset Class       Allocation Current  Diff.  Diff.%  Alloc.Val.  Curr. Val.  Difference'
 		);
@@ -202,27 +214,16 @@ export class AssetAllocationEngine {
 			// let name = row.name.padStart(22, ' ')
 			const firstCol = (space + row.name).padEnd(20, ' ');
 
-			let display = numeral(row.allocation).format(NUMBER_FORMAT);
-			const alloc = display.toString().padStart(6, ' ');
-
-			display = numeral(row.currentAllocation).format(NUMBER_FORMAT);
-			const curAl = display.toString().padStart(6, ' ');
-
-			display = numeral(row.diff).format(NUMBER_FORMAT);
-			const diff = display.toString().padStart(5, ' ');
-
-			display = numeral(row.diffPerc).format(NUMBER_FORMAT);
-			const diffPerc = display.toString().padStart(6, ' ');
-
-			display = numeral(row.allocatedValue).format(NUMBER_FORMAT);
-			const alVal = display.toString().padStart(10, ' ');
-
-			display = numeral(row.currentValue).format(NUMBER_FORMAT);
-			const value = display.toString().padStart(10, ' ');
-
-			// let locCur =
-			display = numeral(row.diffAmount).format(NUMBER_FORMAT);
-			const diffAmt = display.toString().padStart(10, ' ');
+			const format = (value: number | Big, width: number, available = true) =>
+				(available ? numeral(value).format(NUMBER_FORMAT) : '—').padStart(width, ' ');
+			const percentages = this.valuationComplete && this.hasAllocationPercentages;
+			const alloc = format(row.allocation, 6);
+			const curAl = format(row.currentAllocation, 6, percentages);
+			const diff = format(row.diff, 5, percentages);
+			const diffPerc = format(row.diffPerc, 6, percentages && row.allocation !== 0);
+			const alVal = format(row.allocatedValue, 10, this.valuationComplete);
+			const value = format(row.currentValue, 10, this.valuationComplete);
+			const diffAmt = format(row.diffAmount, 10, this.valuationComplete);
 
 			const output = `${firstCol}  ${alloc}  ${curAl}  ${diff}  ${diffPerc}  ${alVal}  ${value}  ${diffAmt}`;
 
@@ -320,57 +321,28 @@ export class AssetAllocationEngine {
 		return assetClasses;
 	}
 
-	/**
-	 * Load current balances from accounts.
-	 * Add the account balances to asset classes.
-	 * @returns Array of warning messages for unmapped commodities
-	 */
-	async loadCurrentValues(): Promise<string[]> {
-		this.warnings = [];
-		const defaultCurrency = await appService.getDefaultCurrency();
-
-		await fullLedgerService.ensureLoaded();
-		const invAccounts = await loadInvestmentAccounts(
-			(bql) => fullLedgerService.query(bql) // query() is now async — matches QueryFn signature
-		);
-
-		invAccounts.forEach((account) => {
-			// Current Value is populated from Ledger.
-			// Only the active accounts will have a value.
-			if (account.currentValue == null) return;
-
-			const amount = Big(account.currentValue);
-
-			// Get the balance symbol/commodity, to determine the asset class.
-			const acctBalance: Money = getAccountBalance(account, defaultCurrency);
-			account.balance = acctBalance;
-			if (acctBalance.quantity == 0) {
-				// skip adding to the sum.
-				return;
+	/** Read and map every nonzero account/commodity holding. */
+	async loadCurrentValues(criteria: AllocationCriteria, ledger: ReportLedger) {
+		this.valuation = criteria;
+		const { holdings, warnings } = await queryAllocationHoldings(ledger, criteria);
+		const values = new Map<AssetClass, Big>();
+		for (const { account, commodity, quantity, value } of holdings) {
+			const name = Object.hasOwn(this.stockIndex, commodity) ? this.stockIndex[commodity] : '';
+			const assetClass = this.assetClassIndex[name];
+			if (!assetClass || (name !== 'Allocation' && !name.startsWith('Allocation:'))) {
+				warnings.push(
+					`${account}: ${quantity} ${commodity} is not mapped to an asset class under Allocation. Add the commodity to the allocation definition.`
+				);
+			} else if (value) {
+				values.set(assetClass, (values.get(assetClass) ?? Big(0)).plus(value));
 			}
-
-			const commodity = account.balance.currency;
-
-			// Now get the asset class for this commodity.
-			const assetClassName = this.stockIndex[commodity];
-			if (!assetClassName) {
-				const warning = `Commodity "${commodity}" is not mapped to any asset class. Add it to your allocation definition to include it in calculations.`;
-				this.warnings.push(warning);
-				console.warn(warning);
-				return;
-			}
-			const assetClass = this.assetClassIndex[assetClassName];
-			if (!assetClass) {
-				const warning = `Asset class "${assetClassName}" referenced by "${commodity}" was not found. Check your allocation definition.`;
-				this.warnings.push(warning);
-				console.warn(warning);
-				return;
-			}
-
-			assetClass.currentValue = assetClass.currentValue.plus(amount);
-		});
-
-		return this.warnings;
+		}
+		this.warnings = [...new Set(warnings)];
+		this.valuationComplete = this.warnings.length === 0;
+		if (this.valuationComplete) {
+			for (const [assetClass, value] of values) assetClass.currentValue = value;
+			for (const assetClass of this.assetClasses) assetClass.currency = criteria.currency;
+		}
 	}
 
 	sumGroupBalances(acIndex: Record<string, AssetClass>) {
@@ -396,7 +368,7 @@ export class AssetAllocationEngine {
 			return item.currentValue;
 		}
 
-		let sum = Big(0);
+		let sum = item.currentValue;
 		for (let i = 0; i < children.length; i++) {
 			const child: AssetClass = children[i];
 			child.currentValue = this.sumChildren(dictionary, child);

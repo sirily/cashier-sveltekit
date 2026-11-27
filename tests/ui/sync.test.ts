@@ -6,7 +6,11 @@ const baseBook = `option "operating_currency" "USD"\n2000-01-01 open Assets:Cash
 
 type MockOptions = { rejectReason?: string; failPullOnce?: boolean };
 
-async function seedApp(page: Page, localTransactions: string) {
+async function seedApp(
+	page: Page,
+	localTransactions: string,
+	overrides: Record<string, unknown> = {}
+) {
 	await page.goto('/');
 	await expect(page.getByText('The device journal is empty')).toBeVisible();
 
@@ -41,7 +45,8 @@ async function seedApp(page: Page, localTransactions: string) {
 				syncBeancountRootFile: 'main.bean',
 
 				ledgerCacheEnabled: false,
-				userBookFilename: 'main.bean'
+				userBookFilename: 'main.bean',
+				...overrides
 			},
 			localTransactions
 		}
@@ -326,6 +331,49 @@ test('mock API: rejected completed transaction retains its local copy and shows 
 	await page.goBack();
 	await expect(page.getByRole('alert')).toContainText(rejection);
 	expect(mock.unexpectedRequests).toEqual([]);
+});
+
+test('mock API: retained Sync feedback never reveals the run token after credential rotation', async ({
+	page
+}) => {
+	const reason = 'Unknown account; reflected authorization ';
+	const mock = await mockServer(page, { rejectReason: reason + token });
+	await seedApp(
+		page,
+		'2025-01-04 * "Cafe" "Protected rejection"\n  Expenses:Food  9 USD\n  Assets:Cash  -9 USD\n',
+		{
+			homeCardNames: ['shortcut:/sync']
+		}
+	);
+	await synchronize(page, undefined, '[redacted]');
+	await expect(page.getByRole('alert')).toContainText(reason + '[redacted]');
+	await expect(page.locator('body')).not.toContainText(token);
+	const credential = page.getByLabel('API token');
+	await credential.fill('replaced-test-credential');
+	await credential.press('Tab');
+	await expect(page.getByRole('alert')).toContainText(reason + '[redacted]');
+	await expect(page.locator('body')).not.toContainText(token);
+
+	await page.locator('aside').getByRole('link', { name: 'Home', exact: true }).click();
+	await expect(page).toHaveURL('/');
+	await expect(page.getByRole('region', { name: 'Home cards' }).getByRole('alert')).toContainText(
+		reason + '[redacted]'
+	);
+	await expect(page.locator('body')).not.toContainText(token);
+	expect(mock.requests).toEqual(['POST /api/xact', 'GET /api/infrastructure?file_path=main.bean']);
+});
+
+test('mock API: first Sync updates the visible Home Settings projection', async ({ page }) => {
+	const mock = await mockServer(page);
+	await seedApp(page, '', { userBookFilename: null, homeCardNames: ['shortcut:/settings'] });
+	await page.locator('aside').getByRole('link', { name: 'Home', exact: true }).click();
+	const settings = page.getByRole('region', { name: 'Home cards' });
+	const book = settings.getByText('Book file', { exact: true }).locator('+ dd');
+	await expect(book).toHaveText('Not set');
+	await synchronize(page);
+	await expect(page).toHaveURL('/');
+	await expect(book).toHaveText('main.bean');
+	expect(mock.requests).toEqual(['GET /api/infrastructure?file_path=main.bean']);
 });
 
 test('mock API: accepted transaction survives a failed pull and retries with the same ID', async ({

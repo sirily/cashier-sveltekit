@@ -46,7 +46,17 @@ export const load: PageLoad = async ({ params }) => {
 	await AccountService.populateAccountBalances(investmentAccounts);
 
 	const stocks = populateStocksWithCaching(assetClass, investmentAccounts);
-	return { wasmQuery, investmentAccounts, currency, assetClass, stocks };
+	return {
+		wasmQuery,
+		investmentAccounts,
+		currency,
+		assetClass,
+		stocks,
+		valuation: {
+			complete: aa.valuationComplete,
+			percentages: aa.valuationComplete && aa.hasAllocationPercentages
+		}
+	};
 };
 
 function populateStocksWithCaching(assetClass: AssetClass, investmentAccounts: Account[]) {

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 	source: ''
 }));
 vi.mock('#lib/utils/opfslib', () => ({ readFile: async () => mocks.source }));
+vi.mock('#lib/sync/journal-storage', () => ({ readJournal: async () => mocks.source }));
 vi.mock('#lib/services/rustledger', async () => {
 	const wasm = await import('@rustledger/wasm');
 	return {

@@ -50,7 +50,8 @@ test('the Home Sync card only reads configuration and observes progress from the
 		expect(duplicate).not.toHaveBeenCalled();
 		expect(mocks.synchronize).toHaveBeenCalledOnce();
 	} finally {
-		const message = 'Download failed, echoed value: ' + secret;
+		// The producer sanitizes retained diagnostics before the card can render them.
+		const message = 'Download failed, echoed value: [redacted]';
 		updateSyncStep(6, 'error');
 		syncFeedback.diagnostics = { lastError: message, syncErrors: [{ stage: 'pull', message }] };
 		result.resolve(false);

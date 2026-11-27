@@ -44,7 +44,31 @@ beforeEach(() => {
 	state.source = unsorted;
 	state.writes.mockClear();
 });
-afterEach(() => ledgerService.free());
+beforeEach(() => {
+	vi.stubGlobal('navigator', {
+		storage: {
+			getDirectory: async () => ({
+				getFileHandle: async () => ({ getFile: async () => ({ text: async () => state.source }) })
+			})
+		}
+	});
+});
+afterEach(() => {
+	ledgerService.free();
+	vi.unstubAllGlobals();
+});
+
+test('source-aware journal reads distinguish a denied OPFS read from an absent file', async () => {
+	const getFileHandle = vi
+		.fn()
+		.mockRejectedValue(new DOMException('Access denied', 'NotAllowedError'));
+	vi.stubGlobal('navigator', { storage: { getDirectory: async () => ({ getFileHandle }) } });
+	await expect(ledgerService.getXactsWithSpans()).rejects.toThrow('Access denied');
+	getFileHandle.mockRejectedValue(new DOMException('No journal exists', 'NotFoundError'));
+	await expect(ledgerService.getXactsWithSpans()).resolves.toEqual([]);
+	expect(getFileHandle.mock.calls).toEqual([['cashier.bean'], ['cashier.bean']]);
+	expect(state.writes).not.toHaveBeenCalled();
+});
 
 test('real WASM directives are date sorted but document symbols are in source order', () => {
 	const ledger = new ParsedLedger(unsorted);

@@ -4,14 +4,10 @@
 	import { syncFeedback } from '#lib/sync/sync-feedback.svelte';
 	import { syncProgress } from '#lib/stores/syncProgressStore';
 
-	let { action, secret = '' }: { action?: Snippet; secret?: string } = $props();
+	let { action }: { action?: Snippet } = $props();
 	const diagnostics = $derived(syncFeedback.diagnostics);
 	const syncStarted = $derived(diagnostics !== null);
 	const waiting = $derived(syncAction.running);
-
-	function redact(message: string) {
-		return secret ? message.replaceAll(secret, '[redacted]') : message;
-	}
 </script>
 
 {#snippet statusIcon(status: string | undefined)}
@@ -90,12 +86,12 @@
 		<div>
 			<h2 class="font-semibold">Synchronization has errors</h2>
 			<ul class="mt-2 list-disc space-y-1 pl-5">
-				{#each diagnostics.syncErrors as error, i (`${error.stage}:${redact(error.message)}:${i}`)}
+				{#each diagnostics.syncErrors as error, i (`${error.stage}:${error.message}:${i}`)}
 					<li>
 						<span class="font-medium">{error.stage}:</span>
-						{#if error.cashierId}<code>{redact(error.cashierId)}</code> —
+						{#if error.cashierId}<code>{error.cashierId}</code> —
 						{/if}
-						{redact(error.message)}
+						{error.message}
 					</li>
 				{/each}
 			</ul>
@@ -111,7 +107,7 @@
 				<div>Ledger files</div>
 				<div>{diagnostics.ledgerFilesCount ?? '-'}</div>
 				<div>Selected root book</div>
-				<div>{redact(diagnostics.selectedRootBookFilename ?? '-')}</div>
+				<div>{diagnostics.selectedRootBookFilename ?? '-'}</div>
 				<div>Root book size</div>
 				<div>{diagnostics.rootBookSize ?? '-'}</div>
 				<div>Parse result</div>
@@ -122,13 +118,13 @@
 				<div>{diagnostics.refreshResult ?? '-'}</div>
 				{#if diagnostics.lastError}
 					<div>Last error</div>
-					<div class="break-words">{redact(diagnostics.lastError)}</div>
+					<div class="break-words">{diagnostics.lastError}</div>
 				{/if}
 				{#if diagnostics.parseErrors?.length}
 					<div>Parse error details</div>
 					<div class="space-y-1 break-words">
 						{#each diagnostics.parseErrors as error, i (`${error}:${i}`)}
-							<div>{redact(error)}</div>
+							<div>{error}</div>
 						{/each}
 					</div>
 				{/if}

@@ -1,28 +1,20 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { readSettingsPreferences } from '#lib/services/settingsPreferences';
+	import { ReportRequest } from '#lib/services/reportRequest.svelte';
+	import { syncAction } from '#lib/sync/sync-action.svelte';
 
-	let preferences = $state<Awaited<ReturnType<typeof readSettingsPreferences>>>();
-	let error = $state('');
+	const request = new ReportRequest<Awaited<ReturnType<typeof readSettingsPreferences>>>();
+	const preferences = $derived(request.value);
 
-	onMount(() => {
-		let active = true;
-		void readSettingsPreferences().then(
-			(result) => {
-				if (active) preferences = result;
-			},
-			(reason: unknown) => {
-				if (active) error = reason instanceof Error ? reason.message : String(reason);
-			}
-		);
-		return () => {
-			active = false;
-		};
+	$effect(() => {
+		const runs = syncAction.completedRuns;
+		void request.run(readSettingsPreferences, () => runs === syncAction.completedRuns);
+		return () => request.cancel();
 	});
 </script>
 
-{#if error}
-	<p class="p-2" role="alert">Could not read settings: {error}</p>
+{#if request.error}
+	<p class="p-2" role="alert">Could not read settings: {request.error}</p>
 {:else if !preferences}
 	<p class="p-2" role="status">Loading saved settings…</p>
 {:else}

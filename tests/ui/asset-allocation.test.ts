@@ -81,6 +81,8 @@ test('Asset Allocation shows targets and current local values after an edited bo
 `
 	});
 	await page.goto('/asset-allocation');
+	await expect(page.getByText(/Valuation: EUR.*latest available prices/)).toBeVisible();
+	await expect(page.getByRole('columnheader', { name: 'Value (EUR)' })).toBeVisible();
 	const equity = page
 		.getByRole('row')
 		.filter({ has: page.getByRole('link', { name: 'Equity', exact: true }) });
@@ -192,6 +194,39 @@ test('Asset Allocation exports the loaded class hierarchy', async ({ page }) => 
 	expect(await readFile(await file.path(), 'utf8')).toMatch(
 		/\nAllocation\s+100[^\n]*\n\s+Equity\s+100/
 	);
+});
+
+test('Asset Allocation retains targets and links but hides incomplete valuation in the table and export', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedAllocation(page, 'allocation.toml', definition, {
+		source:
+			journal +
+			`2000-01-01 open Assets:Investments:First
+2000-01-01 open Assets:Investments:Second
+2025-03-01 * "Hold unpriced instruments"
+  Assets:Investments:First   7 UNMAPPED
+  Assets:Investments:Second  7 UNMAPPED
+  Assets:Cash              -14 UNMAPPED
+`
+	});
+	await page.goto('/asset-allocation');
+	const equity = page
+		.getByRole('row')
+		.filter({ has: page.getByRole('link', { name: 'Equity', exact: true }) });
+	await expect(equity.getByRole('cell')).toHaveText(['Equity', '100.00', '—', '—', '—', '—', '—']);
+	await expect(page.getByText('Incomplete valuation:', { exact: false })).toBeVisible();
+	await expect(page.getByText(/7 UNMAPPED is not mapped/)).toHaveCount(2);
+	await expect(page.getByText(/No usable price for 7 UNMAPPED in EUR/)).toHaveCount(2);
+	await page.locator('.navbar .dropdown > button').click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('menu').getByRole('button', { name: 'Export', exact: true }).click();
+	const file = await download;
+	const text = await readFile(await file.path(), 'utf8');
+	expect(text).toContain('Incomplete valuation:');
+	expect(text).toContain('Valuation: EUR');
+	expect(text).toMatch(/Equity\s+100\.00(?:\s+—){6}/);
 });
 
 test('Asset Allocation Validate rejects a previously loaded definition deleted via File Storage', async ({

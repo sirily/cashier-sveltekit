@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { loadAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
 	import type { AssetAllocationEngine } from '#lib/assetAllocation/AssetAllocation';
+	import { allocationPricePolicy } from '#lib/assetAllocation/allocationHoldings';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 	import { ReportRequest } from '#lib/services/reportRequest.svelte';
 	import { AssetAllocationLoadedAtStore } from '#lib/data/mainStore';
@@ -10,8 +11,9 @@
 	const request = new ReportRequest<{ engine: AssetAllocationEngine; version: number }>();
 	const version = fullLedgerService.version;
 	const reloading = fullLedgerService.isReloading;
-	const allocation = $derived(request.value?.engine.assetClasses ?? []);
-	const childrenIndex = $derived(request.value?.engine.childrenIndex);
+	const engine = $derived(request.value?.engine);
+	const allocation = $derived(engine?.assetClasses ?? []);
+	const childrenIndex = $derived(engine?.childrenIndex);
 	const pending = $derived(
 		$reloading || request.pending || (request.value !== null && request.value.version !== $version)
 	);
@@ -74,6 +76,28 @@
 	</div>
 </div>
 
+{#if !pending && engine?.valuation}
+	<p class="px-3 pt-2 text-sm break-words">
+		Valuation: {engine.valuation.currency} · {engine.valuation.rootAccount}. {allocationPricePolicy}
+	</p>
+	{#if !engine.valuationComplete}
+		<div role="alert" class="px-3 pt-2 text-sm">
+			<p class="font-semibold">
+				Incomplete valuation: current values, percentages and differences are unavailable.
+			</p>
+			<ul class="list-disc space-y-1 pl-5">
+				{#each engine.warnings as warning, index (index)}
+					<li>{warning}</li>
+				{/each}
+			</ul>
+		</div>
+	{:else if !engine.hasAllocationPercentages}
+		<p class="px-3 pt-2 text-sm">
+			Current percentages and percentage differences are unavailable when the total is zero.
+		</p>
+	{/if}
+{/if}
+
 <section class="overflow-x-auto p-3">
 	<table class="mx-auto max-w-4xl">
 		<thead>
@@ -85,7 +109,7 @@
 					>Allocation</th
 				>
 				<th colspan="3" class="text-center{viewMode !== 'value' ? ' hidden' : ''} lg:table-cell"
-					>Value</th
+					>Value{!pending && engine?.valuation ? ` (${engine.valuation.currency})` : ''}</th
 				>
 			</tr>
 			<tr>
@@ -139,6 +163,9 @@
 						onToggle={toggleCollapse}
 						{childrenIndex}
 						{viewMode}
+						showValues={engine?.valuationComplete ?? false}
+						showPercentages={(engine?.valuationComplete && engine.hasAllocationPercentages) ??
+							false}
 					/>
 				{/each}
 			{:else}
@@ -156,13 +183,6 @@
 	</table>
 </section>
 
-{#if !pending && request.value?.engine.warnings.length}
-	<ul class="space-y-1 px-3 text-sm">
-		{#each request.value.engine.warnings as warning (warning)}
-			<li>{warning}</li>
-		{/each}
-	</ul>
-{/if}
 <p class="px-3 py-1 text-right text-xs text-base-content/50">
 	{!pending && request.value && $AssetAllocationLoadedAtStore
 		? 'Loaded at ' + $AssetAllocationLoadedAtStore.toLocaleTimeString()

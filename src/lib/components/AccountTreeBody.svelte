@@ -24,6 +24,7 @@
 		map: Map<string, TreeNode>;
 		roots: string[];
 		defaultCurrency: string;
+		diagnostics: string[];
 		version: number;
 	}>();
 	const pending = $derived(
@@ -43,10 +44,11 @@
 	async function loadData(currentVersion: number) {
 		await fullLedgerService.ensureLoaded();
 		if (!fullLedgerService.isLoaded) throw new Error('No local book loaded.');
-		const [defaultCurrency, allAccounts, result] = await Promise.all([
+		const [defaultCurrency, allAccounts, result, errors] = await Promise.all([
 			appService.getDefaultCurrency(),
 			fullLedgerService.getAllAccounts(),
-			fullLedgerService.query('SELECT account, sum(position) AS balance')
+			fullLedgerService.query('SELECT account, sum(position) AS balance'),
+			fullLedgerService.getErrors()
 		]);
 		if (result.errors.length) throw new Error(result.errors.map(reportDiagnostic).join('; '));
 		const accountIdx = result.columns.indexOf('account');
@@ -96,6 +98,7 @@
 			map,
 			roots: [...map.keys()].filter((name) => !name.includes(':')).sort(),
 			defaultCurrency,
+			diagnostics: errors.map(reportDiagnostic),
 			version: currentVersion
 		};
 	}
@@ -169,51 +172,72 @@
 	<p role="status" class="p-2">Loading account tree…</p>
 {:else if request.error}
 	<p role="alert" class="p-2">Account tree unavailable: {request.error}</p>
-{:else if visibleNodes.length === 0}
-	<p class="p-2">No accounts in the local book.</p>
-{:else}
-	<div class="min-w-max">
-		{#each visibleNodes as node (node.name)}
-			<div class="border-base-content/15 border-b {getAccountTypeColour(node.name)}">
-				<div
-					class="flex w-full items-start py-1.5"
-					style:padding-left={`${node.level * 1.25 + 0.25}rem`}
-				>
-					{#if node.children.length > 0}
-						<button
-							type="button"
-							class="hover:bg-base-300 mr-1 flex size-5 shrink-0 items-center justify-center rounded"
-							onclick={() => expanded.set(node.name, !isExpanded(node))}
-							aria-label={isExpanded(node) ? 'Collapse' : 'Expand'}
-							aria-expanded={isExpanded(node)}
-						>
-							{#if isExpanded(node)}
-								<ChevronDown class="size-4 opacity-60" />
-							{:else}
-								<ChevronRight class="size-4 opacity-60" />
-							{/if}
-						</button>
-					{:else}
-						<span class="mr-1 size-5 shrink-0" aria-hidden="true"></span>
-					{/if}
-					<a
-						class="flex-1 whitespace-nowrap hover:underline {node.level === 0
-							? 'font-semibold'
-							: ''}"
-						href={resolve('/accounts/account-xacts/[accountName]', {
-							accountName: encodeURIComponent(node.name)
-						})}
-					>
-						{node.label}
-					</a>
-					<MultiCurrencyBalance
-						balances={node.balances}
-						defaultCurrency={request.value?.defaultCurrency ?? ''}
-						loaded={true}
-						class="shrink-0 pr-2 text-sm"
-					/>
-				</div>
+{:else if request.value}
+	{#if request.value.diagnostics.length}
+		<div role="alert" class="alert alert-warning m-1 items-start">
+			<div class="min-w-0 space-y-1 wrap-break-word">
+				<p><strong>Account balances are incomplete.</strong> The local book has diagnostics.</p>
+				<details>
+					<summary>Book diagnostics</summary>
+					<ul class="list-disc pl-5">
+						{#each request.value.diagnostics as diagnostic, index (index)}
+							<li>{diagnostic}</li>
+						{/each}
+					</ul>
+				</details>
+				<a class="link" href={resolve('/util/validation')}>Open Ledger Validation</a>
 			</div>
-		{/each}
-	</div>
+		</div>
+	{/if}
+	{#if visibleNodes.length === 0}
+		{#if !request.value.diagnostics.length}
+			<p class="p-2">No accounts in the local book.</p>
+		{/if}
+	{:else}
+		<div class="min-w-max">
+			{#each visibleNodes as node (node.name)}
+				<div class="border-base-content/15 border-b {getAccountTypeColour(node.name)}">
+					<div
+						class="flex w-full items-start py-1.5"
+						style:padding-left={`${node.level * 1.25 + 0.25}rem`}
+					>
+						{#if node.children.length > 0}
+							<button
+								type="button"
+								class="hover:bg-base-300 mr-1 flex size-5 shrink-0 items-center justify-center rounded"
+								onclick={() => expanded.set(node.name, !isExpanded(node))}
+								aria-label={isExpanded(node) ? 'Collapse' : 'Expand'}
+								aria-expanded={isExpanded(node)}
+							>
+								{#if isExpanded(node)}
+									<ChevronDown class="size-4 opacity-60" />
+								{:else}
+									<ChevronRight class="size-4 opacity-60" />
+								{/if}
+							</button>
+						{:else}
+							<span class="mr-1 size-5 shrink-0" aria-hidden="true"></span>
+						{/if}
+						<a
+							class="flex-1 whitespace-nowrap hover:underline {node.level === 0
+								? 'font-semibold'
+								: ''}"
+							data-sveltekit-preload-data="off"
+							href={resolve('/accounts/account-xacts/[accountName]', {
+								accountName: encodeURIComponent(node.name)
+							})}
+						>
+							{node.label}
+						</a>
+						<MultiCurrencyBalance
+							balances={node.balances}
+							defaultCurrency={request.value?.defaultCurrency ?? ''}
+							loaded={true}
+							class="shrink-0 pr-2 text-sm"
+						/>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
 {/if}

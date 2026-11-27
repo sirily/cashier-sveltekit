@@ -63,13 +63,20 @@ function describeParseErrors(errors: unknown[]): string[] {
 	return errors.map(describeError);
 }
 
-function recordSyncError(error: SyncError): void {
+type Redact = (text: string) => string;
+
+function recordSyncError(error: SyncError, redact: Redact): string {
+	const { stage, message, cashierId } = error;
+	const safeMessage = redact(message);
+	const safeError: SyncError = { stage, message: safeMessage };
+	if (cashierId !== undefined) safeError.cashierId = redact(cashierId);
 	const syncErrors = syncFeedback.diagnostics?.syncErrors ?? [];
 	syncFeedback.diagnostics = {
 		...syncFeedback.diagnostics,
-		lastError: error.message,
-		syncErrors: [...syncErrors, error]
+		lastError: safeMessage,
+		syncErrors: [...syncErrors, safeError]
 	};
+	return safeMessage;
 }
 
 async function parseDownloadedLedger(
@@ -445,7 +452,10 @@ async function synchronize(): Promise<boolean> {
 	syncFeedback.diagnostics = { parseResult: 'skipped', refreshResult: 'skipped', syncErrors: [] };
 	const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
 	if (!activeUrl) return false;
-	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken)) ?? '';
+	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken))?.trim() ?? '';
+	// This credential belongs to this run. The Settings form may change before a response arrives.
+	const redact: Redact = (message) =>
+		apiToken ? message.replaceAll(apiToken, '[redacted]') : message;
 	const sync = new CashierSyncBeancount(activeUrl, apiToken);
 	let hasRetryableWritebackFailure = false;
 	try {
@@ -482,16 +492,21 @@ async function synchronize(): Promise<boolean> {
 				for (const r of response.rejected) {
 					if (r.cashier_id) rejectedIds.push(r.cashier_id);
 					const message = r.reason || 'Transaction rejected';
-					recordSyncError({ stage: 'send', message, cashierId: r.cashier_id ?? undefined });
-					Notifier.warning(message);
+					Notifier.warning(
+						recordSyncError(
+							{ stage: 'send', message, cashierId: r.cashier_id ?? undefined },
+							redact
+						)
+					);
 				}
 				const unresolved = pending.filter(
 					(entry) => !synchronized.has(entry.cashierId) && !rejected.has(entry.cashierId)
 				);
 				for (const entry of unresolved) {
 					const message = 'Server omitted the transaction outcome; retry Sync to resolve it.';
-					recordSyncError({ stage: 'send', message, cashierId: entry.cashierId });
-					Notifier.warning(message);
+					Notifier.warning(
+						recordSyncError({ stage: 'send', message, cashierId: entry.cashierId }, redact)
+					);
 				}
 				if (response.rejected.length > 0 || unresolved.length > 0) {
 					hasRetryableWritebackFailure = true;
@@ -506,12 +521,11 @@ async function synchronize(): Promise<boolean> {
 			accepted = [];
 			hasRetryableWritebackFailure = true;
 			const message = `Failed to send local transactions: ${describeError(error)}`;
-			recordSyncError({ stage: 'send', message });
-			Notifier.warning(message);
+			Notifier.warning(recordSyncError({ stage: 'send', message }, redact));
 			updateSyncStep(0, 'error');
 		}
 
-		const { paths, confirmedIds } = await synchronizeLedgerFiles(sync);
+		const { paths, confirmedIds } = await synchronizeLedgerFiles(sync, redact);
 
 		// Persist confirmed overlay removal before refreshing the combined book.
 		updateSyncStep(9, 'in-progress');
@@ -521,9 +535,9 @@ async function synchronize(): Promise<boolean> {
 		} catch (error) {
 			hasRetryableWritebackFailure = true;
 			const message = `Failed to reconcile local journal: ${describeError(error)}`;
-			recordSyncError({ stage: 'reconcile', message });
+			const safeMessage = recordSyncError({ stage: 'reconcile', message }, redact);
 			updateSyncStep(9, 'error');
-			Notifier.warning(message);
+			Notifier.warning(safeMessage);
 			return false;
 		}
 		try {
@@ -532,25 +546,31 @@ async function synchronize(): Promise<boolean> {
 			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, refreshResult: 'ok' };
 		} catch (error) {
 			hasRetryableWritebackFailure = true;
-			recordSyncError({
-				stage: 'refresh',
-				message: `Failed to refresh local analysis: ${describeError(error)}`
-			});
+			recordSyncError(
+				{
+					stage: 'refresh',
+					message: `Failed to refresh local analysis: ${describeError(error)}`
+				},
+				redact
+			);
 			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, refreshResult: 'error' };
 		}
 	} catch (error) {
-		console.error(error);
+		const message = redact(describeError(error));
+		// Do not log the original error: its stack, cause or other fields could contain the token.
+		console.error(new Error(message));
 		if ((syncFeedback.diagnostics?.syncErrors?.length ?? 0) === 0) {
-			recordSyncError({ stage: 'other', message: describeError(error) });
+			recordSyncError({ stage: 'other', message: describeError(error) }, redact);
 		}
-		Notifier.error(describeError(error));
+		Notifier.error(message);
 		return false;
 	}
 	return !hasRetryableWritebackFailure;
 }
 
 async function synchronizeLedgerFiles(
-	sync: CashierSyncBeancount
+	sync: CashierSyncBeancount,
+	redact: Redact
 ): Promise<{ paths: string[]; confirmedIds: string[] }> {
 	let stage: SyncError['stage'] = 'pull';
 	let step = 6;
@@ -577,7 +597,7 @@ async function synchronizeLedgerFiles(
 		syncFeedback.diagnostics = {
 			...syncFeedback.diagnostics,
 			ledgerFilesCount: localFiles.size,
-			selectedRootBookFilename,
+			selectedRootBookFilename: redact(selectedRootBookFilename),
 			rootBookSize: rootBook.length
 		};
 		updateSyncStep(step, 'completed');
@@ -593,7 +613,7 @@ async function synchronizeLedgerFiles(
 			...syncFeedback.diagnostics,
 			parseResult: errors.length > 0 ? 'error' : 'ok',
 			parseErrorCount: errors.length,
-			parseErrors: describeParseErrors(errors)
+			parseErrors: describeParseErrors(errors).map(redact)
 		};
 		if (errors.length > 0) {
 			throw new Error(
@@ -624,7 +644,7 @@ async function synchronizeLedgerFiles(
 		Notifier.success('Ledger files downloaded to OPFS');
 		return { paths: Array.from(localFiles.keys()), confirmedIds };
 	} catch (error) {
-		recordSyncError({ stage, message: describeError(error) });
+		recordSyncError({ stage, message: describeError(error) }, redact);
 		if (stage === 'parse') {
 			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 		}
@@ -638,7 +658,7 @@ async function synchronizeLedgerFiles(
 			}
 		}
 		for (const message of recoveryErrors) {
-			recordSyncError({ stage: 'pull', message: `Incomplete book recovery: ${message}` });
+			recordSyncError({ stage: 'pull', message: `Incomplete book recovery: ${message}` }, redact);
 		}
 		throw error;
 	}

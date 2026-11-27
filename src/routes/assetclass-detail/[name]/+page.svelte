@@ -260,6 +260,9 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	<section class={`h-full p-1 ${cursor} overflow-y-auto touch-pan-y`}>
 		<p>{name}</p>
 		<p>Allocation: {data.assetClass?.allocation}</p>
+		{#if !data.valuation.complete}
+			<p role="status">Current allocation values are unavailable. Return to Asset Allocation for valuation diagnostics.</p>
+		{/if}
 
 		{#if data.stocks?.length === 0}
 			<p>No securities assigned to this class.</p>
@@ -410,12 +413,12 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 								<tbody>
 									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">fullname</td><td>{ac.fullname}</td></tr>
 									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">allocation (target %)</td><td>{ac.allocation}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">allocatedValue</td><td>{ac.allocatedValue?.toString()} {ac.currency}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">currentValue</td><td>{ac.currentValue?.toString()} {ac.currency}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">currentAllocation %</td><td>{ac.currentAllocation}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diff (pp)</td><td>{ac.diff}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diffAmount</td><td>{ac.diffAmount}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diffPerc %</td><td>{ac.diffPerc}</td></tr>
+									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">allocatedValue</td><td>{#if data.valuation.complete}{ac.allocatedValue.toString()} {ac.currency}{:else}Unavailable{/if}</td></tr>
+									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">currentValue</td><td>{#if data.valuation.complete}{ac.currentValue.toString()} {ac.currency}{:else}Unavailable{/if}</td></tr>
+									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">currentAllocation %</td><td>{#if data.valuation.percentages}{ac.currentAllocation}{:else}Unavailable{/if}</td></tr>
+									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diff (pp)</td><td>{#if data.valuation.percentages}{ac.diff}{:else}Unavailable{/if}</td></tr>
+									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diffAmount</td><td>{#if data.valuation.complete}{ac.diffAmount} {ac.currency}{:else}Unavailable{/if}</td></tr>
+									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diffPerc %</td><td>{#if data.valuation.percentages}{ac.diffPerc}{:else}Unavailable{/if}</td></tr>
 									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">symbols</td><td>{ac.symbols?.join(', ')}</td></tr>
 								</tbody>
 							</table>
