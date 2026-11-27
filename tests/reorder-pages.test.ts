@@ -9,13 +9,18 @@ import Home from '../src/routes/home-reorder/+page.svelte';
 import Postings from '../src/routes/postings/reorder/+page.svelte';
 import AccountGroups from '../src/routes/accounts/groups/reorder/+page.svelte';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), getVisibleCards: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	get: vi.fn(),
+	set: vi.fn(),
+	getVisibleCards: vi.fn(),
+	saveVisibleCards: vi.fn()
+}));
 vi.mock('#lib/settings', async (importOriginal) => {
 	const original = await importOriginal<typeof import('#lib/settings')>();
 	return { SettingKeys: original.SettingKeys, settings: { get: mocks.get, set: mocks.set } };
 });
 vi.mock('#lib/services/appService', () => ({
-	default: { getVisibleCards: mocks.getVisibleCards }
+	default: { getVisibleCards: mocks.getVisibleCards, saveVisibleCards: mocks.saveVisibleCards }
 }));
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
@@ -24,6 +29,7 @@ beforeEach(() => {
 	mocks.get.mockReset();
 	mocks.set.mockReset().mockResolvedValue(undefined);
 	mocks.getVisibleCards.mockReset();
+	mocks.saveVisibleCards.mockReset().mockResolvedValue(undefined);
 	vi.spyOn(history, 'back').mockImplementation(() => {});
 	// jsdom has no layout or pointer capture; exercise the real component's pointer handlers.
 	vi.stubGlobal('PointerEvent', MouseEvent);
@@ -63,13 +69,17 @@ function confirm(view: { container: HTMLElement }) {
 	return fireEvent.click(view.container.querySelector('button.btn-circle')!);
 }
 
-test('home saves the parent-bound card order without dropping duplicate labels', async () => {
-	mocks.getVisibleCards.mockResolvedValue(['Journal', 'Journal', 'Sync']);
+test('home saves the parent-bound card order only on confirmation', async () => {
+	mocks.getVisibleCards.mockResolvedValue(['JournalCard', 'AccountGroupsCard', 'shortcut:/sync']);
 	const view = render(Home);
 	await moveFirstToLast(view);
-	expect(mocks.set).not.toHaveBeenCalled();
+	expect(mocks.saveVisibleCards).not.toHaveBeenCalled();
 	await confirm(view);
-	expect(mocks.set).toHaveBeenCalledWith(SettingKeys.visibleCards, ['Journal', 'Sync', 'Journal']);
+	expect(mocks.saveVisibleCards).toHaveBeenCalledExactlyOnceWith([
+		'AccountGroupsCard',
+		'shortcut:/sync',
+		'JournalCard'
+	]);
 });
 
 test('postings updates the editor only on confirmation and preserves same-account identities', async () => {

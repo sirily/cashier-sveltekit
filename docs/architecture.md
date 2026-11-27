@@ -103,6 +103,19 @@ OPFS tools browse and select stored files, create text files, and edit existing 
 
 Asset allocation reads its selected TOML definition from OPFS and combines it with locally calculated book data.
 
+## Home section cards
+
+`src/lib/navigation.ts` describes the drawer destinations and their Home card IDs, labels, and
+lazy body loaders. The drawer uses only the link metadata. Home resolves the saved IDs in
+order through a shared card host; standalone routes own their toolbars and route-only actions
+and can reuse the same bodies. Card initialization reads local data without invoking page-only
+actions such as Sync, settings saves, and cache resets.
+
+Home, Home Settings and Reorder Cards use `appService.getVisibleCards()` to read the same
+`SettingKeys.visibleCards` preference. An absent value supplies defaults; a saved empty list
+stays empty. Aliases are normalized without writing on read. The save boundary preserves
+unknown IDs without showing them in the current UI and omits retired IDs.
+
 ## Packaging and contracts
 
 The PWA is a static SvelteKit application packaged in Docker and served by Caddy. Its service worker supplies offline application assets; API requests use the network. Backend deployment and routing are managed in separate repositories.

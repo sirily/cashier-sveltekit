@@ -14,19 +14,26 @@ export type ImportedFileMeta = {
 const DB_NAME = 'cashier-import-manifest';
 const STORE = 'files';
 
-function openDb(): Promise<IDBDatabase> {
+function openDb(create = true): Promise<IDBDatabase | null> {
 	return new Promise((resolve, reject) => {
 		const req = indexedDB.open(DB_NAME, 1);
+		let absent = false;
 		req.onupgradeneeded = () => {
+			if (!create) {
+				absent = true;
+				req.transaction?.abort();
+				return;
+			}
 			req.result.createObjectStore(STORE, { keyPath: 'path' });
 		};
 		req.onsuccess = () => resolve(req.result);
-		req.onerror = () => reject(req.error);
+		req.onerror = () => (absent ? resolve(null) : reject(req.error));
 	});
 }
 
 export async function getManifest(): Promise<Map<string, ImportedFileMeta>> {
-	const db = await openDb();
+	const db = await openDb(false);
+	if (db === null) return new Map();
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(STORE, 'readonly');
 		const req = tx.objectStore(STORE).getAll();
@@ -47,6 +54,7 @@ export async function getManifest(): Promise<Map<string, ImportedFileMeta>> {
 
 export async function putManifestEntry(meta: ImportedFileMeta): Promise<void> {
 	const db = await openDb();
+	if (db === null) throw new Error('Import manifest database unavailable.');
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(STORE, 'readwrite');
 		tx.objectStore(STORE).put(meta);
@@ -62,7 +70,8 @@ export async function putManifestEntry(meta: ImportedFileMeta): Promise<void> {
 }
 
 export async function deleteManifestEntry(path: string): Promise<void> {
-	const db = await openDb();
+	const db = await openDb(false);
+	if (db === null) return;
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(STORE, 'readwrite');
 		tx.objectStore(STORE).delete(path);

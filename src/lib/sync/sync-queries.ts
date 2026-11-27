@@ -4,8 +4,8 @@
 
 export interface Queries {
 	incomeBalance(symbol: string, yieldFrom: string, currency: string): string;
-	gainLoss(symbol: string, currency: string): string;
-	valueBalance(symbol: string, currency: string): string;
+	gainLoss(symbol: string, currency: string, accountFilter?: string): string;
+	valueBalance(symbol: string, currency: string, accountFilter?: string): string;
 }
 
 const BeancountQueries: Queries = {
@@ -17,7 +17,7 @@ const BeancountQueries: Queries = {
 		`SELECT str(CONVERT(value(sum(position)), '${currency}')) as balance, account \
         WHERE account ~ '^Income.*:${symbol}$' \
             AND date >= ${yieldFrom}`,
-	gainLoss: (symbol: string, currency: string) =>
+	gainLoss: (symbol: string, currency: string, accountFilter?: string) =>
 		// No subtraction on Inventories.
 		// value(sum(position)) - cost(sum(position)) AS unrealized_gain \
 		// account, \
@@ -25,12 +25,12 @@ const BeancountQueries: Queries = {
 		`SELECT 
             str(convert(cost(sum(position)), '${currency}')) AS cost_basis, \
             str(convert(value(sum(position)), '${currency}')) AS market_value \
-        WHERE currency = '${symbol}'`,
-	valueBalance: (symbol: string, currency: string) => {
+        WHERE currency = ${JSON.stringify(symbol)}${accountFilter ? ` AND ${accountFilter}` : ''}`,
+	valueBalance: (symbol: string, currency: string, accountFilter?: string) => {
 		// convert the symbol to the account-name-compatible form.
 		// symbol = symbol.replace('.', '-')
 		return `select str(convert(sum(position), '${currency}')) \
-                where currency = '${symbol}'`;
+                where currency = ${JSON.stringify(symbol)}${accountFilter ? ` AND ${accountFilter}` : ''}`;
 	}
 };
 

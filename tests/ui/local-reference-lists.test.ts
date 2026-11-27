@@ -317,8 +317,12 @@ for (const caching of [true, false]) {
 			await cold.getByText('Remaining local draft', { exact: false }).click();
 			await cold.getByRole('button', { name: 'Edit', exact: true }).click();
 			await expect(cold).toHaveURL(/\/tx$/);
+			const originalPayee = await cold.getByTitle('Payee', { exact: true }).inputValue();
 			await cold.getByTitle('Payee', { exact: true }).click();
 			await expect(cold).toHaveURL(/\/payees$/);
+			await cold.goBack();
+			await expect(cold.getByTitle('Payee', { exact: true })).toHaveValue(originalPayee);
+			await cold.getByTitle('Payee', { exact: true }).click();
 			await assertPayees(cold);
 			await cold.getByRole('searchbox').fill('Book cafe');
 			await expect(cold.locator('[role="listitem"]')).toHaveText(['Book cafe']);
@@ -333,7 +337,13 @@ for (const caching of [true, false]) {
 			await expect(cold.getByTitle('Payee', { exact: true })).toHaveValue(
 				'Authored free-text merchant'
 			);
-			await cold.getByTitle('Account', { exact: true }).first().click();
+			const firstAccount = cold.getByTitle('Account', { exact: true }).first();
+			const originalAccount = await firstAccount.inputValue();
+			await firstAccount.click();
+			await expect(cold).toHaveURL(/\/accounts$/);
+			await cold.goBack();
+			await expect(firstAccount).toHaveValue(originalAccount);
+			await firstAccount.click();
 			await assertAccounts(cold);
 			await cold.locator('[role="listitem"]').filter({ hasText: 'Assets:Unused' }).click();
 			await expect(cold).toHaveURL(/\/tx$/);

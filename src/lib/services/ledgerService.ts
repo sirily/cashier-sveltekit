@@ -18,6 +18,7 @@ import { CASHIER_XACT_FILE } from '#lib/constants';
 import { xactToBeancountText } from '#lib/utils/xactUtils';
 import { mergeTransactionEdit } from '#lib/rledger/transactionEdit';
 import { restorePostingSource } from '#lib/rledger/postingSource';
+import { readJournal } from '#lib/sync/journal-storage';
 
 interface QueryError {
 	message: string;
@@ -274,13 +275,22 @@ class LedgerService {
 	 */
 	async getXactsWithSpans(): Promise<Array<{ xact: Xact; span: DirectiveSpan }>> {
 		await ensureInitialized();
-		const source = (await opfslib.readFile(CASHIER_XACT_FILE)) ?? '';
+		const source = (await readJournal()) ?? '';
 		if (!source.trim()) return [];
 
 		const tempLedger = createParsedLedger(source);
-		if (!tempLedger) return [];
+		if (!tempLedger) throw new Error('Could not parse the local journal.');
 
 		try {
+			// A syntax failure can leave both the directive list and source spans empty.
+			// Do not reject booking/interpolation diagnostics when source entries are still readable.
+			if (tempLedger.getDirectives().length === 0) {
+				const diagnostic = tempLedger.getParseErrors().find((issue) => issue.severity === 'error');
+				if (diagnostic) {
+					const location = diagnostic.line == null ? '' : ` (line ${diagnostic.line})`;
+					throw new Error(`Invalid journal source${location}: ${diagnostic.message}`);
+				}
+			}
 			const spans = mapDirectiveSpans(source, tempLedger);
 			const symbols = tempLedger.getDocumentSymbols();
 			const transactionSpans = spans.filter(

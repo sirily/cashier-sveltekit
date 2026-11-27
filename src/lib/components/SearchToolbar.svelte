@@ -4,10 +4,11 @@
 	import { onMount } from 'svelte';
 
 	interface Props {
-		focus: boolean;
+		focus?: boolean;
+		label?: string;
 		onSearch?: (arg0: string) => void;
 	}
-	let { focus = false, onSearch }: Props = $props();
+	let { focus = false, label = 'Search', onSearch }: Props = $props();
 
 	let searchField: HTMLInputElement | undefined = $state();
 
@@ -35,6 +36,7 @@
 		</div>
 		<input
 			type="search"
+			aria-label={label}
 			placeholder="Search..."
 			bind:this={searchField}
 			use:debounceAction={{ callback: handleSearch, delay: 400 }}

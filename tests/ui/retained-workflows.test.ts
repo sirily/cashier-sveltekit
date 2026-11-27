@@ -1,4 +1,5 @@
 import { expect, test, type Download, type Page, type Request } from '@playwright/test';
+import { waitForOfflineControl } from './fixtures/offline';
 import type { ScheduledTransaction } from '../../src/lib/data/model';
 
 const prefix = `option "operating_currency" "USD"
@@ -164,6 +165,7 @@ test('offline journal delete removes only the selected entry and preserves neigh
 	context
 }) => {
 	const browserErrors = await seedLocalData(page);
+	await waitForOfflineControl(page);
 	await page.getByText('Delete only this entry', { exact: false }).click();
 	await expect(page).toHaveURL(/\/xact-actions$/);
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -196,7 +198,7 @@ test('offline journal delete removes only the selected entry and preserves neigh
 		'  cashier_id: "retained-after-id"'
 	]);
 
-	// Reload durability is separate from the offline mutation; preview need not have an active SW.
+	// Reload durability is separate from the offline mutation.
 	await context.setOffline(false);
 	await page.reload();
 	await expect(page.getByRole('main')).toContainText('Keep before delete');

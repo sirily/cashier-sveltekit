@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { EventHandler } from 'svelte/elements';
 
 	type Props = {
 		icon?: Snippet;
@@ -9,17 +8,18 @@
 		header?: Snippet;
 		content?: Snippet;
 		footer?: Snippet;
-		onclick?: EventHandler;
 		headerStyle?: string;
 	};
-	let { icon, title, menu, header, content, footer, onclick, headerStyle }: Props = $props();
+	let { icon, title, menu, header, content, footer, headerStyle }: Props = $props();
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<article class="card bg-base-100 rounded-lg" {onclick} role="list">
+<article class="card bg-base-100 min-w-0 rounded-lg">
 	<div class="card-body p-0">
-		<div class="flex rounded-t-lg px-3 py-2 text-lg" class:bg-primary={!headerStyle} style={headerStyle}>
+		<div
+			class="flex rounded-t-lg px-3 py-2 text-lg"
+			class:bg-primary={!headerStyle}
+			style={headerStyle}
+		>
 			{#if header}{@render header()}{/if}
 			{#if icon}{@render icon()}{/if}
 			<span class="grow pl-3">

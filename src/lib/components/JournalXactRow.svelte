@@ -1,14 +1,28 @@
 <script lang="ts">
 	import type { Xact } from '#lib/data/model';
-	import { getAmountColour } from '#lib/utils/formatter';
+	import {
+		formatAmount,
+		getAmountColour,
+		getReadableDate,
+		getXactAmountColour
+	} from '#lib/utils/formatter';
+	import { XactAugmenter } from '#lib/utils/xactAugmenter';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
 	interface Props {
 		xact: Xact;
 		onclick?: (xact: Xact) => void;
 		isLocal?: boolean;
+		compact?: boolean;
 	}
-	let { xact, onclick, isLocal = false }: Props = $props();
+	let { xact, onclick, isLocal = false, compact = false }: Props = $props();
+	const summary = $derived(
+		compact
+			? XactAugmenter.calculateXactAmounts([
+					{ ...xact, postings: xact.postings.map((posting) => ({ ...posting })) }
+				])[0]
+			: undefined
+	);
 
 	function onRowClicked() {
 		if (onclick) {
@@ -19,33 +33,40 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<article onclick={onRowClicked}>
-	<!-- date/payee -->
-	<div class="flex flex-row space-x-2">
-		<time class="opacity-85">
-			{xact.date}
-			<!-- todo: ISO format -->
+<article onclick={onRowClicked} class={compact ? 'border-base-content/15 border-b' : undefined}>
+	<div class="flex flex-wrap gap-x-2">
+		<time class={compact ? 'opacity-60' : 'opacity-85'} datetime={xact.date}>
+			{compact ? getReadableDate(xact.date ?? '') : xact.date}
 		</time>
-		<div class="flex items-center gap-1">
+		<div class="flex min-w-0 grow items-center gap-1 break-words">
 			{#if xact.flag === '!'}
-				<TriangleAlertIcon class="text-warning size-4 shrink-0" />
+				<TriangleAlertIcon
+					class="text-warning size-4 shrink-0"
+					aria-label="Incomplete entry"
+					role="img"
+				/>
 			{/if}
-			{xact.payee}
+			{compact ? xact.payee || xact.note || 'Unnamed entry' : xact.payee}
 			{#if isLocal}
 				<span class="badge badge-xs badge-ghost opacity-60">On device</span>
 			{/if}
 		</div>
+		{#if summary}
+			<data class={summary.quantity ? getXactAmountColour(xact, summary) : ''}>
+				{formatAmount(summary.quantity)}
+				{summary.currency}
+			</data>
+		{/if}
 	</div>
 
-	<!-- note -->
-	{#if xact.note}
+	{#if !compact && xact.note}
 		<div class="text-primary pl-6 leading-4">
 			<small>; {xact.note}</small>
 		</div>
 	{/if}
 
 	<!-- postings -->
-	{#if xact.postings}
+	{#if !compact && xact.postings}
 		<div class="pl-6 leading-4">
 			{#each xact.postings as posting (posting)}
 				<div class="flex flex-row opacity-85">

@@ -10,6 +10,7 @@ vi.mock('#lib/services/appService', () => ({
 	default: { getDefaultCurrency: vi.fn(async () => 'GBP') }
 }));
 import { SecurityAnalyser, type QueryFn } from '#lib/assetAllocation/securityAnalysis';
+import { allocationAccountFilter } from '#lib/assetAllocation/allocationHoldings';
 import { getQueries } from '#lib/sync/sync-queries';
 
 const source = `2000-01-01 open Assets:Broker
@@ -79,6 +80,35 @@ test.each([false, true])(
 		}
 	}
 );
+
+test('security detail values use the captured currency and exact investment root', async () => {
+	const fixture =
+		source +
+		`2000-01-01 open Assets:BROKER
+2000-01-01 open Assets:BrokerExtra
+2026-02-02 * "Another account with the same instrument"
+  Assets:BROKER  20 LONGCOIN {11 GBP}
+  Assets:BrokerExtra  7 LONGCOIN {11 GBP}
+  Assets:Cash  -297 GBP
+2026-06-03 price GBP 2 EUR
+`;
+	const local = Ledger.fromFiles({ 'cashier.bean': fixture }, 'cashier.bean');
+	try {
+		expect(local.getErrors()).toEqual([]);
+		const query = vi.fn(async (bql: string) => local.query(bql));
+		const accountFilter = allocationAccountFilter('Assets:Broker');
+		const analyser = new SecurityAnalyser(query, { accountFilter, currency: 'EUR' });
+		await expect(analyser.getYield('LONGCOIN')).resolves.toBe('5.00%');
+		await expect(analyser.getGainLoss('LONGCOIN')).resolves.toBe('40.00 EUR, 20.00%');
+		expect(query.mock.calls.map(([bql]) => bql)).toEqual([
+			getQueries().incomeBalance('LONGCOIN', '2025-11-03', 'EUR'),
+			getQueries().valueBalance('LONGCOIN', 'EUR', accountFilter),
+			getQueries().gainLoss('LONGCOIN', 'EUR', accountFilter)
+		]);
+	} finally {
+		local.free();
+	}
+});
 
 test('BQL errors and unavailable local backend propagate without HTTP retry', async () => {
 	const query: QueryFn = async () => ({

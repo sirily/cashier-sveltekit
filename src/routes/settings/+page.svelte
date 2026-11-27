@@ -17,11 +17,11 @@
 	import Fab from '#lib/components/FAB.svelte';
 	import { page } from '$app/state';
 	import fullLedgerService from '#lib/services/ledgerWorkerClient';
+	import { notifyBookSelectionChanged } from '#lib/services/bookSelectionEvents';
 	import { USER_BOOK_FILENAME } from '#lib/constants';
+	import { DEFAULT_DATE_FORMAT, readSettingsPreferences } from '#lib/services/settingsPreferences';
 
 	Notifier.init();
-
-	const DATE_FORMAT_DEFAULT = 'D MMM YYYY';
 
 	const dateFormatOptions = [
 		{ label: '29 Aug 2026', value: 'D MMM YYYY' },
@@ -38,8 +38,9 @@
 	let bookFilename = $state<string | null>(null);
 	let assetAllocationDefinition = $state<string | null>(null);
 	let rootInvestmentAccount = $state<string>();
-	let dateFormat = $state<string>(DATE_FORMAT_DEFAULT);
+	let dateFormat = $state<string>(DEFAULT_DATE_FORMAT);
 	let loaded = $state(false);
+	let saving = false;
 
 	// Saved (DB) values for revert comparison
 	let savedCurrency = $state<string | undefined>(undefined);
@@ -47,7 +48,7 @@
 	let savedAssetAllocationDefinition = $state<string | null>(null);
 	let savedRootInvestmentAccount = $state<string | undefined>(undefined);
 	let savedRememberLastTransaction = $state<boolean | undefined>(undefined);
-	let savedDateFormat = $state<string>(DATE_FORMAT_DEFAULT);
+	let savedDateFormat = $state<string>(DEFAULT_DATE_FORMAT);
 
 	// Dirty flags — only meaningful after initial load
 	let currencyDirty = $derived(loaded && currency !== savedCurrency);
@@ -115,17 +116,14 @@
 		bookCurrencies = await fullLedgerService.getOperatingCurrencies();
 
 		// Load saved DB values (used for revert comparison and as fallback)
-		savedCurrency = (await appService.getDefaultCurrency()) ?? undefined;
-		savedBookFilename = (await appService.readBookFilename()) ?? null;
-		savedRootInvestmentAccount = (await settings.get<string>(SettingKeys.rootInvestmentAccount)) as
-			string | undefined;
-		savedRememberLastTransaction = (await settings.get<boolean>(
-			SettingKeys.rememberLastTransaction
-		)) as boolean | undefined;
-		ledgerCacheEnabled = (await settings.get<boolean>(SettingKeys.ledgerCacheEnabled)) ?? true;
-		savedAssetAllocationDefinition =
-			(await settings.get<string>(SettingKeys.assetAllocationDefinition)) ?? null;
-		savedDateFormat = (await settings.get<string>(SettingKeys.dateFormat)) ?? DATE_FORMAT_DEFAULT;
+		const saved = await readSettingsPreferences();
+		savedCurrency = saved.currency;
+		savedBookFilename = saved.bookFilename;
+		savedRootInvestmentAccount = saved.rootInvestmentAccount;
+		savedRememberLastTransaction = saved.rememberLastTransaction;
+		ledgerCacheEnabled = saved.ledgerCacheEnabled;
+		savedAssetAllocationDefinition = saved.assetAllocationDefinition;
+		savedDateFormat = saved.dateFormat;
 
 		// Auto-detect currency from book if not saved yet
 		if (!savedCurrency && bookCurrencies.length > 0) {
@@ -150,26 +148,44 @@
 	}
 
 	async function saveSettings() {
-		await settings.set(SettingKeys.currency, currency);
-		DefaultCurrencyStore.set(currency as string);
+		if (!loaded || saving) return;
+		saving = true;
+		try {
+			await settings.set(SettingKeys.currency, currency);
+			DefaultCurrencyStore.set(currency as string);
+			await settings.set(SettingKeys.rootInvestmentAccount, rootInvestmentAccount);
+			await settings.set(SettingKeys.rememberLastTransaction, rememberLastTransaction);
+			await settings.set(SettingKeys.ledgerCacheEnabled, ledgerCacheEnabled);
+			await settings.set(SettingKeys.assetAllocationDefinition, assetAllocationDefinition);
+			await settings.set(SettingKeys.dateFormat, dateFormat);
 
-		await settings.set(SettingKeys.rootInvestmentAccount, rootInvestmentAccount);
-		await settings.set(SettingKeys.rememberLastTransaction, rememberLastTransaction);
-		await settings.set(SettingKeys.ledgerCacheEnabled, ledgerCacheEnabled);
-		await settings.set(SettingKeys.assetAllocationDefinition, assetAllocationDefinition);
-		await settings.set(SettingKeys.dateFormat, dateFormat);
+			let refreshError: string | undefined;
+			if (bookFilename && bookFilename !== (await appService.readBookFilename())) {
+				await appService.writeBookFilename(bookFilename);
+				notifyBookSelectionChanged();
+				// Invalidate the old composition before Home can query it under the new book's name.
+				try {
+					await fullLedgerService.invalidate();
+				} catch (error) {
+					refreshError = error instanceof Error ? error.message : String(error);
+				}
+			}
 
-		// Save book filename in cashier.bean
-		if (bookFilename) {
-			await appService.writeBookFilename(bookFilename);
+			loaded = false;
+			PendingSettingsStore.set(undefined);
+			if (refreshError !== undefined)
+				Notifier.warning(
+					'Settings saved, but book analysis could not be refreshed: ' + refreshError
+				);
+			else Notifier.success('Settings saved');
+			await goto(resolve('/'));
+		} catch (error) {
+			Notifier.error(
+				'Could not save settings: ' + (error instanceof Error ? error.message : String(error))
+			);
+		} finally {
+			saving = false;
 		}
-
-		// Clear pending store now that everything is saved
-		PendingSettingsStore.set(undefined);
-
-		Notifier.success('Settings saved');
-
-		await goto(resolve('/')); // Go to home after saving settings
 	}
 </script>
 

@@ -1,11 +1,12 @@
 import { resolve } from '$app/paths';
 import { error, redirect } from '@sveltejs/kit';
 import type { AssetClass, StockSymbol } from '#lib/assetAllocation/AssetClass';
+import {
+	allocationAccountFilter,
+	type AllocationHolding
+} from '#lib/assetAllocation/allocationHoldings';
 import { loadAssetAllocation } from '#lib/assetAllocation/loadAssetAllocation';
 import { AaStocksStore } from '#lib/data/mainStore';
-import type { Account } from '#lib/data/model.js';
-import * as AccountService from '#lib/services/accountsService';
-import appService from '#lib/services/appService';
 import fullLedgerService from '#lib/services/ledgerWorkerClient';
 import type { PageLoad } from './$types';
 import { get } from 'svelte/store';
@@ -31,76 +32,42 @@ export const load: PageLoad = async ({ params }) => {
 		error(404, 'Asset class not found');
 	}
 
-	const currency = await appService.getDefaultCurrency();
-
-	// Build a WASM query function from the cached full ledger.
-	await fullLedgerService.ensureLoaded();
-	const wasmQuery: WasmQueryFn = (bql) => fullLedgerService.query(bql);
-
-	const investmentAccounts = await AccountService.loadInvestmentAccounts(wasmQuery);
-	if (investmentAccounts.length === 0) {
-		console.warn('No investment accounts found');
-	}
-
-	// add the balances.
-	await AccountService.populateAccountBalances(investmentAccounts);
-
-	const stocks = populateStocksWithCaching(assetClass, investmentAccounts);
-	return { wasmQuery, investmentAccounts, currency, assetClass, stocks };
+	if (!aa.valuation) error(500, 'Asset allocation valuation scope is unavailable.');
+	const { currency, rootAccount } = aa.valuation;
+	const ledgerVersion = get(fullLedgerService.version);
+	const isCurrent = () =>
+		!get(fullLedgerService.isReloading) && get(fullLedgerService.version) === ledgerVersion;
+	const wasmQuery: WasmQueryFn = async (bql) => {
+		if (!isCurrent()) throw new Error('The local book changed. Reopen Asset Class Detail.');
+		const result = await fullLedgerService.query(bql);
+		if (!isCurrent()) throw new Error('The local book changed. Reopen Asset Class Detail.');
+		return result;
+	};
+	return {
+		wasmQuery,
+		ledgerVersion,
+		accountFilter: allocationAccountFilter(rootAccount),
+		investmentHoldings: aa.holdings,
+		currency,
+		assetClass,
+		stocks: populateStocksWithCaching(assetClass, aa.holdings),
+		valuation: {
+			complete: aa.valuationComplete,
+			percentages: aa.valuationComplete && aa.hasAllocationPercentages,
+			warnings: aa.warnings
+		}
+	};
 };
 
-function populateStocksWithCaching(assetClass: AssetClass, investmentAccounts: Account[]) {
-	const stocks = populateStocks(assetClass, investmentAccounts);
-
-	// Get cache.
-	let cache = get(AaStocksStore);
-	if (!cache) {
-		cache = {};
-	}
-
-	// get cached version, if available
-	stocks.forEach((stock) => {
-		if (!stock.name) {
-			throw new Error('empty stock name!');
-		}
-
-		const cachedStock = cache[stock.name];
-		if (cachedStock) {
-			//stock = cachedStock
-			Object.assign(stock, cachedStock);
-		} else {
-			// cache the new stock
-			cache[stock.name] = stock;
-		}
-	});
-
-	AaStocksStore.set(cache);
-
-	return stocks;
-}
-
-function populateStocks(assetClass: AssetClass, investmentAccounts: Account[]): StockSymbol[] {
-	const result: StockSymbol[] = [];
-
-	const children = assetClass.symbols;
-	if (!children) return result;
-	if (children.length === 0) return result;
-
-	children.forEach((childName) => {
-		const stock: StockSymbol = {
-			name: childName,
-			accounts: [],
-			analysis: undefined
-		};
-
-		// Match against the full balances map so multi-commodity accounts are retained.
-		const stockAccounts = investmentAccounts.filter((acct) =>
-			acct.balances ? childName in acct.balances : false
-		);
-		stock.accounts.push(...stockAccounts);
-
-		result.push(stock);
-	});
-
-	return result;
+function populateStocksWithCaching(
+	assetClass: AssetClass,
+	holdings: AllocationHolding[]
+): StockSymbol[] {
+	const cache = get(AaStocksStore);
+	return assetClass.symbols.map((name) => ({
+		name,
+		holdings: holdings.filter((holding) => holding.commodity === name),
+		// Cache security analysis only, not account rows from a previous calculation.
+		analysis: cache?.[name]?.analysis
+	}));
 }
