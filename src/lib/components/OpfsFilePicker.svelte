@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import FolderIcon from '@lucide/svelte/icons/folder';
-import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-import FileIcon from '@lucide/svelte/icons/file';
-import TrashIcon from '@lucide/svelte/icons/trash';
-import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
+	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import FileIcon from '@lucide/svelte/icons/file';
+	import TrashIcon from '@lucide/svelte/icons/trash';
+	import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 	import * as OpfsLib from '#lib/utils/opfslib.js';
 	import type { FileTreeEntry } from '#lib/utils/opfslib.js';
 	import { getManifest } from '#lib/utils/importManifest';
@@ -28,17 +28,25 @@ import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 	}: Props = $props();
 
 	let entries = $state<FileTreeEntry[]>([]);
-	let isLoading = $state(false);
+	let isLoading = $state(true);
+	let error = $state('');
 	let manifest = $state(new Map<string, { importedAt: number }>());
+	let generation = 0;
 
 	export async function refresh() {
+		const request = ++generation;
 		isLoading = true;
+		error = '';
 		try {
-			[entries, manifest] = await Promise.all([OpfsLib.listFileTree(), getManifest()]);
-		} catch (error: any) {
-			console.error('Error loading files:', error);
+			const [files, metadata] = await Promise.all([OpfsLib.listFileTree(), getManifest()]);
+			if (request === generation) {
+				entries = files;
+				manifest = metadata;
+			}
+		} catch (reason) {
+			if (request === generation) error = reason instanceof Error ? reason.message : String(reason);
 		} finally {
-			isLoading = false;
+			if (request === generation) isLoading = false;
 		}
 	}
 
@@ -48,7 +56,12 @@ import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 		return !!meta && entry.lastModified > meta.importedAt;
 	}
 
-	onMount(refresh);
+	onMount(() => {
+		void refresh();
+		return () => {
+			generation++;
+		};
+	});
 
 	function isEntryVisible(entry: FileTreeEntry): boolean {
 		if (entry.depth === 0) return true;
@@ -76,8 +89,7 @@ import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 		onfileselect?.(entry);
 	}
 
-	function toggleCheck(path: string, event: Event) {
-		event.stopPropagation();
+	function toggleCheck(path: string) {
 		if (checkedFiles.includes(path)) {
 			checkedFiles = checkedFiles.filter((p) => p !== path);
 		} else {
@@ -100,9 +112,10 @@ import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 </script>
 
 {#if isLoading}
-	<div class="flex justify-center items-center p-8">
-		<span class="loading loading-spinner loading-lg"></span>
-	</div>
+	<p class="p-2" role="status">Loading local files…</p>
+{:else if error}
+	<p class="p-2" role="alert">Could not read local files: {error}</p>
+	<button type="button" class="btn btn-sm" onclick={refresh}>Try again</button>
 {:else if entries.length === 0}
 	<div class="alert alert-info">
 		<svg
@@ -144,25 +157,28 @@ import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 		<tbody>
 			{#each entries as entry (entry.path)}
 				{#if isEntryVisible(entry)}
-					<tr
-						class="cursor-pointer hover"
-						class:bg-secondary={selectedFile === entry.path}
-						onclick={() => onEntryClick(entry)}
-					>
+					<tr class:bg-secondary={selectedFile === entry.path}>
 						{#if showCheckboxes}
-							<td onclick={(e) => entry.kind === 'file' && toggleCheck(entry.path, e)}>
+							<td>
 								{#if entry.kind === 'file'}
 									<input
 										type="checkbox"
 										class="checkbox checkbox-sm"
+										aria-label={'Select ' + entry.path}
 										checked={checkedFiles.includes(entry.path)}
-										onchange={(e) => toggleCheck(entry.path, e)}
+										onchange={() => toggleCheck(entry.path)}
 									/>
 								{/if}
 							</td>
 						{/if}
-						<td class="font-mono text-sm">
-							<span class="flex items-center gap-1" style="padding-left: {entry.depth * 1.25}rem">
+						<td class="p-0 font-mono text-sm">
+							<button
+								type="button"
+								class="link-hover flex min-h-8 w-full items-center gap-1 px-2 text-left"
+								style:padding-left={entry.depth * 1.25 + 0.5 + 'rem'}
+								aria-expanded={entry.kind === 'directory' ? Boolean(entry.expanded) : undefined}
+								onclick={() => onEntryClick(entry)}
+							>
 								{#if entry.kind === 'directory'}
 									{#if entry.expanded}
 										<FolderOpenIcon class="w-4 h-4 opacity-60 shrink-0" />
@@ -179,15 +195,17 @@ import RefreshCcwIcon from '@lucide/svelte/icons/refresh-ccw';
 										title="Modified locally since last sync"
 									></span>
 								{/if}
-							</span>
+							</button>
 						</td>
 						<td class="text-sm">{entry.kind === 'file' ? formatFileSize(entry.size) : '--'}</td>
 						<td class="text-sm">{formatDate(entry.lastModified)}</td>
 						{#if showDeleteButtons}
-							<td class="text-right" onclick={(e) => e.stopPropagation()}>
+							<td class="text-right">
 								{#if entry.kind === 'file'}
 									<button
+										type="button"
 										class="btn btn-sm btn-error btn-outline"
+										aria-label={'Delete ' + entry.path}
 										onclick={() => ondeleteclick?.(entry.path)}
 									>
 										<TrashIcon class="w-4 h-4" />

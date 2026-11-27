@@ -1,36 +1,30 @@
 <script lang="ts">
-	import { drawerState } from '#lib/data/mainStore';
-	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	// Icons
-
-	import ChartLineIcon from '@lucide/svelte/icons/chart-line';
-	import ChartPieIcon from '@lucide/svelte/icons/chart-pie';
-	import DatabaseIcon from '@lucide/svelte/icons/database';
-	import WrenchIcon from '@lucide/svelte/icons/wrench';
-	import CircleQuestionMarkIcon from '@lucide/svelte/icons/circle-question-mark';
-	import HouseIcon from '@lucide/svelte/icons/house';
-	import InfoIcon from '@lucide/svelte/icons/info';
-	import LandmarkIcon from '@lucide/svelte/icons/landmark';
-	import ScrollIcon from '@lucide/svelte/icons/scroll';
-	import SettingsIcon from '@lucide/svelte/icons/settings';
-	import StarIcon from '@lucide/svelte/icons/star';
-	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
-	import ContainerIcon from '@lucide/svelte/icons/container';
-	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
-	import ChartNoAxesCombinedIcon from '@lucide/svelte/icons/chart-no-axes-combined';
-	import HardDriveIcon from '@lucide/svelte/icons/hard-drive';
-	import CalculatorIcon from '@lucide/svelte/icons/calculator';
-
-	import ListTreeIcon from '@lucide/svelte/icons/list-tree';
-	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import { page } from '$app/state';
+	import { drawerState } from '#lib/data/mainStore';
+	import { drawerGroups, footerLinks, primaryLinks, type DrawerLink } from '#lib/navigation';
 
 	function closeDrawer(): void {
-		// the new drawer
-		drawerState.update((state) => false);
+		drawerState.set(false);
 	}
 </script>
+
+{#snippet navLinks(links: readonly DrawerLink[])}
+	{#each links as { path, label, Icon } (path)}
+		<li>
+			<a
+				href={resolve(path)}
+				class="flex w-full items-center gap-2 py-2 {page.url.pathname === path
+					? 'active bg-secondary text-secondary-content'
+					: ''}"
+				onclick={closeDrawer}
+			>
+				<Icon />
+				<span>{label}</span>
+			</a>
+		</li>
+	{/each}
+{/snippet}
 
 <div class="bg-base-200 flex h-screen flex-col">
 	<div class="bg-primary w-full p-4">
@@ -44,269 +38,32 @@
 
 	<div class="flex-1 overflow-y-auto">
 		<ul class="menu menu-lg w-full">
-			<li>
-				<a
-					href={resolve('/')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<HouseIcon />
-					<span>Home</span>
-				</a>
-			</li>
-			<li>
-				<a
-					href={resolve('/accounts/groups')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/accounts/groups'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<LandmarkIcon />
-					<span>My Accounts</span>
-				</a>
-			</li>
-			<li>
-				<a
-					href={resolve('/journal')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/journal'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<ScrollIcon />
-					<span>Journal</span>
-				</a>
-			</li>
+			{@render navLinks(primaryLinks)}
 		</ul>
 
 		<div class="divider divider-primary m-1"></div>
 
 		<ul class="menu menu-lg w-full">
-			<li>
-				<details>
-					<summary class="flex w-full items-center gap-2 py-2 text-lg font-medium">
-						<ChartNoAxesCombinedIcon size={22} />
-						<span>Analysis</span>
-						<span class="flex-1"></span>
-					</summary>
-					<ul>
-						<li>
-							<a
-								href={resolve('/reports')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/reports'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<ChartLineIcon />
-								<span>Reports</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/accounts/tree')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/accounts/tree'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<ListTreeIcon />
-								<span>Account Tree</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/favourites')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/favourites'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<StarIcon />
-								<span>Favourites</span>
-							</a>
-						</li>
-
-						<li>
-							<a
-								href={resolve('/accounts')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/accounts'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<LandmarkIcon />
-								<span>Accounts</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/asset-allocation')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
-								'/asset-allocation'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<ChartPieIcon />
-								<span>Asset Allocation</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/payees')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/payees'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<UsersRoundIcon />
-								<span>Payees</span>
-							</a>
-						</li>
-					</ul>
-				</details>
-			</li>
-			<li>
-				<details>
-					<summary class="flex w-full items-center gap-2 py-2 text-lg font-medium">
-						<HardDriveIcon size={22} />
-						<span>Data</span>
-						<span class="flex-1"></span>
-					</summary>
-					<ul>
-						<li>
-							<a
-								href={resolve('/sync')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/sync'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<ArrowLeftRightIcon />
-								<span>Server Sync</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/backup')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/backup'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<DatabaseIcon />
-								<span>Backup</span>
-							</a>
-						</li>
-
-						<li>
-							<a
-								href={resolve('/opfs')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/opfs'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<FolderOpenIcon />
-								<span>File Storage</span>
-							</a>
-						</li>
-					</ul>
-				</details>
-			</li>
-			<li>
-				<details>
-					<summary class="flex w-full items-center gap-2 py-2 text-lg font-medium">
-						<WrenchIcon size={22} />
-						<span>Utilities</span>
-						<span class="flex-1"></span>
-					</summary>
-					<ul>
-						<li>
-							<a
-								href={resolve('/tools/serialization')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname ===
-								'/tools/serialization'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<ContainerIcon />
-								<span>Serialization</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/calculator')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/calculator'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<CalculatorIcon />
-								<span>Calculator</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href={resolve('/util/validation')}
-								class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/util/validation'
-									? 'active bg-secondary text-secondary-content'
-									: ''}"
-								onclick={closeDrawer}
-							>
-								<ShieldCheckIcon />
-								<span>Validation</span>
-							</a>
-						</li>
-					</ul>
-				</details>
-			</li>
+			{#each drawerGroups as { label, Icon, links } (label)}
+				<li>
+					<details>
+						<summary class="flex w-full items-center gap-2 py-2 text-lg font-medium">
+							<Icon size={22} />
+							<span>{label}</span>
+							<span class="flex-1"></span>
+						</summary>
+						<ul>
+							{@render navLinks(links)}
+						</ul>
+					</details>
+				</li>
+			{/each}
 		</ul>
 
 		<div class="divider divider-primary m-1"></div>
 
 		<ul class="menu menu-lg w-full">
-			<li>
-				<a
-					href={resolve('/help')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/help'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<CircleQuestionMarkIcon />
-					<span>Help</span>
-				</a>
-			</li>
-			<li>
-				<a
-					href={resolve('/about')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/about'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<InfoIcon />
-					<span>About</span>
-				</a>
-			</li>
-			<li>
-				<a
-					href={resolve('/settings')}
-					class="flex w-full items-center gap-2 py-2 {page.url.pathname === '/settings'
-						? 'active bg-secondary text-secondary-content'
-						: ''}"
-					onclick={closeDrawer}
-				>
-					<SettingsIcon />
-					<span>Settings</span>
-				</a>
-			</li>
+			{@render navLinks(footerLinks)}
 		</ul>
 	</div>
 </div>

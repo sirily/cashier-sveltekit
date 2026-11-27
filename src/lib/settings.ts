@@ -22,8 +22,11 @@ export class SelectionModeMetadata {
 	// The id of the selected item.
 	selectedId: unknown;
 
-	// Initial value to populate the calculator with
-	initialValue?: number;
+	// Exact decimal text to populate the calculator with.
+	initialValue?: string;
+
+	// Optional balance source when opening the calculator for a selected account.
+	calculatorAccount?: string;
 }
 
 export interface AccountGroup {
@@ -48,7 +51,6 @@ export const SettingKeys = {
 
 	currency: 'currency',
 	rememberLastTransaction: 'rememberLastTransaction',
-	favouriteAccounts: 'favouriteAccounts',
 
 	// Cashier Server Sync
 	syncServerUrl: 'syncServerUrl',
@@ -78,11 +80,9 @@ export const SettingKeys = {
 };
 
 export const CardNames = {
-	FavouritesCard: 'FavouritesCard',
+	AccountGroupsCard: 'AccountGroupsCard',
 
-	JournalCard: 'JournalCard',
-
-	SyncCard: 'SyncCard'
+	JournalCard: 'JournalCard'
 };
 
 class Settings {

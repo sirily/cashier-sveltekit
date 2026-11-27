@@ -1,19 +1,16 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import Toolbar from '#lib/components/Toolbar.svelte';
-	import OpfsFilePicker from '#lib/components/OpfsFilePicker.svelte';
+	import FileStorageBody from '#lib/components/FileStorageBody.svelte';
 	import FilePlusIcon from '@lucide/svelte/icons/file-plus';
 
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
-	import { goto } from '$app/navigation';
 	import * as OpfsLib from '#lib/utils/opfslib.js';
-	import type { FileTreeEntry } from '#lib/utils/opfslib.js';
 	import Notifier from '#lib/utils/notifier';
 
 	Notifier.init();
 
-	let filePicker = $state<ReturnType<typeof OpfsFilePicker> | null>(null);
+	let filePicker = $state<ReturnType<typeof FileStorageBody> | null>(null);
 	let selectedFile = $state<string | null>(null);
 	let showNewFileDialog = $state(false);
 	let newFileName = $state('');
@@ -23,10 +20,6 @@
 
 	let showDeleteAllConfirm = $state(false);
 	let isDeletingAll = $state(false);
-
-	function onFileSelect(entry: FileTreeEntry) {
-		goto(resolve(`/opfs/edit-file?${new URLSearchParams({ file: entry.path })}`));
-	}
 
 	function confirmDelete(filePath: string) {
 		fileToDelete = filePath;
@@ -128,13 +121,7 @@
 
 	<section class="flex-1 overflow-hidden p-4">
 		<div class="overflow-x-auto overflow-y-auto h-full">
-			<OpfsFilePicker
-				bind:this={filePicker}
-				bind:selectedFile
-				showDeleteButtons
-				onfileselect={onFileSelect}
-				ondeleteclick={confirmDelete}
-			/>
+			<FileStorageBody bind:this={filePicker} bind:selectedFile ondeleteclick={confirmDelete} />
 		</div>
 	</section>
 

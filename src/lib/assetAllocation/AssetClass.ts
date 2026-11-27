@@ -1,4 +1,4 @@
-import { Account } from '#lib/data/model';
+import type { AllocationHolding } from './allocationHoldings';
 import Big from 'big.js';
 import type { SecurityAnalysis } from './securityAnalysis';
 
@@ -62,7 +62,7 @@ export class AssetClass {
 
 export interface StockSymbol {
 	name: string;
-	accounts: Account[];
+	holdings: AllocationHolding[];
 	analysis?: SecurityAnalysis;
 	loading?: boolean;
 	error?: string;
@@ -86,4 +86,4 @@ export interface AssetClassDefinition {
 	[key: string]: AssetClassDefinition | number | string[] | undefined;
 }
 
-export type StockCache = Record<string, StockSymbol>;
+export type StockCache = Record<string, Pick<StockSymbol, 'analysis'>>;

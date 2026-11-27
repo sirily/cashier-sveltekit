@@ -16,10 +16,12 @@
 	import Big from 'big.js';
 	import { ensureInitialized, createParsedLedger } from '#lib/services/rustledger';
 	import { xactToBeancountText } from '#lib/utils/xactUtils';
+	import { setPostingAmount } from '#lib/utils/postingWeights';
+	import { readCalculatorBalances } from '#lib/services/calculatorBalances';
 
 	const accountName = $derived(page.url.searchParams.get('account') ?? '');
 
-	let balances = $state<Record<string, number> | null>(null);
+	let balances = $state<Record<string, string> | null>(null);
 	let baselineError = $state('Loading account balances…');
 	const currency = $derived(($xact?.postings[0]?.currency ?? '').trim().toUpperCase());
 	// Python Beancount lexer.l CURRENCY rules, including the single-letter CAPITAL token.
@@ -28,8 +30,22 @@
 			currency
 		)
 	);
-	const ledgerBalance = $derived(balances && validCurrency ? (balances[currency] ?? 0) : null);
+	const ledgerBalance = $derived(balances && validCurrency ? (balances[currency] ?? '0') : null);
 	let enteredBalance = $state('');
+	const difference = $derived.by(() => {
+		if (ledgerBalance === null || !enteredBalance || !Number.isFinite(Number(enteredBalance)))
+			return null;
+		// Reject underflow without expanding an arbitrarily small scientific-notation input.
+		if (Number(enteredBalance) === 0 && /[1-9]/.test(enteredBalance.split(/[eE]/, 1)[0]))
+			return null;
+		return new Big(enteredBalance).minus(ledgerBalance);
+	});
+	const differenceText = $derived.by(() => {
+		if (!difference || difference.eq(0)) return '';
+		const exact = difference.toFixed();
+		const [whole, fraction = ''] = exact.split('.');
+		return `${difference.gt(0) ? '+' : ''}${whole}.${fraction.padEnd(2, '0')}`;
+	});
 	let ready = $state(false);
 	let checking = $state(false);
 	let compatibilityError = $state('');
@@ -54,8 +70,8 @@
 
 			if (meta.selectionType === 'account' && meta.selectedId) {
 				$xact.postings[0].account = meta.selectedId as string;
-			} else if (meta.selectionType === 'amount' && meta.selectedId !== undefined) {
-				enteredBalance = String(meta.selectedId);
+			} else if (meta.selectionType === 'amount' && typeof meta.selectedId === 'string') {
+				enteredBalance = meta.selectedId;
 			}
 			await loadBalances(previous);
 			if (active && get(xact) === previous) ready = true;
@@ -80,7 +96,7 @@
 		if (!active || get(xact) !== tx) return;
 		if (balances) {
 			$xact.postings[0].currency = Object.keys(balances)[0] ?? defaultCurrency;
-			enteredBalance = String(balances[$xact.postings[0].currency] ?? 0);
+			enteredBalance = balances[$xact.postings[0].currency] ?? '0';
 		}
 		ready = true;
 	});
@@ -95,30 +111,9 @@
 			const accounts = await fullLedgerService.getAllAccounts();
 			if (!accounts.some((account) => account.name === accountName))
 				throw new Error('Account is not available in the local book.');
-			const result = await fullLedgerService.query(
-				`SELECT sum(number) AS balance, currency WHERE account = '${accountName.replaceAll("'", "\\'")}' GROUP BY currency ORDER BY currency`
-			);
-			if (result.errors.length) throw new Error('The balance query failed.');
-			const amountIndex = result.columns.indexOf('balance');
-			const currencyIndex = result.columns.indexOf('currency');
-			if (amountIndex < 0 || currencyIndex < 0)
-				throw new Error('The balance query returned incomplete data.');
-			const current: Record<string, number> = {};
-			for (const row of result.rows as unknown[][]) {
-				const amount = row[amountIndex];
-				const currency = row[currencyIndex];
-				if (
-					amount == null ||
-					amount === '' ||
-					!Number.isFinite(Number(amount)) ||
-					typeof currency !== 'string' ||
-					!currency
-				)
-					throw new Error('An account balance is unresolved.');
-				current[currency] = Number(amount);
-			}
+			const current = await readCalculatorBalances(accountName);
 			if (!active || get(xact) !== owner) return;
-			balances = current;
+			balances = Object.fromEntries(current.map(({ currency, amount }) => [currency, amount]));
 			baselineError = '';
 		} catch (error) {
 			if (!active || get(xact) !== owner) return;
@@ -145,15 +140,15 @@
 		const meta = new SelectionModeMetadata();
 		meta.origin = 'bal-adj';
 		meta.selectionType = 'amount';
-		meta.initialValue = parseFloat(enteredBalance) || 0;
+		meta.calculatorAccount = accountName || undefined;
+		meta.initialValue = enteredBalance || undefined;
 		selectionMetadata.set(meta);
 		await goto(resolve('/calculator'));
 	}
 
 	async function onFab() {
-		if (!$xact || ledgerBalance === null || checking) return;
-		const entered = parseFloat(enteredBalance);
-		if (!Number.isFinite(entered)) return;
+		const adjustment = difference;
+		if (!$xact || !adjustment || checking) return;
 
 		const owner = get(xact);
 		const snapshot = JSON.stringify(owner);
@@ -161,11 +156,10 @@
 		const candidate: Xact = JSON.parse(snapshot);
 		candidate.note = '';
 		candidate.postings[0].currency = currency;
-		candidate.postings[0].amount = new Big(ledgerBalance).minus(entered).toNumber();
-		candidate.postings[1].amount = -candidate.postings[0].amount;
+		setPostingAmount(candidate.postings[0], adjustment.neg().toFixed());
+		setPostingAmount(candidate.postings[1], adjustment.toFixed());
 		candidate.postings[1].currency = currency;
 		candidate.postings[1].account = accountName;
-		const source = xactToBeancountText(candidate);
 		const ownsForm = () =>
 			active &&
 			get(xact) === owner &&
@@ -174,6 +168,11 @@
 		checking = true;
 		compatibilityError = '';
 		try {
+			const projected = candidate.postings[1].amount!;
+			if (!Number.isFinite(projected) || (projected === 0 && !adjustment.eq(0))) {
+				throw new Error('Adjustment amount out of range');
+			}
+			const source = xactToBeancountText(candidate);
 			await ensureInitialized();
 			if (!ownsForm()) return;
 			const parsed = createParsedLedger(source);
@@ -194,7 +193,7 @@
 						posting.account !== expected.account ||
 						!posting.units ||
 						posting.units.currency !== expected.currency ||
-						!new Big(posting.units.number).eq(expected.amount!)
+						!new Big(posting.units.number).eq(expected.amountText!)
 					)
 						throw new Error('Round-trip mismatch');
 				}
@@ -265,7 +264,8 @@
 							type="number"
 							step="0.01"
 							class="input bg-primary/20 flex-1"
-							bind:value={enteredBalance}
+							value={enteredBalance}
+							oninput={(event) => (enteredBalance = event.currentTarget.value)}
 							placeholder="0.00"
 						/>
 						<button
@@ -286,23 +286,20 @@
 				</div>
 
 				<!-- Difference (calculated) -->
-				{#if enteredBalance !== '' && ledgerBalance !== null}
-					{@const diff = parseFloat(enteredBalance) - ledgerBalance}
-					{#if !isNaN(diff) && diff !== 0}
-						<div class="form-control">
-							<div class="label">
-								<span class="label-text">Difference</span>
-							</div>
-							<div
-								class="input input-bordered flex items-center {diff < 0
-									? 'text-error'
-									: 'text-success'}"
-							>
-								{diff > 0 ? '+' : ''}{diff.toFixed(2)}
-								<span class="ml-2 text-sm">{currency}</span>
-							</div>
+				{#if differenceText}
+					<div class="form-control">
+						<div class="label">
+							<span class="label-text">Difference</span>
 						</div>
-					{/if}
+						<div
+							class="input input-bordered flex items-center {differenceText.startsWith('-')
+								? 'text-error'
+								: 'text-success'}"
+						>
+							{differenceText}
+							<span class="ml-2 text-sm">{currency}</span>
+						</div>
+					</div>
 				{/if}
 
 				<!-- Expense account — tap to select from account list -->

@@ -60,7 +60,7 @@ Each explicit Sync:
 
 A server acceptance response starts the confirmation process. Removal of a local copy follows confirmation in the successfully downloaded and validated server book. Entries awaiting confirmation remain in the local journal, and retries reuse their persisted identities.
 
-Sync always sends eligible local entries, pulls the book and reconciles confirmed copies; an empty send batch still proceeds with the pull. Accounts and Payees have no independent synchronization requests or controls. The drawer and home card both open `/sync`.
+Sync always sends eligible local entries, pulls the book and reconciles confirmed copies; an empty send batch still proceeds with the pull. Accounts and Payees have no independent synchronization requests or controls. The Home action starts the same Sync when a valid server URL is saved, or opens `/sync` for setup otherwise. Data → Server Sync in the drawer opens `/sync` for settings and diagnostics. The two Sync controls share an in-progress guard within the same tab.
 
 Settings reads default an absent source to Beancount and normalize recognized legacy `filesystem` and `ledger` strings to Beancount. Normalization leaves stored connection details, credentials, server selections, selected book intact, without initiating synchronization. An unconfigured device can keep capturing locally; explicit Sync requires a valid server URL and the configured credential for protected requests.
 
@@ -102,6 +102,19 @@ Outbound local backup contains settings and existing legacy scheduled records in
 OPFS tools browse and select stored files, create text files, and edit existing source text. Settings select the stored book and asset-allocation definition. Ordinary settings controls persist local configuration in IndexedDB. Stored forecast preferences remain passive configuration data.
 
 Asset allocation reads its selected TOML definition from OPFS and combines it with locally calculated book data.
+
+## Home section cards
+
+`src/lib/navigation.ts` describes the drawer destinations and their Home card IDs, labels, and
+lazy body loaders. The drawer uses only the link metadata. Home resolves the saved IDs in
+order through a shared card host; standalone routes own their toolbars and route-only actions
+and can reuse the same bodies. Card initialization reads local data without invoking page-only
+actions such as Sync, settings saves, and cache resets.
+
+Home, Home Settings and Reorder Cards use `appService.getVisibleCards()` to read the same
+`SettingKeys.visibleCards` preference. An absent value supplies defaults; a saved empty list
+stays empty. Aliases are normalized without writing on read. The save boundary preserves
+unknown IDs without showing them in the current UI and omits retired IDs.
 
 ## Packaging and contracts
 

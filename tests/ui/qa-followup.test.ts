@@ -109,7 +109,9 @@ test('D6 About and Help describe user workflows and retain application controls'
 	await expect(page.locator('main')).not.toContainText(/fork|upstream|Experiments|Ledger Import/i);
 	await expect(page.locator('main a[href="/ledger"], main a[href="/ledger/multi"]')).toHaveCount(0);
 	await expect(page.getByRole('heading', { name: 'Version', exact: true })).toBeVisible();
-	await expect(page.locator('main')).toContainText('Build:');
+	await expect(page.locator('main code')).toHaveText(
+		process.env.CASHIER_BUILD_VERSION?.trim() || /^v\d+\.\d+\.\d+ \(dev\)$/
+	);
 	await expect(
 		page.getByRole('link', { name: /GNU Affero General Public License/ })
 	).toHaveAttribute('href', 'https://github.com/sirily/cashier-sveltekit/blob/main/LICENSE');

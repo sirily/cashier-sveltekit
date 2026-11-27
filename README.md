@@ -25,6 +25,24 @@ npm run dev
 The development server normally runs at `http://localhost:5173/`. Agents should use the
 user-managed server rather than starting a second one without checking.
 
+### Sync with a test server from the local frontend
+
+To route local API requests through Vite, set the Cashier Server origin in `.env.local`
+next to `vite.config.ts`. Use the server's base URL **without** `/api`:
+
+```dotenv
+CASHIER_DEV_PROXY_TARGET=http://127.0.0.1:8080
+```
+
+Replace the example with your test server's address and restart Vite. To keep the dev
+proxy accessible only on your machine, start Vite with `npm run dev -- --host localhost`.
+In Cashier, open **Data → Server Sync**, set **Cashier Server URL** to
+`http://localhost:5173/api`, and enter your API token there, not in `.env.local`.
+When the test server moves, update only `CASHIER_DEV_PROXY_TARGET` and restart Vite.
+
+The proxy is disabled when the variable is unset and is not used by preview or production.
+`.env.local` is ignored by Git.
+
 ### GitHub authentication in devcontainers
 
 The devcontainer installs GitHub CLI (`gh`) and stores its configuration in a named

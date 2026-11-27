@@ -1,4 +1,5 @@
 import { syncFeedback } from './sync-feedback.svelte';
+import { notifyBookSelectionChanged } from '#lib/services/bookSelectionEvents';
 /**
  * Sync source: Cashier Server (network).
  * Fetches data from the CashierSync server over HTTP.
@@ -49,32 +50,44 @@ export interface BeancountSyncDiagnostics {
 	syncErrors?: SyncError[];
 }
 
-function describeError(error: unknown): string {
-	if (error instanceof Error) return error.message;
-	if (typeof error === 'string') return error;
+type Redact = (text: string) => string;
+
+function describeError(error: unknown, redact: Redact): string {
+	if (error instanceof Error) return redact(error.message);
+	if (typeof error === 'string') return redact(error);
 	try {
-		return JSON.stringify(error);
+		// Scrub diagnostic values before JSON escaping can change the token's spelling.
+		const serialized = JSON.stringify(error, (_key, value: unknown) =>
+			typeof value === 'string' ? redact(value) : value
+		);
+		return redact(serialized ?? String(error));
 	} catch {
-		return String(error);
+		return redact(String(error));
 	}
 }
 
-function describeParseErrors(errors: unknown[]): string[] {
-	return errors.map(describeError);
+function describeParseErrors(errors: unknown[], redact: Redact): string[] {
+	return errors.map((error) => describeError(error, redact));
 }
 
-function recordSyncError(error: SyncError): void {
+function recordSyncError(error: SyncError, redact: Redact): string {
+	const { stage, message, cashierId } = error;
+	const safeMessage = redact(message);
+	const safeError: SyncError = { stage, message: safeMessage };
+	if (cashierId !== undefined) safeError.cashierId = redact(cashierId);
 	const syncErrors = syncFeedback.diagnostics?.syncErrors ?? [];
 	syncFeedback.diagnostics = {
 		...syncFeedback.diagnostics,
-		lastError: error.message,
-		syncErrors: [...syncErrors, error]
+		lastError: safeMessage,
+		syncErrors: [...syncErrors, safeError]
 	};
+	return safeMessage;
 }
 
 async function parseDownloadedLedger(
 	files: Map<string, string>,
-	entryPoint: string
+	entryPoint: string,
+	redact: Redact
 ): Promise<{ errors: unknown[]; confirmedIds: string[] }> {
 	await ensureInitialized();
 	const ledger = createLedger(Object.fromEntries(files), entryPoint);
@@ -88,7 +101,7 @@ async function parseDownloadedLedger(
 		);
 		if (confirmation.errors.length > 0) {
 			throw new Error(
-				`Failed to read server confirmation: ${describeParseErrors(confirmation.errors).join('; ')}`
+				`Failed to read server confirmation: ${describeParseErrors(confirmation.errors, redact).join('; ')}`
 			);
 		}
 		const confirmedIds = confirmation.rows.flatMap((row) =>
@@ -333,7 +346,10 @@ async function snapshotExistingFiles(paths: string[]): Promise<Map<string, strin
 	return snapshot;
 }
 
-async function restoreFiles(snapshot: Map<string, string | undefined>): Promise<string[]> {
+async function restoreFiles(
+	snapshot: Map<string, string | undefined>,
+	redact: Redact
+): Promise<string[]> {
 	const errors: string[] = [];
 	for (const [path, content] of snapshot) {
 		try {
@@ -343,7 +359,7 @@ async function restoreFiles(snapshot: Map<string, string | undefined>): Promise<
 				await saveSnapshotFile(path, content);
 			}
 		} catch (error) {
-			errors.push(`${path}: ${describeError(error)}`);
+			errors.push(`${path}: ${describeError(error, redact)}`);
 		}
 	}
 	return errors;
@@ -445,9 +461,18 @@ async function synchronize(): Promise<boolean> {
 	syncFeedback.diagnostics = { parseResult: 'skipped', refreshResult: 'skipped', syncErrors: [] };
 	const activeUrl = await settings.get<string>(SettingKeys.syncServerUrl);
 	if (!activeUrl) return false;
-	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken)) ?? '';
+	const apiToken = (await settings.get<string>(SettingKeys.syncApiToken))?.trim() ?? '';
+	// This credential belongs to this run. The Settings form may change before a response arrives.
+	const escapedToken = JSON.stringify(apiToken).slice(1, -1);
+	const redact: Redact = (message) => {
+		if (!apiToken) return message;
+		// Also cover JSON property names and diagnostic text already formatted upstream.
+		if (escapedToken !== apiToken) message = message.replaceAll(escapedToken, '[redacted]');
+		return message.replaceAll(apiToken, '[redacted]');
+	};
 	const sync = new CashierSyncBeancount(activeUrl, apiToken);
 	let hasRetryableWritebackFailure = false;
+	let bookSelectionChanged = false;
 	try {
 		// Send completed local entries before pulling the authoritative book.
 		updateSyncStep(0, 'in-progress');
@@ -482,16 +507,21 @@ async function synchronize(): Promise<boolean> {
 				for (const r of response.rejected) {
 					if (r.cashier_id) rejectedIds.push(r.cashier_id);
 					const message = r.reason || 'Transaction rejected';
-					recordSyncError({ stage: 'send', message, cashierId: r.cashier_id ?? undefined });
-					Notifier.warning(message);
+					Notifier.warning(
+						recordSyncError(
+							{ stage: 'send', message, cashierId: r.cashier_id ?? undefined },
+							redact
+						)
+					);
 				}
 				const unresolved = pending.filter(
 					(entry) => !synchronized.has(entry.cashierId) && !rejected.has(entry.cashierId)
 				);
 				for (const entry of unresolved) {
 					const message = 'Server omitted the transaction outcome; retry Sync to resolve it.';
-					recordSyncError({ stage: 'send', message, cashierId: entry.cashierId });
-					Notifier.warning(message);
+					Notifier.warning(
+						recordSyncError({ stage: 'send', message, cashierId: entry.cashierId }, redact)
+					);
 				}
 				if (response.rejected.length > 0 || unresolved.length > 0) {
 					hasRetryableWritebackFailure = true;
@@ -505,13 +535,14 @@ async function synchronize(): Promise<boolean> {
 		} catch (error) {
 			accepted = [];
 			hasRetryableWritebackFailure = true;
-			const message = `Failed to send local transactions: ${describeError(error)}`;
-			recordSyncError({ stage: 'send', message });
-			Notifier.warning(message);
+			const message = `Failed to send local transactions: ${describeError(error, redact)}`;
+			Notifier.warning(recordSyncError({ stage: 'send', message }, redact));
 			updateSyncStep(0, 'error');
 		}
 
-		const { paths, confirmedIds } = await synchronizeLedgerFiles(sync);
+		const downloaded = await synchronizeLedgerFiles(sync, redact);
+		const { paths, confirmedIds } = downloaded;
+		bookSelectionChanged = downloaded.bookSelectionChanged;
 
 		// Persist confirmed overlay removal before refreshing the combined book.
 		updateSyncStep(9, 'in-progress');
@@ -520,10 +551,10 @@ async function synchronize(): Promise<boolean> {
 			updateSyncStep(9, 'completed');
 		} catch (error) {
 			hasRetryableWritebackFailure = true;
-			const message = `Failed to reconcile local journal: ${describeError(error)}`;
-			recordSyncError({ stage: 'reconcile', message });
+			const message = `Failed to reconcile local journal: ${describeError(error, redact)}`;
+			const safeMessage = recordSyncError({ stage: 'reconcile', message }, redact);
 			updateSyncStep(9, 'error');
-			Notifier.warning(message);
+			Notifier.warning(safeMessage);
 			return false;
 		}
 		try {
@@ -532,26 +563,35 @@ async function synchronize(): Promise<boolean> {
 			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, refreshResult: 'ok' };
 		} catch (error) {
 			hasRetryableWritebackFailure = true;
-			recordSyncError({
-				stage: 'refresh',
-				message: `Failed to refresh local analysis: ${describeError(error)}`
-			});
+			recordSyncError(
+				{
+					stage: 'refresh',
+					message: `Failed to refresh local analysis: ${describeError(error, redact)}`
+				},
+				redact
+			);
 			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, refreshResult: 'error' };
 		}
 	} catch (error) {
-		console.error(error);
+		const message = describeError(error, redact);
+		// Do not log the original error: its stack, cause or other fields could contain the token.
+		console.error(new Error(message));
 		if ((syncFeedback.diagnostics?.syncErrors?.length ?? 0) === 0) {
-			recordSyncError({ stage: 'other', message: describeError(error) });
+			recordSyncError({ stage: 'other', message }, redact);
 		}
-		Notifier.error(describeError(error));
+		Notifier.error(message);
 		return false;
+	} finally {
+		// The downloaded files, selected root and journal reconciliation are settled now.
+		if (bookSelectionChanged) notifyBookSelectionChanged();
 	}
 	return !hasRetryableWritebackFailure;
 }
 
 async function synchronizeLedgerFiles(
-	sync: CashierSyncBeancount
-): Promise<{ paths: string[]; confirmedIds: string[] }> {
+	sync: CashierSyncBeancount,
+	redact: Redact
+): Promise<{ paths: string[]; confirmedIds: string[]; bookSelectionChanged: boolean }> {
 	let stage: SyncError['stage'] = 'pull';
 	let step = 6;
 	let previousBookFilename: string | null = null;
@@ -577,7 +617,7 @@ async function synchronizeLedgerFiles(
 		syncFeedback.diagnostics = {
 			...syncFeedback.diagnostics,
 			ledgerFilesCount: localFiles.size,
-			selectedRootBookFilename,
+			selectedRootBookFilename: redact(selectedRootBookFilename),
 			rootBookSize: rootBook.length
 		};
 		updateSyncStep(step, 'completed');
@@ -587,13 +627,14 @@ async function synchronizeLedgerFiles(
 		updateSyncStep(step, 'in-progress');
 		const { errors, confirmedIds } = await parseDownloadedLedger(
 			localFiles,
-			selectedRootBookFilename
+			selectedRootBookFilename,
+			redact
 		);
 		syncFeedback.diagnostics = {
 			...syncFeedback.diagnostics,
 			parseResult: errors.length > 0 ? 'error' : 'ok',
 			parseErrorCount: errors.length,
-			parseErrors: describeParseErrors(errors)
+			parseErrors: describeParseErrors(errors, redact)
 		};
 		if (errors.length > 0) {
 			throw new Error(
@@ -622,23 +663,27 @@ async function synchronizeLedgerFiles(
 		await settings.set(SettingKeys.bookFilename, selectedRootBookFilename);
 		updateSyncStep(step, 'completed');
 		Notifier.success('Ledger files downloaded to OPFS');
-		return { paths: Array.from(localFiles.keys()), confirmedIds };
+		return {
+			paths: Array.from(localFiles.keys()),
+			confirmedIds,
+			bookSelectionChanged: previousBookFilename !== selectedRootBookFilename
+		};
 	} catch (error) {
-		recordSyncError({ stage, message: describeError(error) });
+		recordSyncError({ stage, message: describeError(error, redact) }, redact);
 		if (stage === 'parse') {
 			syncFeedback.diagnostics = { ...syncFeedback.diagnostics, parseResult: 'error' };
 		}
 		updateSyncStep(step, 'error');
-		const recoveryErrors = await restoreFiles(attemptedWrites);
+		const recoveryErrors = await restoreFiles(attemptedWrites, redact);
 		if (selectingBook) {
 			try {
 				await settings.set(SettingKeys.bookFilename, previousBookFilename);
 			} catch (recoveryError) {
-				recoveryErrors.push(`Selected root: ${describeError(recoveryError)}`);
+				recoveryErrors.push(`Selected root: ${describeError(recoveryError, redact)}`);
 			}
 		}
 		for (const message of recoveryErrors) {
-			recordSyncError({ stage: 'pull', message: `Incomplete book recovery: ${message}` });
+			recordSyncError({ stage: 'pull', message: `Incomplete book recovery: ${message}` }, redact);
 		}
 		throw error;
 	}

@@ -34,7 +34,10 @@ function parseSingleAmount(value: unknown) {
 
 export class SecurityAnalyser {
 	currency: string | undefined;
-	constructor(private wasmQueryFn: QueryFn) {}
+	constructor(
+		private wasmQueryFn: QueryFn,
+		private valuation?: { accountFilter: string; currency: string }
+	) {}
 
 	/** Execute a query against the injected local full-book backend. */
 	private async query(command: string): Promise<Array<any>> {
@@ -50,7 +53,8 @@ export class SecurityAnalyser {
 	 * This value is affected by the recent purchases, which result in seemingly lower yield!
 	 */
 	async getYield(symbol: string): Promise<string> {
-		const currency = (await settings.get(SettingKeys.currency)) as string;
+		const currency =
+			this.valuation?.currency ?? (await settings.get<string>(SettingKeys.currency)) ?? '';
 		this.currency = currency;
 
 		const income = -(await this.#getIncomeBalance(symbol));
@@ -63,11 +67,11 @@ export class SecurityAnalyser {
 	}
 
 	async getGainLoss(symbol: string) {
-		const currency = await appService.getDefaultCurrency();
+		const currency = this.valuation?.currency ?? (await appService.getDefaultCurrency());
 		this.currency = currency;
 
 		const queries = getQueries();
-		const command = queries.gainLoss(symbol, currency);
+		const command = queries.gainLoss(symbol, currency, this.valuation?.accountFilter);
 
 		const report: Array<any> = await this.query(command);
 		if (report.length == 0) {
@@ -114,7 +118,7 @@ export class SecurityAnalyser {
 
 	async #getValueBalance(symbol: string, currency: string): Promise<number | undefined> {
 		const queries = getQueries();
-		const command = queries.valueBalance(symbol, currency);
+		const command = queries.valueBalance(symbol, currency, this.valuation?.accountFilter);
 
 		const [[balance] = []] = await this.query(command);
 		return balance == null ? undefined : BeancountParser.getMoneyFromTupleString(balance).quantity;

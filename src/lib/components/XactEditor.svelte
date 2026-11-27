@@ -79,7 +79,7 @@
 
 		const id = $selectionMetadata.selectedId as string;
 		if (id == undefined) {
-			console.warn('No item selected');
+			selectionMetadata.set(undefined);
 			Notifier.info('Selection canceled');
 			return;
 		}
@@ -117,22 +117,14 @@
 				break;
 			}
 
-			case 'amount':
-				// Handle amount selection from calculator
-				if (
-					$selectionMetadata.selectedId !== undefined &&
-					typeof $selectionMetadata.selectedId === 'number'
-				) {
-					const amount = $selectionMetadata.selectedId as number;
-					const index = $selectionMetadata.postingIndex;
-
-					if (index !== undefined && $xact?.postings[index]) {
-						setPostingAmount($xact.postings[index], amount);
-						xact.update((tx) => tx);
-					}
+			case 'amount': {
+				const { selectedId: amount, postingIndex: index } = $selectionMetadata;
+				if (typeof amount === 'string' && index !== undefined && $xact?.postings[index]) {
+					setPostingAmount($xact.postings[index], amount);
+					xact.update((tx) => tx);
 				}
-
 				break;
+			}
 		}
 
 		// reset the selection mode

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import type { StockSymbol } from '#lib/assetAllocation/AssetClass.js';
 	import {
 		SecurityAnalyser,
@@ -14,16 +15,21 @@
 	import { getQueries } from '#lib/sync/sync-queries.js';
 
 	import Loader from '@lucide/svelte/icons/loader';
-import X from '@lucide/svelte/icons/x';
-import Bug from '@lucide/svelte/icons/bug';
-import ChevronDown from '@lucide/svelte/icons/chevron-down';
-import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import X from '@lucide/svelte/icons/x';
+	import Bug from '@lucide/svelte/icons/bug';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import { onMount } from 'svelte';
 	import moment from 'moment';
+	import { get } from 'svelte/store';
+	import fullLedgerService from '#lib/services/ledgerWorkerClient';
 
 	const name = page.params.name;
 	let data = $state(page.data);
 	let cursor = $state('');
+	const workerVersion = fullLedgerService.version;
+	const workerReloading = fullLedgerService.isReloading;
+	const snapshotUnavailable = $derived($workerReloading || $workerVersion !== data.ledgerVersion);
 
 	// Lots per symbol (main view)
 	interface LotsData {
@@ -40,7 +46,6 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	let wasmVersion = $state('');
 	let accountsOpen = $state(false);
 	let assetClassValuesOpen = $state(false);
-	let rawAccountsResult: (RawQueryResult & { loaded: boolean }) | null = $state(null);
 	let symbolDebugOpen: Record<string, boolean> = $state({});
 
 	interface SymbolDebugData {
@@ -56,22 +61,30 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	onMount(async () => {
 		cursor = 'cursor-wait';
-		data.stocks = await loadSecurityAnalysis(data.wasmQuery as QueryFn, data.stocks as StockSymbol[]);
+		data.stocks = await loadSecurityAnalysis(
+			data.wasmQuery as QueryFn,
+			data.stocks as StockSymbol[]
+		);
 		cursor = '';
 	});
 
 	async function fetchAnalysisFor(queryFn: QueryFn, symbol: string): Promise<SecurityAnalysis> {
-		const svc = new SecurityAnalyser(queryFn);
+		const svc = new SecurityAnalyser(queryFn, {
+			accountFilter: data.accountFilter,
+			currency: data.currency
+		});
 		const [yieldResult, gainlossResult] = await Promise.allSettled([
 			svc.getYield(symbol),
 			svc.getGainLoss(symbol)
 		]);
-		const message = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
+		const message = (reason: unknown) =>
+			reason instanceof Error ? reason.message : String(reason);
 		return {
 			yield: yieldResult.status === 'fulfilled' ? yieldResult.value : 'n/a',
 			gainloss: gainlossResult.status === 'fulfilled' ? gainlossResult.value : 'n/a',
 			yieldError: yieldResult.status === 'rejected' ? message(yieldResult.reason) : undefined,
-			gainlossError: gainlossResult.status === 'rejected' ? message(gainlossResult.reason) : undefined
+			gainlossError:
+				gainlossResult.status === 'rejected' ? message(gainlossResult.reason) : undefined
 		};
 	}
 
@@ -92,10 +105,14 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 				const analysis = await fetchAnalysisFor(queryFn, symbol);
 				stock.analysis = analysis;
 				stock.loading = false;
-				if (analysis.yieldError === undefined && analysis.gainlossError === undefined) {
+				if (
+					analysis.yieldError === undefined &&
+					analysis.gainlossError === undefined &&
+					!get(workerReloading) &&
+					get(workerVersion) === data.ledgerVersion
+				) {
 					AaStocksStore.update((cache) => {
-						if (!cache) return cache;
-						return { ...cache, [symbol]: { ...cache[symbol], analysis } };
+						return { ...cache, [symbol]: { analysis } };
 					});
 				}
 			} catch (err) {
@@ -112,10 +129,12 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	async function loadLots(symbol: string) {
 		const queryFn = data.wasmQuery as WasmQueryFn;
-		const query = `SELECT account, date, position WHERE currency = '${symbol}' ORDER BY account`;
+		const query = `SELECT account, date, position WHERE ${data.accountFilter} AND currency = ${JSON.stringify(symbol)} ORDER BY account`;
 		lotsData[symbol] = { columns: [], rows: [], loading: true };
 		try {
 			const result = await queryFn(query);
+			if (result.errors.length)
+				throw new Error(result.errors.map((issue) => issue.message).join('; '));
 			lotsData[symbol] = { columns: result.columns, rows: result.rows, loading: false };
 		} catch (err) {
 			lotsData[symbol] = {
@@ -132,13 +151,6 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 		if (lotsOpen[symbol] && !lotsData[symbol]) {
 			loadLots(symbol);
 		}
-	}
-
-	function formatAccountBalances(balances: Record<string, number> | undefined): string {
-		if (!balances) return '';
-		return Object.entries(balances)
-			.map(([currency, amount]) => `${amount} ${currency}`)
-			.join(', ');
 	}
 
 	// --- Debug ---
@@ -160,12 +172,12 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 		try {
 			const incomeQuery = queries.incomeBalance(symbol, yieldFrom, currency);
-			const valueQuery = queries.valueBalance(symbol, currency);
-			const gainLossQuery = queries.gainLoss(symbol, currency);
+			const valueQuery = queries.valueBalance(symbol, currency, data.accountFilter);
+			const gainLossQuery = queries.gainLoss(symbol, currency, data.accountFilter);
 			// Isolates whether cost() or convert() is the problem
-			const costOnlyQuery = `SELECT str(cost(sum(position))) as cost WHERE currency = '${symbol}'`;
+			const costOnlyQuery = `SELECT str(cost(sum(position))) as cost WHERE ${data.accountFilter} AND currency = ${JSON.stringify(symbol)}`;
 			// Individual lots without aggregation
-			const rawPositionsQuery = `SELECT account, position as lot WHERE currency = '${symbol}' ORDER BY account`;
+			const rawPositionsQuery = `SELECT account, position as lot WHERE ${data.accountFilter} AND currency = ${JSON.stringify(symbol)} ORDER BY account`;
 
 			const [income, value, gainLoss, costOnly, rawPositions] = await Promise.all([
 				queryFn(incomeQuery),
@@ -192,36 +204,6 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 				loading: false,
 				error: err instanceof Error ? err.message : String(err)
 			};
-		}
-	}
-
-	async function toggleAccounts() {
-		accountsOpen = !accountsOpen;
-		if (accountsOpen && !rawAccountsResult) {
-			const queryFn = data.wasmQuery as WasmQueryFn;
-			const currency = data.currency as string;
-			const rootAccount = await import('#lib/settings').then(({ settings, SettingKeys }) =>
-				settings.get(SettingKeys.rootInvestmentAccount)
-			);
-			const accountsQuery = `SELECT account, str(value(sum(position), '${currency}')) as value,
-        sum(position) as balances
-		WHERE account ~ '^${rootAccount}'
-		GROUP BY account
-		HAVING number(value(sum(position), '${currency}')) != 0
-		ORDER BY account`;
-			rawAccountsResult = { query: accountsQuery, loaded: false, columns: [], rows: [], errors: [] };
-			try {
-				const result = await queryFn(accountsQuery);
-				rawAccountsResult = { query: accountsQuery, loaded: true, ...result };
-			} catch (err) {
-				rawAccountsResult = {
-					query: accountsQuery,
-					loaded: true,
-					columns: [],
-					rows: [],
-					errors: [{ message: err instanceof Error ? err.message : String(err) }]
-				};
-			}
 		}
 	}
 
@@ -258,282 +240,331 @@ import ChevronRight from '@lucide/svelte/icons/chevron-right';
 <article class="flex h-screen flex-col">
 	<Toolbar title="Asset Class Detail"></Toolbar>
 	<section class={`h-full p-1 ${cursor} overflow-y-auto touch-pan-y`}>
-		<p>{name}</p>
-		<p>Allocation: {data.assetClass?.allocation}</p>
-
-		{#if data.stocks?.length === 0}
-			<p>No securities assigned to this class.</p>
+		{#if snapshotUnavailable}
+			{#if $workerReloading}
+				<p role="status">Refreshing the selected book…</p>
+			{:else}
+				<p role="status">
+					The local book changed. <a class="link" href={resolve('/asset-allocation')}
+						>Return to Asset Allocation</a
+					> for current values.
+				</p>
+			{/if}
 		{:else}
-			<ul class="ms-4 mt-4">
-				{#each data.stocks || [] as stock (stock.name)}
-					<li class="mt-3">
-						<h6 class="h6 flex items-center gap-2">
-							• {stock.name}
-							{#if stock.loading}
-								<Loader class="h-4 w-4 animate-spin" />
-							{/if}
-						</h6>
-
-						<!-- Analysis -->
-						{#if stock.error}
-							<div class="text-error ms-3 flex items-center gap-1">
-								<X class="h-4 w-4" />
-								<span class="text-sm">Error loading analysis: {stock.error}</span>
-							</div>
-						{:else if stock.analysis}
-							<div class="ms-3">
-								Yield: <span class={Formatter.getColourForYield(stock.analysis.yield)}
-									>{stock.analysis.yield}</span
-								>
-								Gain/Loss:
-								<span class={Formatter.getColourForGainLoss(stock.analysis.gainloss)}
-									>{stock.analysis.gainloss}</span
-								>
-								{#if stock.analysis.yieldError !== undefined}
-									<p class="text-error text-sm">
-										Could not calculate yield: {stock.analysis.yieldError}
-									</p>
-								{/if}
-								{#if stock.analysis.gainlossError !== undefined}
-									<p class="text-error text-sm">
-										Could not calculate gain/loss: {stock.analysis.gainlossError}
-									</p>
-								{/if}
-							</div>
-						{/if}
-
-						<!-- Accounts -->
-						{#each stock.accounts as account (account.name)}
-							<div class="ms-3">
-								{account.name},
-								{formatAccountBalances(account.balances) || 'No balances'},
-								{account.currentValue?.toFixed(2)}
-								{account.currentCurrency}
-							</div>
+			<p>{name}</p>
+			<p>Allocation: {data.assetClass?.allocation}</p>
+			{#if !data.valuation.complete}
+				<div role="status">
+					<p>Current allocation values are unavailable.</p>
+					<ul class="list-disc ps-5">
+						{#each data.valuation.warnings as warning (warning)}
+							<li>{warning}</li>
 						{/each}
+					</ul>
+				</div>
+			{/if}
 
-						<!-- Lots -->
-						<div class="ms-3 mt-1">
-							<button
-								class="flex items-center gap-1 text-xs opacity-60 hover:opacity-100"
-								onclick={() => toggleLots(stock.name)}
-							>
-								{#if lotsOpen[stock.name]}
-									<ChevronDown class="h-3 w-3" />
-								{:else}
-									<ChevronRight class="h-3 w-3" />
+			{#if data.stocks?.length === 0}
+				<p>No securities assigned to this class.</p>
+			{:else}
+				<ul class="ms-4 mt-4">
+					{#each data.stocks || [] as stock (stock.name)}
+						<li class="mt-3">
+							<h6 class="h6 flex items-center gap-2">
+								• {stock.name}
+								{#if stock.loading}
+									<Loader class="h-4 w-4 animate-spin" />
 								{/if}
-								Lots
-							</button>
+							</h6>
 
-							{#if lotsOpen[stock.name]}
-								<div class="mt-1 font-mono text-xs">
-									{#if lotsData[stock.name]?.loading}
-										<span class="opacity-60">Loading…</span>
-									{:else if lotsData[stock.name]?.error}
-										<span class="text-error">{lotsData[stock.name].error}</span>
-									{:else if lotsData[stock.name]?.rows?.length}
-										<table class="border-collapse">
-											<thead>
-												<tr class="opacity-60">
-													{#each lotsData[stock.name].columns as col (col)}
-														<th class="pr-4 text-left font-normal">{col}</th>
-													{/each}
-												</tr>
-											</thead>
-											<tbody>
-												{#each lotsData[stock.name].rows as row, rowIndex (`${stock.name}:${rowIndex}`)}
-													<tr>
-														{#each row as cell, cellIndex (`${stock.name}:${rowIndex}:${cellIndex}`)}
-															<td class="pr-4">
-																{typeof cell === 'object' ? JSON.stringify(cell) : cell}
-															</td>
-														{/each}
-													</tr>
-												{/each}
-											</tbody>
-										</table>
-									{:else}
-										<span class="opacity-60">No lots found</span>
+							<!-- Analysis -->
+							{#if stock.error}
+								<div class="text-error ms-3 flex items-center gap-1">
+									<X class="h-4 w-4" />
+									<span class="text-sm">Error loading analysis: {stock.error}</span>
+								</div>
+							{:else if stock.analysis}
+								<div class="ms-3">
+									Yield: <span class={Formatter.getColourForYield(stock.analysis.yield)}
+										>{stock.analysis.yield}</span
+									>
+									Gain/Loss:
+									<span class={Formatter.getColourForGainLoss(stock.analysis.gainloss)}
+										>{stock.analysis.gainloss}</span
+									>
+									{#if stock.analysis.yieldError !== undefined}
+										<p class="text-error text-sm">
+											Could not calculate yield: {stock.analysis.yieldError}
+										</p>
+									{/if}
+									{#if stock.analysis.gainlossError !== undefined}
+										<p class="text-error text-sm">
+											Could not calculate gain/loss: {stock.analysis.gainlossError}
+										</p>
 									{/if}
 								</div>
 							{/if}
-						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
 
-		<!-- Debug Panel -->
-		<div class="mt-6 border-t pt-4">
-			<button
-				class="flex items-center gap-2 text-sm font-medium opacity-60 hover:opacity-100"
-				onclick={toggleDebug}
-			>
-				<Bug class="h-4 w-4" />
-				Debug
-				{#if debugOpen}
-					<ChevronDown class="h-4 w-4" />
-				{:else}
-					<ChevronRight class="h-4 w-4" />
-				{/if}
-			</button>
-
-			{#if debugOpen}
-				<div class="mt-3 space-y-6 font-mono text-xs">
-
-					<!-- Environment -->
-					<section>
-						<h3 class="mb-1 font-sans text-sm font-semibold">Environment</h3>
-						<table class="border-collapse">
-							<tbody>
-								<tr class="border-b">
-									<td class="pr-4 py-0.5 opacity-60">WASM version</td>
-									<td>{wasmVersion || 'Loading…'}</td>
-								</tr>
-							</tbody>
-						</table>
-					</section>
-
-					<!-- Asset Class Computed Values -->
-					<section>
-						<button
-							class="flex items-center gap-1 font-sans text-sm font-semibold hover:opacity-80"
-							onclick={() => (assetClassValuesOpen = !assetClassValuesOpen)}
-						>
-							{#if assetClassValuesOpen}<ChevronDown class="h-3 w-3" />{:else}<ChevronRight class="h-3 w-3" />{/if}
-							Asset Class Values
-						</button>
-						{#if assetClassValuesOpen && data.assetClass}
-							{@const ac = data.assetClass}
-							<table class="mt-1 border-collapse">
-								<tbody>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">fullname</td><td>{ac.fullname}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">allocation (target %)</td><td>{ac.allocation}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">allocatedValue</td><td>{ac.allocatedValue?.toString()} {ac.currency}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">currentValue</td><td>{ac.currentValue?.toString()} {ac.currency}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">currentAllocation %</td><td>{ac.currentAllocation}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diff (pp)</td><td>{ac.diff}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diffAmount</td><td>{ac.diffAmount}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">diffPerc %</td><td>{ac.diffPerc}</td></tr>
-									<tr class="border-b"><td class="pr-4 py-0.5 opacity-60">symbols</td><td>{ac.symbols?.join(', ')}</td></tr>
-								</tbody>
-							</table>
-						{/if}
-					</section>
-
-					<!-- All Investment Accounts Raw -->
-					<section>
-						<button
-							class="flex items-center gap-1 font-sans text-sm font-semibold hover:opacity-80"
-							onclick={toggleAccounts}
-						>
-							{#if accountsOpen}<ChevronDown class="h-3 w-3" />{:else}<ChevronRight class="h-3 w-3" />{/if}
-							All Investment Accounts ({data.investmentAccounts?.length ?? 0})
-						</button>
-						{#if accountsOpen}
-							{#if rawAccountsResult && !rawAccountsResult.loaded}
-								<div class="mt-1 flex items-center gap-2 opacity-60">
-									<Loader class="h-3 w-3 animate-spin" /> Loading…
+							<!-- Holdings share the allocation snapshot, not a second account valuation. -->
+							{#each stock.holdings as holding (holding.account)}
+								<div class="ms-3">
+									{holding.account}, {holding.quantity.toString()}
+									{holding.commodity} —
+									{#if data.valuation.complete && holding.value !== null}
+										{holding.value.toFixed(2)} {data.currency}
+									{:else}
+										Value unavailable
+									{/if}
 								</div>
-							{:else if rawAccountsResult}
-								<div class="mb-2 mt-1 break-all rounded bg-gray-100 p-2 dark:bg-gray-800">
-									<span class="opacity-60">Query:</span>
-									{rawAccountsResult.query}
-								</div>
-								{#if rawAccountsResult.errors?.length}
-									<div class="text-error mb-2">
-										Errors: {rawAccountsResult.errors.map((e: any) => e.message).join('; ')}
-									</div>
-								{/if}
-							{/if}
-							<table class="mt-1 w-full border-collapse text-left">
-								<thead>
-									<tr class="border-b opacity-60">
-										<th class="pr-3 py-0.5">Account</th>
-										<th class="pr-3 py-0.5">Balances (raw)</th>
-										<th class="pr-3 py-0.5">currentValue</th>
-										<th class="py-0.5">currency</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each data.investmentAccounts ?? [] as acct (acct.name)}
-										<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-900">
-											<td class="pr-3 py-0.5">{acct.name}</td>
-											<td class="pr-3 py-0.5">
-												{#each Object.entries(acct.balances ?? {}) as [cur, qty] (cur)}
-													<span class="mr-2">{qty} {cur}</span>
-												{/each}
-											</td>
-											<td class="pr-3 py-0.5">{acct.currentValue}</td>
-											<td class="py-0.5">{acct.currentCurrency}</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						{/if}
-					</section>
+							{/each}
 
-					<!-- Per-Symbol Raw Queries -->
-					<section>
-						<h3 class="mb-1 font-sans text-sm font-semibold">Per-Symbol Raw Queries</h3>
-						{#each data.stocks ?? [] as stock (stock.name)}
-							<div class="mt-2 rounded border">
+							<!-- Lots -->
+							<div class="ms-3 mt-1">
 								<button
-									class="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-900"
-									onclick={() => toggleSymbolDebug(stock.name)}
+									class="flex items-center gap-1 text-xs opacity-60 hover:opacity-100"
+									onclick={() => toggleLots(stock.name)}
 								>
-									{#if symbolDebugOpen[stock.name]}
-										<ChevronDown class="h-3 w-3 shrink-0" />
+									{#if lotsOpen[stock.name]}
+										<ChevronDown class="h-3 w-3" />
 									{:else}
-										<ChevronRight class="h-3 w-3 shrink-0" />
+										<ChevronRight class="h-3 w-3" />
 									{/if}
-									<span class="font-semibold">{stock.name}</span>
+									Lots
 								</button>
 
-								{#if symbolDebugOpen[stock.name]}
-									<div class="space-y-3 border-t px-2 py-2">
-										{#if symbolDebug[stock.name]?.loading}
-											<div class="flex items-center gap-2 opacity-60">
-												<Loader class="h-3 w-3 animate-spin" /> Running queries…
-											</div>
-										{:else if symbolDebug[stock.name]?.error}
-											<div class="text-error">{symbolDebug[stock.name].error}</div>
-										{:else if symbolDebug[stock.name]}
-											{@const sd = symbolDebug[stock.name]}
-
-											{#each [
-												{ label: 'income balance', result: sd.income },
-												{ label: 'value balance', result: sd.value },
-												{ label: 'gain/loss (cost + convert)', result: sd.gainLoss },
-												{ label: 'cost only (no convert) — isolates cost() vs convert()', result: sd.costOnly },
-												{ label: 'raw positions per lot', result: sd.rawPositions }
-											] as { label, result } (label)}
-												<div>
-													<div class="mb-0.5 opacity-60">{label}</div>
-													<div class="break-all rounded bg-gray-100 p-1 dark:bg-gray-800">{result?.query}</div>
-													{#if result?.errors?.length}
-														<div class="text-error">Errors: {result.errors.map((e: any) => e.message).join('; ')}</div>
-													{/if}
-													{#if result?.rows?.length}
-														<div class="mt-0.5 opacity-60">cols: {result.columns.join(', ')}</div>
-														{#each result.rows as row, rowIndex (`${stock.name}:${label}:${rowIndex}`)}
-															<div>{formatRow(row)}</div>
+								{#if lotsOpen[stock.name]}
+									<div class="mt-1 font-mono text-xs">
+										{#if lotsData[stock.name]?.loading}
+											<span class="opacity-60">Loading…</span>
+										{:else if lotsData[stock.name]?.error}
+											<span class="text-error">{lotsData[stock.name].error}</span>
+										{:else if lotsData[stock.name]?.rows?.length}
+											<table class="border-collapse">
+												<thead>
+													<tr class="opacity-60">
+														{#each lotsData[stock.name].columns as col (col)}
+															<th class="pr-4 text-left font-normal">{col}</th>
 														{/each}
-													{:else}
-														<div class="opacity-60">— no rows —</div>
-													{/if}
-												</div>
-											{/each}
+													</tr>
+												</thead>
+												<tbody>
+													{#each lotsData[stock.name].rows as row, rowIndex (`${stock.name}:${rowIndex}`)}
+														<tr>
+															{#each row as cell, cellIndex (`${stock.name}:${rowIndex}:${cellIndex}`)}
+																<td class="pr-4">
+																	{typeof cell === 'object' ? JSON.stringify(cell) : cell}
+																</td>
+															{/each}
+														</tr>
+													{/each}
+												</tbody>
+											</table>
+										{:else}
+											<span class="opacity-60">No lots found</span>
 										{/if}
 									</div>
 								{/if}
 							</div>
-						{/each}
-					</section>
-
-				</div>
+						</li>
+					{/each}
+				</ul>
 			{/if}
-		</div>
+
+			<!-- Debug Panel -->
+			<div class="mt-6 border-t pt-4">
+				<button
+					class="flex items-center gap-2 text-sm font-medium opacity-60 hover:opacity-100"
+					onclick={toggleDebug}
+				>
+					<Bug class="h-4 w-4" />
+					Debug
+					{#if debugOpen}
+						<ChevronDown class="h-4 w-4" />
+					{:else}
+						<ChevronRight class="h-4 w-4" />
+					{/if}
+				</button>
+
+				{#if debugOpen}
+					<div class="mt-3 space-y-6 font-mono text-xs">
+						<!-- Environment -->
+						<section>
+							<h3 class="mb-1 font-sans text-sm font-semibold">Environment</h3>
+							<table class="border-collapse">
+								<tbody>
+									<tr class="border-b">
+										<td class="pr-4 py-0.5 opacity-60">WASM version</td>
+										<td>{wasmVersion || 'Loading…'}</td>
+									</tr>
+								</tbody>
+							</table>
+						</section>
+
+						<!-- Asset Class Computed Values -->
+						<section>
+							<button
+								class="flex items-center gap-1 font-sans text-sm font-semibold hover:opacity-80"
+								onclick={() => (assetClassValuesOpen = !assetClassValuesOpen)}
+							>
+								{#if assetClassValuesOpen}<ChevronDown class="h-3 w-3" />{:else}<ChevronRight
+										class="h-3 w-3"
+									/>{/if}
+								Asset Class Values
+							</button>
+							{#if assetClassValuesOpen && data.assetClass}
+								{@const ac = data.assetClass}
+								<table class="mt-1 border-collapse">
+									<tbody>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">fullname</td><td>{ac.fullname}</td></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">allocation (target %)</td><td
+												>{ac.allocation}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">allocatedValue</td><td
+												>{#if data.valuation.complete}{ac.allocatedValue.toString()}
+													{ac.currency}{:else}Unavailable{/if}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">currentValue</td><td
+												>{#if data.valuation.complete}{ac.currentValue.toString()}
+													{ac.currency}{:else}Unavailable{/if}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">currentAllocation %</td><td
+												>{#if data.valuation.percentages}{ac.currentAllocation}{:else}Unavailable{/if}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">diff (pp)</td><td
+												>{#if data.valuation.percentages}{ac.diff}{:else}Unavailable{/if}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">diffAmount</td><td
+												>{#if data.valuation.complete}{ac.diffAmount}
+													{ac.currency}{:else}Unavailable{/if}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">diffPerc %</td><td
+												>{#if data.valuation.percentages && ac.allocation !== 0}{ac.diffPerc}{:else}Unavailable{/if}</td
+											></tr
+										>
+										<tr class="border-b"
+											><td class="pr-4 py-0.5 opacity-60">symbols</td><td
+												>{ac.symbols?.join(', ')}</td
+											></tr
+										>
+									</tbody>
+								</table>
+							{/if}
+						</section>
+
+						<!-- The same holdings snapshot used to calculate allocation. -->
+						<section>
+							<button
+								type="button"
+								class="flex items-center gap-1 font-sans text-sm font-semibold hover:opacity-80"
+								aria-expanded={accountsOpen}
+								onclick={() => (accountsOpen = !accountsOpen)}
+							>
+								{#if accountsOpen}<ChevronDown class="h-3 w-3" />{:else}<ChevronRight
+										class="h-3 w-3"
+									/>{/if}
+								Investment Holdings ({data.investmentHoldings.length})
+							</button>
+							{#if accountsOpen}
+								<table class="mt-1 w-full border-collapse text-left">
+									<thead>
+										<tr class="border-b opacity-60">
+											<th class="pr-3 py-0.5">Account</th>
+											<th class="pr-3 py-0.5">Units</th>
+											<th class="pr-3 py-0.5">Value ({data.currency})</th>
+										</tr>
+									</thead>
+									<tbody>
+										{#each data.investmentHoldings as holding (holding.account + ' ' + holding.commodity)}
+											<tr class="border-b hover:bg-gray-50 dark:hover:bg-gray-900">
+												<td class="pr-3 py-0.5">{holding.account}</td>
+												<td class="pr-3 py-0.5"
+													>{holding.quantity.toString()} {holding.commodity}</td
+												>
+												<td class="pr-3 py-0.5">
+													{data.valuation.complete && holding.value !== null
+														? holding.value.toFixed(2)
+														: 'Unavailable'}
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							{/if}
+						</section>
+
+						<!-- Per-Symbol Raw Queries -->
+						<section>
+							<h3 class="mb-1 font-sans text-sm font-semibold">Per-Symbol Raw Queries</h3>
+							{#each data.stocks ?? [] as stock (stock.name)}
+								<div class="mt-2 rounded border">
+									<button
+										class="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-900"
+										onclick={() => toggleSymbolDebug(stock.name)}
+									>
+										{#if symbolDebugOpen[stock.name]}
+											<ChevronDown class="h-3 w-3 shrink-0" />
+										{:else}
+											<ChevronRight class="h-3 w-3 shrink-0" />
+										{/if}
+										<span class="font-semibold">{stock.name}</span>
+									</button>
+
+									{#if symbolDebugOpen[stock.name]}
+										<div class="space-y-3 border-t px-2 py-2">
+											{#if symbolDebug[stock.name]?.loading}
+												<div class="flex items-center gap-2 opacity-60">
+													<Loader class="h-3 w-3 animate-spin" /> Running queries…
+												</div>
+											{:else if symbolDebug[stock.name]?.error}
+												<div class="text-error">{symbolDebug[stock.name].error}</div>
+											{:else if symbolDebug[stock.name]}
+												{@const sd = symbolDebug[stock.name]}
+
+												{#each [{ label: 'income balance', result: sd.income }, { label: 'value balance', result: sd.value }, { label: 'gain/loss (cost + convert)', result: sd.gainLoss }, { label: 'cost only (no convert) — isolates cost() vs convert()', result: sd.costOnly }, { label: 'raw positions per lot', result: sd.rawPositions }] as { label, result } (label)}
+													<div>
+														<div class="mb-0.5 opacity-60">{label}</div>
+														<div class="break-all rounded bg-gray-100 p-1 dark:bg-gray-800">
+															{result?.query}
+														</div>
+														{#if result?.errors?.length}
+															<div class="text-error">
+																Errors: {result.errors.map((e: any) => e.message).join('; ')}
+															</div>
+														{/if}
+														{#if result?.rows?.length}
+															<div class="mt-0.5 opacity-60">cols: {result.columns.join(', ')}</div>
+															{#each result.rows as row, rowIndex (`${stock.name}:${label}:${rowIndex}`)}
+																<div>{formatRow(row)}</div>
+															{/each}
+														{:else}
+															<div class="opacity-60">— no rows —</div>
+														{/if}
+													</div>
+												{/each}
+											{/if}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</section>
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</section>
 </article>

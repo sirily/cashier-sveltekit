@@ -34,7 +34,10 @@ vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 vi.mock('#lib/services/ledgerWorkerClient', () => ({
 	default: {
 		ensureLoaded: mocks.load,
-		query: mocks.balance,
+		query: (bql: string) =>
+			bql.startsWith('SELECT account WHERE')
+				? Promise.resolve({ columns: ['account'], rows: [], errors: [] })
+				: mocks.balance(bql),
 		getErrors: async () => [],
 		getAllAccounts: async () => [{ name: 'Assets:Cash' }]
 	}
@@ -52,8 +55,8 @@ vi.mock('#lib/data/mainStore', async () => {
 afterEach(cleanup);
 
 for (const result of [
-	{ columns: ['balance', 'currency'], rows: [[null, 'USD']], errors: [] },
-	{ columns: ['balance', 'currency'], rows: [], errors: ['Query failed'] },
+	{ columns: ['amount', 'currency'], rows: [[null, 'USD']], errors: [] },
+	{ columns: ['amount', 'currency'], rows: [], errors: ['Query failed'] },
 	{ columns: [], rows: [], errors: [] }
 ]) {
 	test(`unresolved baseline blocks creation: ${JSON.stringify(result)}`, async () => {
@@ -67,7 +70,7 @@ for (const result of [
 	});
 }
 test('successful empty account query proves zero, unlike a failed load', async () => {
-	mocks.balance.mockResolvedValue({ columns: ['balance', 'currency'], rows: [], errors: [] });
+	mocks.balance.mockResolvedValue({ columns: ['amount', 'currency'], rows: [], errors: [] });
 	const view = render(Page);
 	await waitFor(() => expect(view.getByLabelText('Current Balance')).toHaveProperty('value', '0'));
 	await fireEvent.input(view.getByLabelText('Current Balance'), { target: { value: '70' } });
@@ -90,7 +93,7 @@ beforeEach(async () => {
 	mocks.engineReady.mockResolvedValue(undefined);
 	mocks.currency.mockResolvedValue('GBP');
 	mocks.balance.mockResolvedValue({
-		columns: ['balance', 'currency'],
+		columns: ['amount', 'currency'],
 		rows: [
 			[290, 'GBP'],
 			[66.81, 'USD']
@@ -120,7 +123,7 @@ function deferredBalance() {
 	);
 	return () =>
 		finish({
-			columns: ['balance', 'currency'],
+			columns: ['amount', 'currency'],
 			rows: [
 				[290, 'GBP'],
 				[66.81, 'USD']

@@ -5,6 +5,7 @@ import db from '#lib/data/db';
 import { LastXact, Posting, Xact } from '#lib/data/model';
 import { settings, SettingKeys } from '#lib/settings';
 import { HomeCardNames } from '#lib/enums';
+import { homeCardOptions } from '#lib/navigation';
 import { DefaultCurrencyStore } from '#lib/data/mainStore';
 import { loadInvestmentAccounts } from './accountsService';
 import { get } from 'svelte/store';
@@ -14,6 +15,28 @@ import { readFile } from '#lib/utils/opfslib';
 import { CASHIER_XACT_FILE, USER_BOOK_FILENAME } from '#lib/constants';
 import { ensureInitialized, createParsedLedger } from './rustledger';
 import { mapDirectiveSpans } from '#lib/rledger/sourceEditor';
+
+const homeCardIds = new Set(homeCardOptions.map(({ id }) => id));
+const retiredHomeCardIds = new Set(['ForecastCard', 'ScheduledXactCard', 'SyncCard']);
+
+async function readHomeCardNames(): Promise<string[]> {
+	const saved = await settings.get<string[]>(SettingKeys.visibleCards);
+	if (!Array.isArray(saved)) return [HomeCardNames.ACCOUNT_GROUPS, HomeCardNames.JOURNAL];
+
+	const names: string[] = [];
+	const seen = new Set<string>();
+	for (const name of saved) {
+		if (typeof name !== 'string' || retiredHomeCardIds.has(name)) continue;
+		const id =
+			name === 'FavouritesCard' || name === 'shortcut:/accounts/groups'
+				? HomeCardNames.ACCOUNT_GROUPS
+				: name;
+		if (homeCardIds.has(id) && seen.has(id)) continue;
+		names.push(id);
+		seen.add(id);
+	}
+	return names;
+}
 
 class AppService {
 	/**
@@ -89,13 +112,20 @@ class AppService {
 	}
 
 	async getVisibleCards(): Promise<string[]> {
-		const visibleCardNames = await settings.get<string[]>(SettingKeys.visibleCards);
-		if (visibleCardNames === null) {
-			return [HomeCardNames.FAVOURITES, HomeCardNames.JOURNAL, HomeCardNames.SYNC];
+		return (await readHomeCardNames()).filter((id) => homeCardIds.has(id));
+	}
+
+	async saveVisibleCards(ids: readonly string[]): Promise<void> {
+		const selected = [...new Set(ids.filter((id) => homeCardIds.has(id)))];
+		const stored = await readHomeCardNames();
+		const next: string[] = [];
+		let index = 0;
+		// Fill the known card slots in the new order without dropping forward-compatible IDs.
+		for (const id of stored) {
+			if (!homeCardIds.has(id)) next.push(id);
+			else if (index < selected.length) next.push(selected[index++]);
 		}
-		return visibleCardNames.filter(
-			(name) => name !== 'ForecastCard' && name !== 'ScheduledXactCard'
-		);
+		await settings.set(SettingKeys.visibleCards, [...next, ...selected.slice(index)]);
 	}
 
 	/**
@@ -242,40 +272,6 @@ class AppService {
 
 		// return txs;
 	}
-
-	/**
-	 * Loads the favourite accounts.
-	 * @returns {Array} List of Account records which are marked as Favourites.
-	 */
-	// async loadFavouriteAccounts(): Promise<Account[]> {
-	// 	const favArray = await settings.get<string[]>(SettingKeys.favouriteAccounts);
-	// 	if (!favArray) {
-	// 		console.warn('No favourite accounts found.');
-	// 		return [];
-	// 	}
-
-	// 	// load account details
-	// 	const accounts: Account[] = await db.accounts.bulkGet(favArray);
-
-	// 	// Handle any accounts that have not been found.
-	// 	// Keep them in the list. They should be grayed out.
-	// 	for (let i = 0; i < accounts.length; i++) {
-	// 		let account = accounts[i];
-	// 		if (account === undefined) {
-	// 			// the account has been removed but the Favourites record exists.
-	// 			console.warn('Account marked as favourite but not found in Accounts.');
-
-	// 			account = new Account(favArray[i]);
-	// 			account.exists = false;
-	// 			accounts[i] = account;
-
-	// 			// accounts.splice(i, 1)
-	// 			// i--
-	// 		}
-	// 	}
-
-	// 	return accounts;
-	// }
 
 	// saveAccount(account: Account) {
 	// 	return db.accounts.put(account);

@@ -331,3 +331,23 @@ SHALL NOT replace the separate complete-book, zero-error gate for sync and overl
   not claim error-free complete results merely because a query succeeds
 - **AND** the sync/writeback gate checks the complete pulled book and zero errors separately
   before allowing reconciliation
+
+#### Scenario: Inspect the full book from Validation
+
+- **WHEN** the owner opens Validation under Utilities
+- **THEN** an action opens a separate inspector showing the full analysis book’s parsed directives and diagnostics
+- **AND** the inspector identifies its full-book scope and supports reloading without changing accounting source files
+- **AND** opening and returning from the inspector preserves access to the existing validation workflow
+
+#### Scenario: Diagnostic navigation is consolidated
+
+- **WHEN** the owner opens About
+- **THEN** it contains no Experiments section or ledger inspector links
+- **AND** application information and update controls remain available
+
+#### Scenario: Local-only inspector is retired
+
+- **WHEN** the owner attempts to open the retired local-only inspector directly
+- **THEN** no local-only inspection screen is offered
+- **AND** the request does not change stored journal or book source files
+- **AND** the full-book inspector remains accessible from Validation

@@ -66,6 +66,55 @@ async function validateAllocation(page: Page) {
 	await page.getByRole('menu').getByRole('button', { name: 'Validate', exact: true }).click();
 }
 
+test('Asset Allocation shows targets and current local values after an edited book', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedAllocation(page, 'allocation.toml', definition, {
+		source: `option "operating_currency" "EUR"
+2000-01-01 open Assets:Investments:Fund FUND
+2000-01-01 open Assets:Cash EUR
+2025-01-01 price FUND 15 EUR
+2025-01-01 * "Broker" "Buy fund"
+  Assets:Investments:Fund  2 FUND {10 EUR}
+  Assets:Cash            -20 EUR
+`
+	});
+	await page.goto('/asset-allocation');
+	await expect(page.getByText(/Valuation: EUR.*latest available prices/)).toBeVisible();
+	await expect(page.getByRole('columnheader', { name: 'Value (EUR)' })).toBeVisible();
+	const equity = page
+		.getByRole('row')
+		.filter({ has: page.getByRole('link', { name: 'Equity', exact: true }) });
+	await expect(equity.getByRole('cell')).toHaveText([
+		'Equity',
+		'100.00',
+		'100.00',
+		'0.00',
+		'30.00',
+		'30.00',
+		'0.00'
+	]);
+	await page.goto('/opfs/edit-file?file=cashier.bean');
+	const editor = page.locator('textarea');
+	await expect(editor).toHaveValue(/2025-01-01 price FUND 15 EUR/);
+	await editor.fill((await editor.inputValue()).replace('15 EUR', '25 EUR'));
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await expect(page.getByText('File saved successfully')).toBeVisible();
+	await page.goBack();
+	await expect(equity.getByRole('cell')).toHaveText([
+		'Equity',
+		'100.00',
+		'100.00',
+		'0.00',
+		'50.00',
+		'50.00',
+		'0.00'
+	]);
+	await equity.getByRole('link', { name: 'Equity' }).click();
+	await expect(page).toHaveURL(/\/assetclass-detail\/Allocation(?::|%3A)Equity$/i);
+});
+
 test('Asset Class Detail opens from the cold list and on direct reload without journal validation', async ({
 	page
 }) => {
@@ -116,6 +165,87 @@ test('Asset Class Detail shows USD gain when the GBP yield query fails', async (
 	await expect(card).not.toContainText('Error loading analysis');
 });
 
+test('Asset Class Detail shares scoped holdings and makes zero-target relative differences unavailable', async ({
+	page
+}) => {
+	await seedAllocation(
+		page,
+		'allocation.toml',
+		definition.replace(
+			'[Allocation.Equity]\nallocation = 100',
+			'[Allocation.Equity]\nallocation = 0'
+		),
+		{
+			source: `option "operating_currency" "EUR"
+2000-01-01 open Assets:Investments:Held FUND
+2000-01-01 open Assets:INVESTMENTS:Other FUND
+2000-01-01 open Assets:InvestmentsExtra:Other FUND
+2000-01-01 open Assets:Cash FUND
+2025-01-01 price FUND 3 EUR
+2025-01-02 * "Positions"
+  Assets:Investments:Held          5 FUND
+  Assets:INVESTMENTS:Other       800 FUND
+  Assets:InvestmentsExtra:Other   50 FUND
+  Assets:Cash                   -855 FUND
+`
+		}
+	);
+	await page.goto('/asset-allocation');
+	const equity = page
+		.getByRole('row')
+		.filter({ has: page.getByRole('link', { name: 'Equity', exact: true }) });
+	await expect(equity.getByRole('cell').nth(5)).toHaveText('15.00');
+	await equity.getByRole('link', { name: 'Equity', exact: true }).click();
+	const detail = page.getByRole('main');
+	await expect(detail.getByText('Assets:Investments:Held, 5 FUND — 15.00 EUR')).toBeVisible();
+	await expect(detail).not.toContainText(/InvestmentsExtra|INVESTMENTS:Other/);
+	await detail.getByRole('button', { name: 'Lots', exact: true }).click();
+	const lots = detail.getByRole('table');
+	await expect(lots.getByRole('cell', { name: 'Assets:Investments:Held' })).toBeVisible();
+	await expect(lots.getByRole('row')).toHaveCount(2);
+	await detail.getByRole('button', { name: 'Debug', exact: true }).click();
+	await detail.getByRole('button', { name: 'Asset Class Values', exact: true }).click();
+	const relative = detail
+		.getByRole('row')
+		.filter({ has: page.getByRole('cell', { name: 'diffPerc %', exact: true }) });
+	await expect(relative.getByRole('cell').last()).toHaveText('Unavailable');
+	await detail.getByRole('button', { name: 'Investment Holdings (1)', exact: true }).click();
+	await expect(detail.getByRole('columnheader', { name: 'Value (EUR)' })).toBeVisible();
+});
+
+test('Asset Class Detail keeps original units and hides incomplete holding values', async ({
+	page
+}) => {
+	await seedAllocation(
+		page,
+		'allocation.toml',
+		definition.replace('["FUND"]', '["FUND", "OTHER"]'),
+		{
+			source: `option "operating_currency" "EUR"
+2000-01-01 open Assets:Investments:Mixed FUND, OTHER
+2000-01-01 open Assets:Cash FUND, OTHER
+2025-01-01 price FUND 8 EUR
+2025-01-02 * "Hold two instruments"
+  Assets:Investments:Mixed   2 FUND
+  Assets:Cash               -2 FUND
+  Assets:Investments:Mixed   7 OTHER
+  Assets:Cash               -7 OTHER
+`
+		}
+	);
+	await page.goto('/asset-allocation');
+	await expect(page.getByRole('main').getByText(/No usable price for 7 OTHER/)).toBeVisible();
+	await page.getByRole('link', { name: 'Equity', exact: true }).click();
+	const detail = page.getByRole('main');
+	await expect(detail.getByText(/No usable price for 7 OTHER/)).toBeVisible();
+	await expect(
+		detail.getByText('Assets:Investments:Mixed, 2 FUND — Value unavailable')
+	).toBeVisible();
+	await expect(
+		detail.getByText('Assets:Investments:Mixed, 7 OTHER — Value unavailable')
+	).toBeVisible();
+});
+
 test('Asset Allocation Help opens the setup instructions and a loaded definition validates', async ({
 	page
 }) => {
@@ -147,6 +277,39 @@ test('Asset Allocation exports the loaded class hierarchy', async ({ page }) => 
 	);
 });
 
+test('Asset Allocation retains targets and links but hides incomplete valuation in the table and export', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await seedAllocation(page, 'allocation.toml', definition, {
+		source:
+			journal +
+			`2000-01-01 open Assets:Investments:First
+2000-01-01 open Assets:Investments:Second
+2025-03-01 * "Hold unpriced instruments"
+  Assets:Investments:First   7 UNMAPPED
+  Assets:Investments:Second  7 UNMAPPED
+  Assets:Cash              -14 UNMAPPED
+`
+	});
+	await page.goto('/asset-allocation');
+	const equity = page
+		.getByRole('row')
+		.filter({ has: page.getByRole('link', { name: 'Equity', exact: true }) });
+	await expect(equity.getByRole('cell')).toHaveText(['Equity', '100.00', '—', '—', '—', '—', '—']);
+	await expect(page.getByText('Incomplete valuation:', { exact: false })).toBeVisible();
+	await expect(page.getByText(/7 UNMAPPED is not mapped/)).toHaveCount(2);
+	await expect(page.getByText(/No usable price for 7 UNMAPPED in EUR/)).toHaveCount(2);
+	await page.locator('.navbar .dropdown > button').click();
+	const download = page.waitForEvent('download');
+	await page.getByRole('menu').getByRole('button', { name: 'Export', exact: true }).click();
+	const file = await download;
+	const text = await readFile(await file.path(), 'utf8');
+	expect(text).toContain('Incomplete valuation:');
+	expect(text).toContain('Valuation: EUR');
+	expect(text).toMatch(/Equity\s+100\.00(?:\s+—){6}/);
+});
+
 test('Asset Allocation Validate rejects a previously loaded definition deleted via File Storage', async ({
 	page
 }) => {
@@ -157,7 +320,7 @@ test('Asset Allocation Validate rejects a previously loaded definition deleted v
 
 	await navigateFromDrawer(page, 'File Storage');
 	const file = page.getByRole('row').filter({ hasText: path });
-	await file.getByRole('button').click();
+	await file.getByRole('button', { name: 'Delete ' + path }).click();
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await expect(file).toHaveCount(0);
 	await page.goBack();

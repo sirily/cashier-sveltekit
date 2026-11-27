@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import { tick } from 'svelte';
 	import Fab from '#lib/components/FAB.svelte';
-	import JournalXactRow from '#lib/components/JournalXactRow.svelte';
+	import JournalBody from '#lib/components/JournalBody.svelte';
 	import Toolbar from '#lib/components/Toolbar.svelte';
 	import ToolbarMenuItem from '#lib/components/ToolbarMenuItem.svelte';
 	import { Xact } from '#lib/data/model';
@@ -21,20 +20,7 @@
 
 	let isDeleteAllConfirmationOpen = $state(false);
 	let isDeletingAll = $state(false);
-	let listContainer: HTMLElement | undefined = $state();
-
-	const lsVersion = ledgerService.version;
-	let xactsWithSpans: Array<{ xact: Xact; span: DirectiveSpan }> = $state([]);
-
-	$effect(() => {
-		const _v = $lsVersion;
-		ledgerService.getXactsWithSpans().then((result) => {
-			xactsWithSpans = result;
-			tick().then(() => {
-				if (listContainer) listContainer.scrollTop = listContainer.scrollHeight;
-			});
-		});
-	});
+	let journalBody = $state<{ clear(): void }>();
 
 	function closeModal() {
 		isDeleteAllConfirmationOpen = false;
@@ -56,7 +42,7 @@
 				return;
 			}
 
-			xactsWithSpans = [];
+			journalBody?.clear();
 			// Both owners must refresh after the durable write, even if one refresh fails.
 			const refreshes = await Promise.allSettled([
 				fullLedgerService.invalidate(),
@@ -105,19 +91,7 @@
 		{/snippet}
 	</Toolbar>
 
-	<section class="grow space-y-2 p-1 pb-3" bind:this={listContainer}>
-		{#if xactsWithSpans.length === 0}
-			<p>The device journal is empty</p>
-		{:else}
-			{#each xactsWithSpans as item (item.span.startLine)}
-				<JournalXactRow
-					xact={item.xact}
-					onclick={() => onRowClick(item.xact, item.span)}
-					isLocal={true}
-				/>
-			{/each}
-		{/if}
-	</section>
+	<JournalBody recent={false} onselect={onRowClick} bind:this={journalBody} />
 
 	<Fab onclick={onFab} Icon={PlusIcon} />
 </article>

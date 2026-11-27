@@ -44,7 +44,45 @@ beforeEach(() => {
 	state.source = unsorted;
 	state.writes.mockClear();
 });
-afterEach(() => ledgerService.free());
+beforeEach(() => {
+	vi.stubGlobal('navigator', {
+		storage: {
+			getDirectory: async () => ({
+				getFileHandle: async () => ({ getFile: async () => ({ text: async () => state.source }) })
+			})
+		}
+	});
+});
+afterEach(() => {
+	ledgerService.free();
+	vi.unstubAllGlobals();
+});
+
+test('source-aware journal reads distinguish a denied OPFS read from an absent file', async () => {
+	const getFileHandle = vi
+		.fn()
+		.mockRejectedValue(new DOMException('Access denied', 'NotAllowedError'));
+	vi.stubGlobal('navigator', { storage: { getDirectory: async () => ({ getFileHandle }) } });
+	await expect(ledgerService.getXactsWithSpans()).rejects.toThrow('Access denied');
+	getFileHandle.mockRejectedValue(new DOMException('No journal exists', 'NotFoundError'));
+	await expect(ledgerService.getXactsWithSpans()).resolves.toEqual([]);
+	expect(getFileHandle.mock.calls).toEqual([['cashier.bean'], ['cashier.bean']]);
+	expect(state.writes).not.toHaveBeenCalled();
+});
+
+test('a syntax error is not an empty journal, while a comments-only journal is', async () => {
+	state.source = '2025-99-99 * "Bad date"\n  Assets:Cash 1 EUR\n  Expenses:Food -1 EUR\n';
+	await expect(ledgerService.getXactsWithSpans()).rejects.toThrow(
+		/Invalid journal source.*invalid date/i
+	);
+	state.source += '\n' + refund;
+	await expect(ledgerService.getXactsWithSpans()).rejects.toThrow(
+		/Invalid journal source.*invalid date/i
+	);
+	state.source = '; no local entries\n';
+	await expect(ledgerService.getXactsWithSpans()).resolves.toEqual([]);
+	expect(state.writes).not.toHaveBeenCalled();
+});
 
 test('real WASM directives are date sorted but document symbols are in source order', () => {
 	const ledger = new ParsedLedger(unsorted);
